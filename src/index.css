@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Marca: pino profundo + ocre */
+  --color-primary: #174a3b;
+  --color-primary-600: #1f5d4a;
+  --color-primary-700: #123c31;
+  --color-accent: #c5982a;
+  --color-danger: #b14a2b;
+  --color-success: #2f7d4f;
+  --color-surface: #f6f1e7;
+  --color-ink: #202423;
+
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Fraunces", Georgia, serif;
+
+  /* Fondos cálidos (slate -> gray cálido verdoso) */
+  --color-slate-50: #f7f6f2;
+  --color-slate-100: #eeeee6;
+  --color-slate-200: #e0e1d8;
+  --color-slate-300: #c7cbc0;
+  --color-slate-400: #a2a89c;
+  --color-slate-500: #838a80;
+  --color-slate-600: #61695f;
+  --color-slate-700: #48534b;
+  --color-slate-800: #33413a;
+  --color-slate-900: #212c26;
+  --color-slate-950: #171f1a;
+
+  /* Ocre / ámbar */
+  --color-amber-50: #fcf5e8;
+  --color-amber-100: #f7e6bf;
+  --color-amber-200: #f0d392;
+  --color-amber-300: #e6bd5e;
+  --color-amber-400: #d9a53c;
+  --color-amber-500: #c9952d;
+  --color-amber-600: #b57f1f;
+  --color-amber-700: #9a6815;
+  --color-amber-800: #7d5210;
+  --color-amber-900: #5f3c0c;
+
+  /* Éxito / verde hoja */
+  --color-emerald-50: #edf5ee;
+  --color-emerald-100: #d7e7da;
+  --color-emerald-200: #aed0b6;
+  --color-emerald-300: #85b892;
+  --color-emerald-400: #609c6f;
+  --color-emerald-500: #3f8a52;
+  --color-emerald-600: #2f7d4f;
+  --color-emerald-700: #21663e;
+  --color-emerald-800: #1a5233;
+  --color-emerald-900: #143f28;
+
+  /* Terracota */
+  --color-red-50: #fdf1ec;
+  --color-red-100: #f9dcd1;
+  --color-red-200: #f0bbaa;
+  --color-red-300: #e3967f;
+  --color-red-400: #d46b4f;
+  --color-red-500: #bd4e2c;
+  --color-red-600: #a4402a;
+  --color-red-700: #8c351c;
+  --color-red-800: #732b17;
+  --color-red-900: #572012;
+
+  /* Teal acero */
+  --color-blue-50: #eef4f3;
+  --color-blue-100: #d9e7e4;
+  --color-blue-200: #c2d8d4;
+  --color-blue-300: #9fc0ba;
+  --color-blue-400: #67a199;
+  --color-blue-500: #3f857c;
+  --color-blue-600: #27656a;
+  --color-blue-700: #2b6b62;
+  --color-blue-800: #23524c;
+  --color-blue-900: #1d413d;
+  --color-blue-950: #14302e;
+
+  /* Malva (devolución) */
+  --color-purple-50: #f6f1f8;
+  --color-purple-100: #e7dcec;
+  --color-purple-200: #d3bcdd;
+  --color-purple-300: #b795c8;
+  --color-purple-400: #976fa9;
+  --color-purple-500: #7c558f;
+  --color-purple-600: #65436f;
+  --color-purple-700: #53375c;
+  --color-purple-800: #3f2b47;
+  --color-purple-900: #2e2033;
+  --color-purple-950: #201722;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-surface text-ink font-sans antialiased;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+  .dark body {
+    @apply bg-slate-950 text-slate-100;
+  }
+  ::selection {
+    @apply bg-amber-200 text-slate-900;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base text-ink outline-none transition focus:border-primary-600 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-primary text-white shadow-sm hover:bg-primary-700;
+  }
+  .btn-secondary {
+    @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+  }
+  .btn-accent {
+    @apply bg-accent text-[#241d05] hover:bg-amber-600;
+  }
+  .btn-danger {
+    @apply bg-danger text-white hover:bg-red-700;
+  }
+  .btn-ghost {
+    @apply text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700;
+  }
+  .chip {
+    @apply rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+  .chip-ok {
+    @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300;
+  }
+  .chip-warn {
+    @apply bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300;
+  }
+  .chip-bad {
+    @apply bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300;
+  }
+  .chip-info {
+    @apply bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300;
+  }
+  .chip-devol {
+    @apply bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300;
+  }
+}
