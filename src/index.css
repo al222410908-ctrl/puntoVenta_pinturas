@@ -16,6 +16,12 @@
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: "Fraunces", Georgia, serif;
 
+  --animate-bounce-slow: bounce-slow 1.5s infinite;
+  @keyframes bounce-slow {
+    0%, 100% { transform: translateY(-3%); }
+    50% { transform: translateY(3%); }
+  }
+
   /* Fondos cálidos (slate -> gray cálido verdoso) */
   --color-slate-50: #f7f6f2;
   --color-slate-100: #eeeee6;

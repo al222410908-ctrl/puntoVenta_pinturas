@@ -1,6 +1,7 @@
 import { db } from './db'
 import type {
   Backup,
+  CashEntry,
   Payment,
   Product,
   Purchase,
@@ -9,8 +10,10 @@ import type {
   PurchaseOrderItem,
   Sale,
   SaleItem,
+  Tombstone,
 } from '../types'
 import { round2, uid } from '../lib/utils'
+import { notifyLocalChange } from '../lib/sync'
 
 export interface CartLine {
   productId: string
@@ -57,9 +60,11 @@ export async function registerSale(
       for (const item of items) {
         const product = await db.products.get(item.productId)
         if (product) {
-          await db.products.update(item.productId, {
-            stock: round2(product.stock - item.qty),
-          })
+          const next = round2(product.stock - item.qty)
+          if (next < 0) {
+            throw new Error(`Stock insuficiente para ${item.name}: solo hay ${round2(product.stock)} ${item.unit}(s)`)
+          }
+          await db.products.update(item.productId, { stock: next, updatedAt: sale.date })
         }
         await db.stockMovements.add({
           id: uid(),
@@ -74,27 +79,39 @@ export async function registerSale(
       }
     },
   )
+  notifyLocalChange()
   return sale
+}
+
+export async function markDeleted(
+  table: Tombstone['table'],
+  recordId: string,
+  at: number = Date.now(),
+): Promise<void> {
+  await db.tombstones.put({ id: `${table}:${recordId}`, table, recordId, at })
 }
 
 export async function undoLastSale(): Promise<Sale | null> {
   const last = await db.sales.orderBy('date').last()
   if (!last) return null
+  const now = Date.now()
   await db.transaction(
     'rw',
-    [db.sales, db.products, db.stockMovements],
+    [db.sales, db.products, db.stockMovements, db.tombstones],
     async () => {
       await db.sales.delete(last.id!)
+      await markDeleted('sales', last.id!, now)
       for (const item of last.items) {
         const product = await db.products.get(item.productId)
         if (product) {
           await db.products.update(item.productId, {
             stock: round2(product.stock + item.qty),
+            updatedAt: now,
           })
         }
         await db.stockMovements.add({
           id: uid(),
-          date: Date.now(),
+          date: now,
           type: 'devolucion',
           productId: item.productId,
           productName: item.name,
@@ -106,6 +123,7 @@ export async function undoLastSale(): Promise<Sale | null> {
       }
     },
   )
+  notifyLocalChange()
   return last
 }
 
@@ -151,6 +169,7 @@ export async function registerPurchase(
           await db.products.update(item.productId, {
             stock: round2(product.stock + item.qty),
             cost: item.unitCost,
+            updatedAt: purchase.date,
           })
         }
         await db.stockMovements.add({
@@ -166,6 +185,7 @@ export async function registerPurchase(
       }
     },
   )
+  notifyLocalChange()
   return purchase
 }
 
@@ -181,6 +201,7 @@ export async function adjustStock(
     async () => {
       await db.products.update(product.id, {
         stock: round2(product.stock + qty),
+        updatedAt: Date.now(),
       })
       await db.stockMovements.add({
         id: uid(),
@@ -194,6 +215,7 @@ export async function adjustStock(
       })
     },
   )
+  notifyLocalChange()
 }
 
 export async function createOrder(
@@ -213,30 +235,51 @@ export async function createOrder(
     status: 'pendiente',
   }
   await db.purchaseOrders.add(order)
+  notifyLocalChange()
   return order
 }
 
 export async function purchaseFromOrder(orderId: string): Promise<Purchase> {
   const order = await db.purchaseOrders.get(orderId)
   if (!order) throw new Error('Orden no encontrada')
-  const purchase = await registerPurchase(
-    order.supplierId,
-    order.items.map((i) => ({
-      productId: i.productId,
-      name: i.name,
-      unit: i.unit,
-      qty: i.qty,
-      unitCost: i.unitCost,
-      lineTotal: i.lineTotal,
-    })),
-    `Compra desde orden ${order.id.slice(0, 8)}`,
+  if (order.status !== 'pendiente') {
+    throw new Error('La orden ya no está pendiente')
+  }
+  let purchase!: Purchase
+  await db.transaction(
+    'rw',
+    [
+      db.purchaseOrders,
+      db.purchases,
+      db.products,
+      db.stockMovements,
+    ],
+    async () => {
+      const current = await db.purchaseOrders.get(orderId)
+      if (current && current.status !== 'pendiente') {
+        throw new Error('La orden ya fue recibida')
+      }
+      await db.purchaseOrders.update(orderId, { status: 'comprada' })
+      purchase = await registerPurchase(
+        order.supplierId,
+        order.items.map((i) => ({
+          productId: i.productId,
+          name: i.name,
+          unit: i.unit,
+          qty: i.qty,
+          unitCost: i.unitCost,
+          lineTotal: i.lineTotal,
+        })),
+        `Compra desde orden ${order.id.slice(0, 8)}`,
+      )
+    },
   )
-  await db.purchaseOrders.update(orderId, { status: 'comprada' })
   return purchase
 }
 
 export async function cancelOrder(orderId: string): Promise<void> {
   await db.purchaseOrders.update(orderId, { status: 'cancelada' })
+  notifyLocalChange()
 }
 
 export interface RestockSuggestion {
@@ -262,10 +305,52 @@ export async function restockSuggestions(): Promise<RestockSuggestion[]> {
       suggestedQty: suggestedQty(p),
       lineTotal: 0,
     }))
+    .filter((s) => s.suggestedQty > 0)
+}
+
+export async function addCashEntry(entry: Omit<CashEntry, 'id'>): Promise<CashEntry> {
+  const full: CashEntry = { id: uid(), ...entry }
+  await db.cashEntries.add(full)
+  notifyLocalChange()
+  return full
+}
+
+export async function deleteCashEntry(id: string): Promise<void> {
+  const now = Date.now()
+  await db.transaction('rw', [db.cashEntries, db.tombstones], async () => {
+    await db.cashEntries.delete(id)
+    await markDeleted('cashEntries', id, now)
+  })
+  notifyLocalChange()
+}
+
+export async function cashSummary() {
+  const [entries, sales, purchases] = await Promise.all([
+    db.cashEntries.toArray(),
+    db.sales.toArray(),
+    db.purchases.toArray(),
+  ])
+  const manualIn = entries
+    .filter((e) => e.type === 'ingreso')
+    .reduce((s, e) => s + e.amount, 0)
+  const manualOut = entries
+    .filter((e) => e.type === 'egreso')
+    .reduce((s, e) => s + e.amount, 0)
+  const salesTotal = sales.reduce((s, x) => s + x.total, 0)
+  const purchasesTotal = purchases.reduce((s, x) => s + x.total, 0)
+  return {
+    entries,
+    ingresos:
+      round2(salesTotal + manualIn),
+    egresos: round2(purchasesTotal + manualOut),
+    saldo: round2(salesTotal + manualIn - purchasesTotal - manualOut),
+    salesTotal: round2(salesTotal),
+    purchasesTotal: round2(purchasesTotal),
+  }
 }
 
 export async function exportBackup(): Promise<Backup> {
-  const [categories, suppliers, products, sales, purchases, purchaseOrders, stockMovements] =
+  const [categories, suppliers, products, sales, purchases, purchaseOrders, stockMovements, cashEntries] =
     await Promise.all([
       db.categories.toArray(),
       db.suppliers.toArray(),
@@ -274,9 +359,10 @@ export async function exportBackup(): Promise<Backup> {
       db.purchases.toArray(),
       db.purchaseOrders.toArray(),
       db.stockMovements.toArray(),
+      db.cashEntries.toArray(),
     ])
   return {
-    version: 1,
+    version: 2,
     exportedAt: Date.now(),
     categories,
     suppliers,
@@ -285,6 +371,7 @@ export async function exportBackup(): Promise<Backup> {
     purchases,
     purchaseOrders,
     stockMovements,
+    cashEntries,
   }
 }
 
@@ -299,6 +386,7 @@ export async function restoreBackup(data: Backup): Promise<void> {
       db.purchases,
       db.purchaseOrders,
       db.stockMovements,
+      db.cashEntries,
     ],
     async () => {
       await Promise.all([
@@ -309,6 +397,7 @@ export async function restoreBackup(data: Backup): Promise<void> {
         db.purchases.clear(),
         db.purchaseOrders.clear(),
         db.stockMovements.clear(),
+        db.cashEntries.clear(),
       ])
       await Promise.all([
         db.categories.bulkAdd(data.categories),
@@ -318,7 +407,9 @@ export async function restoreBackup(data: Backup): Promise<void> {
         db.purchases.bulkAdd(data.purchases),
         db.purchaseOrders.bulkAdd(data.purchaseOrders),
         db.stockMovements.bulkAdd(data.stockMovements),
+        data.cashEntries ? db.cashEntries.bulkAdd(data.cashEntries) : Promise.resolve(),
       ])
     },
   )
+  notifyLocalChange()
 }

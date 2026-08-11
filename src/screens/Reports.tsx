@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { toast } from 'sonner'
-import { BarChart3, Download, Upload, Wallet, CreditCard, TrendingUp, Coins, PackageOpen } from 'lucide-react'
+import { BarChart3, Download, Upload, Wallet, CreditCard, TrendingUp, Coins, PackageOpen, RefreshCw } from 'lucide-react'
 import { db } from '../db/db'
 import { exportBackup, restoreBackup } from '../db/repos'
 import type { Backup } from '../types'
 import { formatMoney, round2 } from '../lib/utils'
 import { Button, EmptyState, Segmented } from '../components/ui'
+import { syncNow, lastSyncAt } from '../lib/sync'
 
 type Range = 'hoy' | 'semana' | 'mes' | 'todo'
 
@@ -21,6 +22,8 @@ export default function Reports() {
   const [range, setRange] = useState<Range>('hoy')
   const sales = useLiveQuery(() => db.sales.toArray(), []) ?? []
   const fileRef = useRef<HTMLInputElement>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [, setLast] = useState(lastSyncAt())
 
   const start = useMemo(() => {
     const now = new Date()
@@ -99,6 +102,20 @@ export default function Reports() {
     toast.success('Respaldo exportado')
   }
 
+  const doSync = async () => {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      const r = await syncNow()
+      setLast(r.down)
+      toast.success(r.changed > 0 ? `Sincronizado (${r.changed} cambios)` : 'Todo sincronizado')
+    } catch (e) {
+      toast.error(e instanceof Error && e.message === 'Failed to fetch' ? 'Sin conexión con el servidor de sincronización' : 'Error al sincronizar')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const handleExportCsv = () => {
     if (filtered.length === 0) {
       toast.error('No hay ventas en este periodo')
@@ -139,7 +156,7 @@ export default function Reports() {
     try {
       const text = await file.text()
       const data = JSON.parse(text) as Backup
-      if (data.version !== 1) throw new Error('Formato no válido')
+      if (data.version !== 2 && (data as { version?: unknown }).version !== 1) throw new Error('Formato no válido')
       if (!window.confirm('Esto REEMPLAZARÁ todos los datos actuales con los del respaldo. ¿Continuar?')) return
       await restoreBackup(data)
       toast.success('Respaldo restaurado')
@@ -262,6 +279,26 @@ export default function Reports() {
         />
         <p className="text-xs text-slate-400">
           Los datos viven en este dispositivo. Exporta un respaldo cada cierto tiempo y guárdalo donde quieras.
+        </p>
+      </div>
+
+      <div className="card space-y-3 p-4">
+        <p className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-100"><RefreshCw className="h-4 w-4" />Sincronización</p>
+        <Button
+          onClick={() => void doSync()}
+          disabled={syncing}
+          className="w-full"
+        >
+          <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+          {syncing ? 'Sincronizando…' : 'Sincronizar ahora'}
+        </Button>
+        <p className="text-xs text-slate-400">
+          {lastSyncAt() > 0
+            ? `Última sincronización: ${new Date(lastSyncAt()).toLocaleString()}`
+            : 'Aún no se ha sincronizado con el servidor.'}
+        </p>
+        <p className="text-xs text-slate-400">
+          Unifica catálogo, ventas e inventario entre el celular y la computadora. Necesitas conexión a internet.
         </p>
       </div>
     </div>

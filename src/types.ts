@@ -10,6 +10,7 @@ export type Unit =
 export interface Category {
   id: string
   name: string
+  updatedAt?: number
 }
 
 export interface Supplier {
@@ -18,6 +19,7 @@ export interface Supplier {
   contact?: string
   phone?: string
   notes?: string
+  updatedAt?: number
 }
 
 export interface Product {
@@ -39,6 +41,7 @@ export interface Product {
   isPackage?: boolean
   pkgUnits?: number
   pkgQty?: number
+  updatedAt?: number
 }
 
 export type PaymentType = 'efectivo' | 'tarjeta'
@@ -121,8 +124,35 @@ export interface StockMovement {
   refId?: string
 }
 
+export type CashType = 'ingreso' | 'egreso'
+
+export interface CashEntry {
+  id: string
+  date: number
+  type: CashType
+  concept: string
+  category?: string
+  amount: number
+  note?: string
+}
+
+export interface Tombstone {
+  id: string // `${table}:${recordId}`
+  table:
+    | 'products'
+    | 'categories'
+    | 'suppliers'
+    | 'sales'
+    | 'purchases'
+    | 'purchaseOrders'
+    | 'stockMovements'
+    | 'cashEntries'
+  recordId: string
+  at: number
+}
+
 export interface Backup {
-  version: 1
+  version: 2
   exportedAt: number
   categories: Category[]
   suppliers: Supplier[]
@@ -131,4 +161,5 @@ export interface Backup {
   purchases: Purchase[]
   purchaseOrders: PurchaseOrder[]
   stockMovements: StockMovement[]
+  cashEntries: CashEntry[]
 }

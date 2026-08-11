@@ -3,6 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, Package, Tag, Truck, Search, Sparkles, ImagePlus, Image as ImageIcon, Calculator, Check, Download, Upload } from 'lucide-react'
 import { db } from '../db/db'
+import { markDeleted } from '../db/repos'
+import { notifyLocalChange } from '../lib/sync'
 import type { Category, Product, Supplier, Unit } from '../types'
 import { UNITS } from '../lib/units'
 import { formatMoney, round2, uid } from '../lib/utils'
@@ -55,15 +57,16 @@ const EMPTY_PRODUCT = {
   minStock: '0',
 }
 
-const CSV_HEAD = ['Nombre', 'Código barras', 'Código compra', 'Categoría', 'Proveedor', 'Unidad', 'Fraccionario', 'Precio', 'Costo', 'Stock', 'Mínimo']
+const CSV_HEAD = ['Nombre', 'Código barras', 'Código compra', 'Categoría', 'Proveedor', 'Unidad', 'Fraccionario', 'Precio', 'Costo', 'Stock', 'Mínimo', 'Es paquete', 'Unidades por paquete']
 
 function csvEsc(v: unknown) {
   return `"${String(v ?? '').replace(/\r?\n/g, ' ').replace(/"/g, '""')}"`
 }
 
 function csvJoin() {
-  const example = ['Pintura vinílica blanca 4L', '7501002', '8762378', 'Pinturas', 'Comex', 'Litro', '', '320', '250', '7', '6']
-  return [CSV_HEAD, example].map((r) => r.map(csvEsc).join(',')).join('\r\n')
+  const example = ['Pintura vinílica blanca 4L', '7501002', '8762378', 'Pinturas', 'Comex', 'Litro', '', '320', '250', '7', '6', '', '']
+  const examplePkg = ['Clavo de acero 2"', '7503001', '', 'Ferretería', 'Distribuidora El Sol', 'Pieza', '', '0.6', '0.4', '100', '150', 'Sí', '50']
+  return [CSV_HEAD, example, examplePkg].map((r) => r.map(csvEsc).join(',')).join('\r\n')
 }
 
 function downloadCsv(filename: string, text: string) {
@@ -162,7 +165,7 @@ function ProductList() {
       if (existing) catIds[name] = existing.id
       else {
         const id = uid()
-        await db.categories.add({ id, name })
+        await db.categories.add({ id, name, updatedAt: Date.now() })
         catIds[name] = id
       }
     }
@@ -172,7 +175,7 @@ function ProductList() {
       if (existing) supIds[s.name] = existing.id
       else {
         const id = uid()
-        await db.suppliers.add({ id, ...s })
+        await db.suppliers.add({ id, ...s, updatedAt: Date.now() })
         supIds[s.name] = id
       }
     }
@@ -182,11 +185,13 @@ function ProductList() {
         return {
           ...rest,
           id: uid(),
+          updatedAt: Date.now(),
           categoryId: catIds[category],
           supplierId: supIds[supplier],
         }
       }),
     )
+    notifyLocalChange()
     toast.success('10 productos de ejemplo cargados')
   }
 
@@ -203,6 +208,8 @@ function ProductList() {
       String(p.cost),
       String(p.stock),
       String(p.minStock),
+      p.isPackage ? 'Sí' : '',
+      p.isPackage ? String(p.pkgUnits ?? '') : '',
     ])]
     downloadCsv(`productos-${new Date().toISOString().slice(0, 10)}.csv`, rows.map((r) => r.map(csvEsc).join(',')).join('\r\n'))
     toast.success(`Catálogo exportado (${filtered.length} productos)`)
@@ -235,6 +242,8 @@ function ProductList() {
         const unit = UNITS.find((u) => u.label.toLowerCase() === unitLabel.toLowerCase())?.value ?? 'pieza'
         const fractional = ['sí', 'si', '1', 'verdadero', 'true'].includes(row[headerIdx('fraccionario')]?.toLowerCase() ?? '')
           || (unit !== 'pieza' && unit !== 'metro' && !unitLabel)
+        const isPackage = ['sí', 'si', '1', 'verdadero', 'true'].includes(row[headerIdx('espaquete')]?.toLowerCase() ?? '')
+        const pkgUnits = isPackage ? parseFloat(row[headerIdx('unidadesporpaquete')] || '0') || 0 : 0
         const cost = parseFloat(row[headerIdx('costo')] || '0') || 0
         const stock = parseFloat(row[headerIdx('stock')] || '0') || 0
         const minStock = parseFloat(row[headerIdx('mínimo')] || '0') || 0
@@ -246,7 +255,7 @@ function ProductList() {
           if (existingC) categoryId = existingC.id
           else {
             categoryId = uid()
-            await db.categories.add({ id: categoryId, name: catName2 })
+            await db.categories.add({ id: categoryId, name: catName2, updatedAt: Date.now() })
           }
         }
         let supplierId
@@ -255,7 +264,7 @@ function ProductList() {
           if (existingS) supplierId = existingS.id
           else {
             supplierId = uid()
-            await db.suppliers.add({ id: supplierId, name: supName2, contact: '', phone: '' })
+            await db.suppliers.add({ id: supplierId, name: supName2, contact: '', phone: '', updatedAt: Date.now() })
           }
         }
 const data = {
@@ -264,23 +273,27 @@ const data = {
           purchaseCode: row[headerIdx('codigocompra')] || undefined,
           categoryId,
           supplierId,
-          unit: unit as Unit,
-          fractional,
+          unit: (isPackage ? 'pieza' : unit) as Unit,
+          fractional: isPackage ? false : fractional,
           price,
           cost,
           stock,
           minStock,
+          isPackage: isPackage || undefined,
+          pkgUnits: isPackage && pkgUnits > 0 ? pkgUnits : undefined,
+          pkgQty: isPackage && pkgUnits > 0 ? round2(stock / pkgUnits) : undefined,
         }
         const existing = await db.products.where('name').equals(name).first()
         if (existing) {
-          await db.products.update(existing.id, data)
+          await db.products.update(existing.id, { ...data, updatedAt: Date.now() })
           updated++
         } else {
-          await db.products.add({ ...data, id: uid() })
+          await db.products.add({ ...data, id: uid(), updatedAt: Date.now() })
           added++
         }
       }
       const msg = `Importados: ${added} nuevos, ${updated} actualizados${skipped ? `, ${skipped} omitidos` : ''}`
+      notifyLocalChange()
       if (added + updated === 0) toast.error(msg)
       else toast.success(msg)
     } catch {
@@ -389,7 +402,12 @@ const data = {
           <Button
             className="btn-danger"
             onClick={() => {
-              if (confirmDelete) void db.products.delete(confirmDelete.id)
+              if (confirmDelete) {
+                void db.transaction('rw', [db.products, db.tombstones], async () => {
+                  await db.products.delete(confirmDelete.id)
+                  await markDeleted('products', confirmDelete.id)
+                }).then(() => notifyLocalChange())
+              }
               setConfirmDelete(null)
               toast.success('Producto eliminado')
             }}
@@ -446,6 +464,30 @@ function ProductForm({
 
   const [calc, setCalc] = useState({ value: '', margin: '16', factor: '2' })
   const [res, setRes] = useState<{ cost: string; price: string }>({ cost: '', price: '' })
+  const [mlQuery, setMlQuery] = useState('')
+  const [ml, setMl] = useState<{ loading: boolean; items: { title: string; price: number; permalink?: string }[] }>({ loading: false, items: [] })
+
+  const buscarML = async (query: string) => {
+    if (!query.trim()) {
+      toast.error('Escribe un nombre para buscar')
+      return
+    }
+    setMl({ loading: true, items: [] })
+    try {
+      const url = `https://api.mercadolibre.com/sites/MLM/search?q=${encodeURIComponent(query.trim())}&limit=6`
+      const resp = await fetch(url)
+      if (!resp.ok) throw new Error('Sin respuesta de Mercado Libre')
+      const data = (await resp.json()) as { results?: { title: string; price: number; permalink?: string }[] }
+      const items = (data.results ?? []).filter((r) => r.price > 0)
+      if (items.length === 0) {
+        toast.error('Mercado Libre no encontró resultados')
+      }
+      setMl({ loading: false, items })
+    } catch (e) {
+      setMl({ loading: false, items: [] })
+      toast.error(e instanceof Error ? e.message : 'Error al buscar en Mercado Libre')
+    }
+  }
   const handleCalcInput = (key: keyof typeof calc, value: string) => {
     const next = { ...calc, [key]: value }
     setCalc(next)
@@ -564,10 +606,12 @@ if (!(unit > 0) || !(price > 0)) {
       pkgQty,
     }
     if (product) {
-      await db.products.update(product.id, data)
+      await db.products.update(product.id, { ...data, updatedAt: Date.now() })
+      notifyLocalChange()
       toast.success('Producto actualizado')
     } else {
-      await db.products.add({ ...data, id: uid() })
+      await db.products.add({ ...data, id: uid(), updatedAt: Date.now() })
+      notifyLocalChange()
       toast.success('Producto agregado')
     }
     onClose()
@@ -738,6 +782,49 @@ if (!(unit > 0) || !(price > 0)) {
                 Aplicar costo y precio
               </Button>
             </div>
+            <div className="mt-3 border-t border-amber-200 pt-3 dark:border-amber-800">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-accent" />
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  Asistente de precios (Mercado Libre)
+                </p>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <Input
+                  value={mlQuery}
+                  onChange={(e) => setMlQuery(e.target.value)}
+                  placeholder={form.name || 'Ej. Pintura vinílica 19L'}
+                  className="text-sm"
+                />
+                <Button
+                  className="btn-secondary shrink-0 px-3 py-1.5 text-xs"
+                  disabled={ml.loading}
+                  onClick={() => void buscarML(mlQuery || form.name)}
+                >
+                  {ml.loading ? 'Buscando…' : 'Buscar'}
+                </Button>
+              </div>
+              {ml.items.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {ml.items.map((it, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-white/70 px-2 py-1.5 dark:bg-slate-800">
+                      <a
+                        href={it.permalink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="line-clamp-2 min-w-0 text-xs text-slate-600 hover:text-primary dark:text-slate-300"
+                      >
+                        {it.title}
+                      </a>
+                      <span className="shrink-0 text-sm font-bold text-slate-800 dark:text-slate-100">{formatMoney(it.price)}</span>
+                      <Button className="btn-secondary shrink-0 px-2 py-1 text-xs" onClick={() => { set('price', String(round2(it.price))); toast.success('Precio aplicado (edítalo si quieres redondear)') }}>
+                        Usar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -793,6 +880,19 @@ if (!(unit > 0) || !(price > 0)) {
 function CategoryList() {
   const categories = useLiveQuery(() => db.categories.toArray(), []) ?? []
   const [name, setName] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState<Category | null>(null)
+
+  const deleteCategory = async (c: Category) => {
+    const products = await db.products.toArray()
+    const ids = products.filter((p) => p.categoryId === c.id).map((p) => p.id)
+    await db.transaction('rw', [db.categories, db.products, db.tombstones], async () => {
+      await db.categories.delete(c.id)
+      await markDeleted('categories', c.id)
+      await Promise.all(ids.map((id) => db.products.update(id, { categoryId: undefined, updatedAt: Date.now() })))
+    })
+    notifyLocalChange()
+    toast.success(`Categoría "${c.name}" eliminada${ids.length ? ` (${ids.length} producto${ids.length === 1 ? '' : 's'} sin categoría)` : ''}`)
+  }
 
   return (
     <div>
@@ -801,7 +901,7 @@ function CategoryList() {
         onSubmit={(e) => {
           e.preventDefault()
           if (!name.trim()) return
-          void db.categories.add({ id: uid(), name: name.trim() })
+          void db.categories.add({ id: uid(), name: name.trim(), updatedAt: Date.now() }).then(() => notifyLocalChange())
           setName('')
           toast.success('Categoría agregada')
         }}
@@ -817,7 +917,7 @@ function CategoryList() {
             <div key={c.id} className="card flex items-center justify-between p-3">
               <span className="font-medium text-slate-800 dark:text-slate-100">{c.name}</span>
               <button
-                onClick={() => void db.categories.delete(c.id)}
+                onClick={() => setConfirmDelete(c)}
                 className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
               >
                 <Trash2 className="h-4 w-4" />
@@ -826,6 +926,24 @@ function CategoryList() {
           ))}
         </div>
       )}
+
+      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="Eliminar categoría">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          ¿Eliminar <b>{confirmDelete?.name}</b>? Los productos que la usan quedarán sin categoría (no se borran).
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
+          <Button
+            className="btn-danger"
+            onClick={() => {
+              if (confirmDelete) void deleteCategory(confirmDelete)
+              setConfirmDelete(null)
+            }}
+          >
+            Eliminar
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -834,6 +952,19 @@ function SupplierList() {
   const suppliers = useLiveQuery(() => db.suppliers.toArray(), []) ?? []
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Supplier | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Supplier | null>(null)
+
+  const deleteSupplier = async (s: Supplier) => {
+    const products = await db.products.toArray()
+    const ids = products.filter((p) => p.supplierId === s.id).map((p) => p.id)
+    await db.transaction('rw', [db.suppliers, db.products, db.tombstones], async () => {
+      await db.suppliers.delete(s.id)
+      await markDeleted('suppliers', s.id)
+      await Promise.all(ids.map((id) => db.products.update(id, { supplierId: undefined, updatedAt: Date.now() })))
+    })
+    notifyLocalChange()
+    toast.success(`Proveedor "${s.name}" eliminado${ids.length ? ` (${ids.length} producto${ids.length === 1 ? '' : 's'} sin proveedor)` : ''}`)
+  }
 
   return (
     <div>
@@ -846,13 +977,18 @@ function SupplierList() {
         <div className="space-y-2">
           {suppliers.map((s) => (
             <div key={s.id} className="card flex items-center justify-between p-3">
-              <div>
+              <div className="mr-2 min-w-0">
                 <p className="font-medium text-slate-800 dark:text-slate-100">{s.name}</p>
-                <p className="text-xs text-slate-400">{s.contact ?? ''}{s.phone ? ` · ${s.phone}` : ''}</p>
+                <p className="truncate text-xs text-slate-400">{s.contact ?? ''}{s.phone ? ` · ${s.phone}` : ''}</p>
               </div>
-              <button onClick={() => setEditing(s)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">
-                <Pencil className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <button onClick={() => setEditing(s)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button onClick={() => setConfirmDelete(s)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -860,6 +996,24 @@ function SupplierList() {
       {(creating || editing) && (
         <SupplierForm supplier={editing} onClose={() => { setCreating(false); setEditing(null) }} />
       )}
+
+      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="Eliminar proveedor">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          ¿Eliminar <b>{confirmDelete?.name}</b>? Los productos que lo usan quedarán sin proveedor (no se borran).
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button className="btn-secondary" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
+          <Button
+            className="btn-danger"
+            onClick={() => {
+              if (confirmDelete) void deleteSupplier(confirmDelete)
+              setConfirmDelete(null)
+            }}
+          >
+            Eliminar
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -884,10 +1038,12 @@ function SupplierForm({ supplier, onClose }: { supplier: Supplier | null; onClos
       notes: form.notes.trim() || undefined,
     }
     if (supplier) {
-      await db.suppliers.update(supplier.id, data)
+      await db.suppliers.update(supplier.id, { ...data, updatedAt: Date.now() })
+      notifyLocalChange()
       toast.success('Proveedor actualizado')
     } else {
-      await db.suppliers.add({ ...data, id: uid() })
+      await db.suppliers.add({ ...data, id: uid(), updatedAt: Date.now() })
+      notifyLocalChange()
       toast.success('Proveedor agregado')
     }
     onClose()

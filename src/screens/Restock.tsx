@@ -167,7 +167,14 @@ function Suggestion() {
               return (
                 <div key={r.product.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{r.product.name}</p>
+                    <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                      {r.product.name}
+                      {r.product.purchaseCode && (
+                        <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-300">
+                          Compra {r.product.purchaseCode}
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-slate-400">
                       Stock {formatQty(r.product.stock, r.product.unit)} · Mínimo {formatQty(r.product.minStock, r.product.unit)}
                       {isPkg && r.product.pkgUnits ? ` · ${r.product.pkgUnits} pza/paquete` : ''}

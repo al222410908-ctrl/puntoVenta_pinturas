@@ -61,6 +61,10 @@ function Adjustments() {
       toast.error('Selecciona producto y una cantidad distinta de cero')
       return
     }
+    if (product.stock + delta < 0) {
+      toast.error(`No se puede dejar stock negativo: solo hay ${formatQty(product.stock, product.unit)}`)
+      return
+    }
     setBusy(true)
     try {
       await adjustStock(product, delta, note.trim() || undefined)

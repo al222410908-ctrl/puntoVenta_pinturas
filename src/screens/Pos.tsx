@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { toast } from 'sonner'
 import {
@@ -28,6 +28,7 @@ export default function Pos() {
 
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState<string>('')
+  const [visible, setVisible] = useState(80)
   const [cart, setCart] = useState<CartLine[]>([])
   const [cartOpen, setCartOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
@@ -35,18 +36,21 @@ export default function Pos() {
   const [cash, setCash] = useState('')
   const [card, setCard] = useState('')
 
-  const filtered = useMemo(() => {
+  const allFiltered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return products
-      .filter((p) => !categoryId || p.categoryId === categoryId)
-      .filter(
-        (p) =>
-          !q ||
-          p.name.toLowerCase().includes(q) ||
-          (p.barcode ?? '').replace(/\s|-/g, '').includes(q.replace(/\s|-/g, '')),
-      )
-      .slice(0, 80)
+    return products.filter((p) => !categoryId || p.categoryId === categoryId).filter(
+      (p) =>
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        (p.barcode ?? '').replace(/\s|-/g, '').includes(q.replace(/\s|-/g, '')),
+    )
   }, [products, search, categoryId])
+
+  const filtered = useMemo(() => allFiltered.slice(0, visible), [allFiltered, visible])
+
+  useEffect(() => {
+    setVisible(80)
+  }, [search, categoryId])
 
   const cartTotal = round2(cart.reduce((s, l) => s + l.qty * l.unitPrice, 0))
   const cartCount = cart.reduce((s, l) => s + l.qty, 0)
@@ -67,15 +71,23 @@ export default function Pos() {
   }, [sales, products])
 
   const addToCart = (p: Product) => {
-    if (p.stock <= 0 && !cart.some((l) => l.productId === p.id)) {
+    const inCart = cart.find((l) => l.productId === p.id)?.qty ?? 0
+    const available = Math.max(0, p.stock - inCart)
+    if (p.stock <= 0) {
       toast.error(`${p.name} está sin stock`)
+      return
+    }
+    if (available <= 0) {
+      toast.error(`Solo hay ${p.stock} ${formatQty(p.stock, p.unit)} de ${p.name}`)
       return
     }
     setCart((prev) => {
       const existing = prev.find((l) => l.productId === p.id)
       if (existing) {
         return prev.map((l) =>
-          l.productId === p.id ? { ...l, qty: round2(l.qty + 1) } : l,
+          l.productId === p.id
+            ? { ...l, qty: Math.min(p.stock, round2(l.qty + 1)) }
+            : l,
         )
       }
       return [
@@ -95,6 +107,14 @@ export default function Pos() {
 
   const setLineQty = (productId: string, qty: number) => {
     if (qty < 0) return
+    const product = products.find((p) => p.id === productId)
+    if (product && qty > product.stock) {
+      toast.error(`Solo hay ${product.stock} ${formatQty(product.stock, product.unit)}`)
+      setCart((prev) =>
+        prev.map((l) => (l.productId === productId ? { ...l, qty: product.stock } : l)),
+      )
+      return
+    }
     setCart((prev) =>
       prev.map((l) => (l.productId === productId ? { ...l, qty } : l)),
     )
@@ -140,10 +160,17 @@ export default function Pos() {
   const change = round2(paid - cartTotal)
 
   const finishSale = async () => {
+    let cashNumEff = cashNum
+    let cardNumEff = cardNum
+    let rest = change
+    const fromCash = Math.min(rest, cashNumEff)
+    cashNumEff -= fromCash
+    rest -= fromCash
+    cardNumEff -= Math.min(rest, cardNumEff)
     const payments: Payment[] = []
-    if (cashNum > 0) payments.push({ type: 'efectivo', amount: cashNum })
-    if (cardNum > 0) payments.push({ type: 'tarjeta', amount: cardNum })
-    if (payments.length === 0) {
+    if (cashNumEff > 0) payments.push({ type: 'efectivo', amount: round2(cashNumEff) })
+    if (cardNumEff > 0) payments.push({ type: 'tarjeta', amount: round2(cardNumEff) })
+    if (round2(cashNumEff + cardNumEff) < cartTotal) {
       toast.error('Registra al menos un pago')
       return
     }
@@ -159,7 +186,7 @@ export default function Pos() {
   }
 
   return (
-    <div className="flex h-full flex-col pb-16 lg:flex-row lg:pb-0">
+    <div className="flex h-full flex-col lg:flex-row">
       <div className="flex-1 p-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -225,43 +252,53 @@ export default function Pos() {
             hint={search ? 'Prueba con otro nombre' : undefined}
           />
         ) : (
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-            {filtered.map((p) => {
-              const out = p.stock <= 0
-              const low = !out && p.stock <= p.minStock
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => addToCart(p)}
-                  className="card flex flex-col gap-1 p-2.5 text-left transition hover:border-primary-600 hover:shadow-md"
-                >
-                  {p.photo ? (
-                    <img
-                      src={p.photo}
-                      alt={p.name}
-                      className="mb-1 h-16 w-full rounded-lg object-cover"
-                    />
-                  ) : (
-                    <span className="mb-1 flex h-16 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
-                      <ImageIcon className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-                    </span>
-                  )}
-                  <span className="line-clamp-2 min-h-[2.4rem] text-sm font-medium text-slate-800 dark:text-slate-100">
-                    {p.name}
-                  </span>
-                  <span className="text-base font-bold text-primary dark:text-blue-400">{formatMoney(p.price)}</span>
-                  <span className="text-xs text-slate-400">{formatQty(1, p.unit)}</span>
-                  <span
-                    className={`chip ${
-                      out ? 'chip-bad' : low ? 'chip-warn' : 'chip-ok'
-                    }`}
+          <>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+              {filtered.map((p) => {
+                const out = p.stock <= 0
+                const low = !out && p.stock <= p.minStock
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => addToCart(p)}
+                    className="card flex flex-col gap-1 p-2.5 text-left transition hover:border-primary-600 hover:shadow-md"
                   >
-                    {out ? 'Agotado' : `Stock ${formatQty(p.stock, p.unit)}`}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+                    {p.photo ? (
+                      <img
+                        src={p.photo}
+                        alt={p.name}
+                        className="mb-1 h-16 w-full rounded-lg object-cover"
+                      />
+                    ) : (
+                      <span className="mb-1 flex h-16 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
+                        <ImageIcon className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                      </span>
+                    )}
+                    <span className="line-clamp-2 min-h-[2.4rem] text-sm font-medium text-slate-800 dark:text-slate-100">
+                      {p.name}
+                    </span>
+                    <span className="text-base font-bold text-primary dark:text-blue-400">{formatMoney(p.price)}</span>
+                    <span className="text-xs text-slate-400">{formatQty(1, p.unit)}</span>
+                    <span
+                      className={`chip ${
+                        out ? 'chip-bad' : low ? 'chip-warn' : 'chip-ok'
+                      }`}
+                    >
+                      {out ? 'Agotado' : `Stock ${formatQty(p.stock, p.unit)}`}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            {visible < allFiltered.length && (
+              <button
+                onClick={() => setVisible((v) => v + 80)}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white py-2 text-sm font-medium text-primary hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                Ver más ({allFiltered.length - visible} restantes)
+              </button>
+            )}
+          </>
         )}
       </div>
 
