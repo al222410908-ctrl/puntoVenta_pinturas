@@ -139,8 +139,13 @@ function snapshot(since = 0) {
   }
   for (const key of TABLES) {
     for (const rec of Object.values(data[key] || {})) {
-      if (recordAt(rec) <= since) continue
-      out[key].push(JSON.parse(JSON.stringify(rec)))
+      const at = recordAt(rec)
+      // sin timestamp (at === 0) se envía solo en la primera sincronización (since === 0)
+      if (at > since) {
+        out[key].push(JSON.parse(JSON.stringify(rec)))
+      } else if (since === 0 && at === 0) {
+        out[key].push(JSON.parse(JSON.stringify(rec)))
+      }
     }
   }
   for (const rec of out.products) {
