@@ -49,6 +49,7 @@ export default function App() {
 
   const [unlocked, setUnlocked] = useState(() => localStorage.getItem('pos_session') === '1')
   const [syncState, setSyncState] = useState<SyncState>('syncing')
+  const [syncError, setSyncError] = useState<string | null>(null)
   const [last, setLast] = useState(lastSyncAt)
   const busyRef = useRef(false)
 
@@ -56,12 +57,14 @@ export default function App() {
     if (busyRef.current) return
     busyRef.current = true
     setSyncState('syncing')
+    setSyncError(null)
     try {
       await syncNow()
       setSyncState('ok')
       setLast(lastSyncAt())
-    } catch {
+    } catch (e) {
       setSyncState('offline')
+      setSyncError(e instanceof Error ? e.message : String(e))
     } finally {
       busyRef.current = false
     }
@@ -121,7 +124,7 @@ export default function App() {
             {syncState === 'syncing'
               ? 'Sincronizando…'
               : syncState === 'offline'
-                ? 'Sin conexión'
+                ? `Sin conexión${syncError ? `: ${syncError}` : ''}`
                 : `Sincronizado${last > 0 ? ` ${new Date(last).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit' })}` : ' ahora'}`}
           </span>
         </button>

@@ -116,12 +116,25 @@ export async function syncNow(): Promise<SyncResult> {
   const since = lastSyncAt()
   const payload = await localPayload(since)
   const up = countRecords(payload)
-  const resp = await fetch('/api/sync', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ since, payload }),
-  })
-  if (!resp.ok) throw new Error('Error de sincronización con el servidor')
+  let resp: Response
+  try {
+    resp = await fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ since, payload }),
+    })
+  } catch (e) {
+    throw new Error(`No se pudo conectar con el servidor (${e instanceof Error ? e.message : String(e)})`)
+  }
+  if (!resp.ok) {
+    let detail = ''
+    try {
+      detail = (await resp.text()).slice(0, 300)
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`Servidor respondió HTTP ${resp.status}${detail ? `: ${detail}` : ''}`)
+  }
   const data = (await resp.json()) as { changedCount?: number; since?: number; payload: SyncPayload }
   const down = countRecords(data.payload)
   await applyPayload(data.payload)
