@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const DATA_FILE = process.env.SYNC_DATA_FILE || '/home/ubuntu/puntoVenta_pinturas/sync-data.json'
 const PORT = Number(process.env.PORT || '3457')
+const SYNC_TOKEN = process.env.SYNC_TOKEN || ''
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 mkdirSync(dirname(DATA_FILE), { recursive: true })
@@ -156,11 +157,26 @@ function snapshot(since = 0) {
   return out
 }
 
+function isAuthed(req) {
+  if (!SYNC_TOKEN) return true
+  const header = req.headers.authorization || ''
+  const expected = `Bearer ${SYNC_TOKEN}`
+  const a = header
+  const b = expected
+  return a.length === b.length && a.split('').every((c, i) => c === b[i])
+}
+
+function send401(res) {
+  res.statusCode = 401
+  res.end(JSON.stringify({ ok: false, error: 'unauthorized' }))
+}
+
 const server = createServer((req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
 
   if (req.method === 'POST' && url.pathname === '/api/sync') {
+    if (!isAuthed(req)) return send401(res)
     let body = ''
     req.on('data', (c) => { body += c; if (body.length > 50_000_000) req.destroy() })
     req.on('end', () => {
@@ -181,6 +197,7 @@ const server = createServer((req, res) => {
   }
 
   if (req.method === 'GET' && url.pathname === '/api/sync') {
+    if (!isAuthed(req)) return send401(res)
     res.end(JSON.stringify({ ok: true, payload: snapshot(0) }))
     return
   }

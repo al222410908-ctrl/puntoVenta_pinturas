@@ -31,6 +31,17 @@ export interface SyncPayload {
 }
 
 const LAST_SYNC_KEY = 'pos_last_sync'
+const SYNC_TOKEN_KEY = 'pos_sync_token'
+
+export function getSyncToken(): string | null {
+  const env = import.meta.env.VITE_SYNC_TOKEN as string | undefined
+  if (env) return env
+  return localStorage.getItem(SYNC_TOKEN_KEY)
+}
+
+export function setSyncToken(token: string): void {
+  localStorage.setItem(SYNC_TOKEN_KEY, token)
+}
 
 type LocalChangeListener = () => void
 const localChangeListeners = new Set<LocalChangeListener>()
@@ -118,9 +129,13 @@ export async function syncNow(): Promise<SyncResult> {
   const up = countRecords(payload)
   let resp: Response
   try {
+    const token = getSyncToken()
     resp = await fetch('/api/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ since, payload }),
     })
   } catch (e) {
