@@ -9,7 +9,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 mkdirSync(dirname(DATA_FILE), { recursive: true })
 
-let data = load()
+let data = normalize(load())
+function normalize(d) {
+  const base = empty()
+  for (const key of Object.keys(base)) {
+    if (!d[key] || typeof d[key] !== 'object') d[key] = base[key]
+  }
+  return d
+}
 function load() {
   try {
     return JSON.parse(readFileSync(DATA_FILE, 'utf8'))
