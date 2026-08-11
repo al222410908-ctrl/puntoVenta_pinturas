@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ShoppingCart, Package, Truck, Boxes, BarChart3, Wallet, PaintBucket, Moon, Sun, RefreshCw } from 'lucide-react'
+import { ShoppingCart, Package, Truck, Boxes, BarChart3, Wallet, Moon, Sun, RefreshCw } from 'lucide-react'
 import Pos from './screens/Pos'
 import Products from './screens/Products'
 import Restock from './screens/Restock'
@@ -143,9 +143,7 @@ export default function App() {
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <aside className="hidden w-56 shrink-0 flex-col border-r border-slate-200 bg-white md:flex dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-4 dark:border-slate-800">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white">
-              <PaintBucket className="h-5 w-5" />
-            </span>
+            <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-9 w-9 rounded-lg object-cover" />
             <div>
               <p className="font-display text-lg font-semibold leading-tight text-slate-900 dark:text-slate-100">Pinturas POS</p>
               <p className="text-xs text-slate-400">Venta e inventario</p>
@@ -178,9 +176,7 @@ export default function App() {
         <div className="flex min-h-0 flex-1 flex-col">
           <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 md:hidden dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
-                <PaintBucket className="h-4 w-4" />
-              </span>
+              <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-8 w-8 rounded-lg object-cover" />
               <p className="font-display text-lg font-semibold text-slate-900 dark:text-slate-100">Pinturas POS</p>
             </div>
             <ThemeToggle dark={dark} onToggle={() => setDark((d) => !d)} />

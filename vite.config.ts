@@ -15,7 +15,7 @@ export default defineConfig({
         name: 'Pinturas POS',
         short_name: 'Pinturas',
         description: 'Punto de venta e inventario para almacén de pintura y ferretería',
-        theme_color: '#1e3a8a',
+        theme_color: '#174a3b',
         background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'portrait',

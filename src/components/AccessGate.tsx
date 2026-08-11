@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { PaintBucket, Delete, Lock } from 'lucide-react'
+import { Delete, Lock } from 'lucide-react'
 
 const PIN_STORAGE = 'pos_pin'
 const SESSION_STORAGE = 'pos_session'
@@ -146,9 +146,7 @@ export default function AccessGate({ onUnlock }: { onUnlock: () => void }) {
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden bg-[#f6f1e7] dark:bg-slate-900">
       {splash ? (
         <div className="flex flex-col items-center gap-4">
-          <span className="flex h-20 w-20 animate-bounce-slow items-center justify-center rounded-2xl bg-primary text-white shadow-lg">
-            <PaintBucket className="h-10 w-10" />
-          </span>
+          <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-20 w-20 animate-bounce-slow rounded-2xl object-cover shadow-lg" />
           <p className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-100">Pinturas POS</p>
           <p className="text-sm text-accent/70 animate-pulse">Venta e inventario</p>
         </div>
