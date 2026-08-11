@@ -50,11 +50,11 @@ export default function App() {
   const [unlocked, setUnlocked] = useState(() => localStorage.getItem('pos_session') === '1')
   const [syncState, setSyncState] = useState<SyncState>('syncing')
   const [last, setLast] = useState(lastSyncAt)
-  const syncStateRef = useRef(syncState)
-  syncStateRef.current = syncState
+  const busyRef = useRef(false)
 
   const doSync = async () => {
-    if (syncStateRef.current === 'syncing') return
+    if (busyRef.current) return
+    busyRef.current = true
     setSyncState('syncing')
     try {
       await syncNow()
@@ -62,6 +62,8 @@ export default function App() {
       setLast(lastSyncAt())
     } catch {
       setSyncState('offline')
+    } finally {
+      busyRef.current = false
     }
   }
   const doSyncRef = useRef(doSync)
