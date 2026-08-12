@@ -147,6 +147,13 @@ export async function syncNow(): Promise<SyncResult> {
     throw new Error(`No se pudo conectar con el servidor (${e instanceof Error ? e.message : String(e)})`)
   }
   if (!resp.ok) {
+    if (resp.status === 401) {
+      sessionStorage.removeItem('pos_session')
+      localStorage.removeItem('pos_session')
+      localStorage.removeItem('pos_pin')
+      setTimeout(() => window.location.reload(), 1000)
+      throw new Error('PIN no autorizado o sesión expirada. Reingresando...')
+    }
     let detail = ''
     try {
       detail = (await resp.text()).slice(0, 300)
