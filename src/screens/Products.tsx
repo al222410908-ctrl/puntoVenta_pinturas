@@ -8,6 +8,7 @@ import { notifyLocalChange } from '../lib/sync'
 import type { Category, Product, Supplier, Unit } from '../types'
 import { UNITS } from '../lib/units'
 import { formatMoney, round2, uid } from '../lib/utils'
+import { compressImageFile } from '../lib/image'
 import { Button, EmptyState, Field, Input, Modal, Segmented, Select, TextArea } from '../components/ui'
 
 type Tab = 'productos' | 'categorias' | 'proveedores'
@@ -533,16 +534,18 @@ function ProductForm({
     [allProducts, form.categoryId, form.subcategory],
   )
 
-  const onPhoto = (e: ChangeEvent<HTMLInputElement>) => {
+  const onPhoto = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 2_500_000) {
-      toast.error('Imagen demasiado grande (máx. 2.5 MB)')
+    if (file.size > 12_000_000) {
+      toast.error('Imagen demasiado grande (máx. 12 MB)')
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => set('photo', String(reader.result ?? ''))
-    reader.readAsDataURL(file)
+    try {
+      set('photo', await compressImageFile(file))
+    } catch {
+      toast.error('No se pudo procesar la imagen')
+    }
   }
 
   const applyCalc = () => {
