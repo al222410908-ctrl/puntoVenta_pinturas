@@ -31,16 +31,21 @@ export interface SyncPayload {
 }
 
 const LAST_SYNC_KEY = 'pos_last_sync'
-const SYNC_TOKEN_KEY = 'pos_sync_token'
+/** Clave donde AccessGate guarda el hash SHA-256 del PIN */
+const PIN_STORAGE = 'pos_pin'
 
+/**
+ * Devuelve el hash SHA-256 del PIN como token de autenticación.
+ * De esta forma ningún secreto queda embebido en el bundle JS:
+ * el servidor ya conoce el pinHash y puede validarlo directamente.
+ */
 export function getSyncToken(): string | null {
-  const env = import.meta.env.VITE_SYNC_TOKEN as string | undefined
-  if (env) return env
-  return localStorage.getItem(SYNC_TOKEN_KEY)
+  return localStorage.getItem(PIN_STORAGE)
 }
 
-export function setSyncToken(token: string): void {
-  localStorage.setItem(SYNC_TOKEN_KEY, token)
+/** @deprecated Ya no se necesita: el token se deriva del PIN hash */
+export function setSyncToken(_token: string): void {
+  // no-op: kept for backwards compatibility
 }
 
 type LocalChangeListener = () => void

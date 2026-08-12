@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -23,7 +23,11 @@ let saving = Promise.resolve()
 function save() {
   saving = saving.then(() => {
     try {
-      writeFileSync(DATA_FILE, JSON.stringify(data))
+      // Escritura atómica: escribe en .tmp y luego renombra.
+      // Si el proceso muere a media escritura, el archivo original queda intacto.
+      const tmp = DATA_FILE + '.tmp'
+      writeFileSync(tmp, JSON.stringify(data))
+      renameSync(tmp, DATA_FILE)
     } catch (e) {
       console.error('save failed', e)
     }
@@ -32,12 +36,24 @@ function save() {
 }
 
 function isAuthed(req) {
-  if (!SYNC_TOKEN) return true
   const header = req.headers.authorization || ''
-  const expected = `Bearer ${SYNC_TOKEN}`
-  const a = header
-  const b = expected
-  return a.length === b.length && a.split('').every((c, i) => c === b[i])
+  const bearer = header.startsWith('Bearer ') ? header.slice(7) : ''
+
+  // 1. Token maestro del servidor (env var, solo en backend, nunca en el cliente)
+  if (SYNC_TOKEN && bearer === SYNC_TOKEN) return true
+
+  // 2. PIN hash: el cliente envía el SHA-256(PIN) que el servidor ya conoce.
+  //    El hash es one-way, así que si alguien lo intercepta no obtiene el PIN.
+  const pinHash = data.gate?.pinHash
+  if (pinHash && /^[0-9a-f]{64}$/.test(bearer)) {
+    return bearer.length === pinHash.length && bearer.split('').every((c, i) => c === pinHash[i])
+  }
+
+  // 3. Sin configuración aún (primera ejecución): permitir para que el cliente pueda
+  //    registrar el PIN inicial.
+  if (!SYNC_TOKEN && !pinHash) return true
+
+  return false
 }
 
 function send401(res) {

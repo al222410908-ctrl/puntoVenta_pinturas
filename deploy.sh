@@ -7,18 +7,15 @@ git checkout -- '.' 2>/dev/null || true
 git pull origin main
 
 echo "==> Actualizando sync-server"
-cp server/sync-server.mjs server/sync-core.mjs .
+# Copia los archivos del servidor al directorio de trabajo del servicio
+cp server/sync-server.mjs server/sync-core.mjs /home/ubuntu/puntoVenta_pinturas/
 sudo systemctl restart pinturas-sync
 
 echo "==> Build produccion"
-VITE_SYNC_TOKEN="${VITE_SYNC_TOKEN:?Falta VITE_SYNC_TOKEN como variable de entorno}" npm run build
-
-echo "==> Verificando token embebido"
-if grep -l "$VITE_SYNC_TOKEN" dist/assets/*.js >/dev/null 2>&1; then
-  echo "OK: token presente en el bundle"
-else
-  echo "ADVERTENCIA: no se encontro el token en el bundle"
-fi
+# Ya no se usa VITE_SYNC_TOKEN — la auth usa el hash del PIN.
+# Si tienes un SYNC_TOKEN maestro en el servidor, configúralo en el
+# entorno del servicio systemd, NO aquí.
+npm run build
 
 echo "==> Salud del API"
 curl -s https://pinturas-pos.duckdns.org/health

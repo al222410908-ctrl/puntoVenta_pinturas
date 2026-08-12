@@ -48,7 +48,7 @@ export default function App() {
     localStorage.setItem('theme', dark ? 'dark' : 'light')
   }, [dark])
 
-  const [unlocked, setUnlocked] = useState(() => localStorage.getItem('pos_session') === '1')
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('pos_session') === '1')
   const [syncState, setSyncState] = useState<SyncState>('syncing')
   const [syncError, setSyncError] = useState<string | null>(null)
   const [last, setLast] = useState(lastSyncAt)
