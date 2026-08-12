@@ -3,10 +3,11 @@ set -e
 cd "$(dirname "$0")"
 
 echo "==> Git pull"
+git checkout -- '.' 2>/dev/null || true
 git pull origin main
 
 echo "==> Actualizando sync-server"
-cp server/sync-server.mjs sync-server.mjs
+cp server/sync-server.mjs server/sync-core.mjs .
 sudo systemctl restart pinturas-sync
 
 echo "==> Build produccion"
