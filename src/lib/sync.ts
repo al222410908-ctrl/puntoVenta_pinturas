@@ -88,7 +88,7 @@ export async function localPayload(since = 0): Promise<SyncPayload> {
     purchaseOrders: purchaseOrders.filter((p) => p.date > since),
     stockMovements: stockMovements.filter((m) => m.date > since),
     cashEntries: cashEntries.filter((c) => c.date > since),
-    tombstones: tombstones.filter((t) => t.at > since),
+    tombstones,
   }
 }
 

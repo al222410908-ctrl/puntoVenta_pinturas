@@ -92,10 +92,15 @@ export default function App() {
     }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)
+
+    // Sincronización periódica cada 15 segundos (ideal para iPad/Safari)
+    const interval = setInterval(run, 15_000)
+
     return () => {
       offLocalChange()
       window.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', onVisible)
+      clearInterval(interval)
       if (debounce) clearTimeout(debounce)
     }
   }, [unlocked])

@@ -116,6 +116,6 @@ export function snapshot(data, since = 0) {
     rec.stock = stockFor(data, rec)
     delete rec._baseStock
   }
-  out.tombstones = Object.values(data.tombstones || {}).filter((t) => (t.at ?? 0) > since)
+  out.tombstones = Object.values(data.tombstones || {})
   return out
 }

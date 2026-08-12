@@ -98,12 +98,11 @@ describe('snapshot', () => {
     expect(snap.products[0].id).toBe('prod-2')
   })
 
-  it('incluye tombstones posteriores a since', () => {
+  it('incluye tombstones en el snapshot', () => {
     const data = normalize(empty())
     applyMerge(data, { tombstones: [{ id: 't1', table: 'sales', recordId: 's1', at: 5000 }] })
     const snap = snapshot(data, 4000)
     expect(snap.tombstones.length).toBe(1)
-    expect(snapshot(data, 6000).tombstones.length).toBe(0)
   })
 })
 
