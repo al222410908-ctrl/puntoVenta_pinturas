@@ -80,9 +80,12 @@ function Adjustments() {
 
   return (
     <div className="card space-y-3 p-4">
-      <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300">
-        <SlidersHorizontal className="h-4 w-4" />
-        Usa cantidades <b>positivas</b> para entradas (mermas compensadas, sobrantes) y <b>negativas</b> para salidas (merma, pérdida, corrección).
+      <p className="flex items-start gap-2 text-sm leading-relaxed text-slate-500 dark:text-slate-300">
+        <SlidersHorizontal className="mt-0.5 h-4 w-4 shrink-0" />
+        <span className="min-w-0 break-words">
+          Usa cantidades <b>positivas</b> para entradas (mermas compensadas, sobrantes) y <b>negativas</b> para
+          salidas (merma, pérdida, corrección).
+        </span>
       </p>
       <Field label="Producto">
         <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
@@ -91,7 +94,7 @@ function Adjustments() {
         </Select>
       </Field>
       {product && (
-        <p className="text-sm text-slate-500 dark:text-slate-300">
+        <p className="break-words text-sm leading-relaxed text-slate-500 dark:text-slate-300">
           Stock actual: <b>{formatQty(product.stock, product.unit)}</b>
           {delta !== 0 && (
             <> → nuevo stock: <b>{formatQty(product.stock + delta, product.unit)}</b></>
