@@ -465,30 +465,7 @@ function ProductForm({
 
   const [calc, setCalc] = useState({ value: '', margin: '16', factor: '2' })
   const [res, setRes] = useState<{ cost: string; price: string }>({ cost: '', price: '' })
-  const [mlQuery, setMlQuery] = useState('')
-  const [ml, setMl] = useState<{ loading: boolean; items: { title: string; price: number; permalink?: string }[] }>({ loading: false, items: [] })
 
-  const buscarML = async (query: string) => {
-    if (!query.trim()) {
-      toast.error('Escribe un nombre para buscar')
-      return
-    }
-    setMl({ loading: true, items: [] })
-    try {
-      const url = `https://api.mercadolibre.com/sites/MLM/search?q=${encodeURIComponent(query.trim())}&limit=6`
-      const resp = await fetch(url)
-      if (!resp.ok) throw new Error('Sin respuesta de Mercado Libre')
-      const data = (await resp.json()) as { results?: { title: string; price: number; permalink?: string }[] }
-      const items = (data.results ?? []).filter((r) => r.price > 0)
-      if (items.length === 0) {
-        toast.error('Mercado Libre no encontró resultados')
-      }
-      setMl({ loading: false, items })
-    } catch (e) {
-      setMl({ loading: false, items: [] })
-      toast.error(e instanceof Error ? e.message : 'Error al buscar en Mercado Libre')
-    }
-  }
   const handleCalcInput = (key: keyof typeof calc, value: string) => {
     const next = { ...calc, [key]: value }
     setCalc(next)
@@ -784,49 +761,6 @@ if (!(unit > 0) || !(price > 0)) {
                 <Check className="h-4 w-4" />
                 Aplicar costo y precio
               </Button>
-            </div>
-            <div className="mt-3 border-t border-amber-200 pt-3 dark:border-amber-800">
-              <div className="flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4 text-accent" />
-                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  Asistente de precios (Mercado Libre)
-                </p>
-              </div>
-              <div className="mt-2 flex items-center gap-2">
-                <Input
-                  value={mlQuery}
-                  onChange={(e) => setMlQuery(e.target.value)}
-                  placeholder={form.name || 'Ej. Pintura vinílica 19L'}
-                  className="text-sm"
-                />
-                <Button
-                  className="btn-secondary shrink-0 px-3 py-1.5 text-xs"
-                  disabled={ml.loading}
-                  onClick={() => void buscarML(mlQuery || form.name)}
-                >
-                  {ml.loading ? 'Buscando…' : 'Buscar'}
-                </Button>
-              </div>
-              {ml.items.length > 0 && (
-                <div className="mt-2 space-y-1.5">
-                  {ml.items.map((it, i) => (
-                    <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-white/70 px-2 py-1.5 dark:bg-slate-800">
-                      <a
-                        href={it.permalink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="line-clamp-2 min-w-0 text-xs text-slate-600 hover:text-primary dark:text-slate-300"
-                      >
-                        {it.title}
-                      </a>
-                      <span className="shrink-0 text-sm font-bold text-slate-800 dark:text-slate-100">{formatMoney(it.price)}</span>
-                      <Button className="btn-secondary shrink-0 px-2 py-1 text-xs" onClick={() => { set('price', String(round2(it.price))); toast.success('Precio aplicado (edítalo si quieres redondear)') }}>
-                        Usar
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         )}
