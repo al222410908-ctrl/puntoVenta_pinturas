@@ -1,8 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
 import { Delete, Lock } from 'lucide-react'
+import { getSyncToken } from '../lib/sync'
 
 const PIN_STORAGE = 'pos_pin'
 const SESSION_STORAGE = 'pos_session'
+
+async function fetchSharedPin(): Promise<string | null> {
+  try {
+    const token = getSyncToken()
+    const resp = await fetch('/api/access', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!resp.ok) return null
+    const data = (await resp.json()) as { pinHash?: string }
+    return data.pinHash && /^[0-9a-f]{64}$/.test(data.pinHash) ? data.pinHash : null
+  } catch {
+    return null
+  }
+}
+
+async function pushSharedPin(pinHash: string): Promise<void> {
+  try {
+    const token = getSyncToken()
+    await fetch('/api/access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ pinHash }),
+    })
+  } catch { /* best effort */ }
+}
 
 async function hashPin(pin: string): Promise<string> {
   const data = new TextEncoder().encode(`pinturas-pos:${pin}:v2`)
@@ -74,7 +100,8 @@ function Keypad({ onDigit, onBack, disabled }: { onDigit: (d: string) => void; o
 export default function AccessGate({ onUnlock }: { onUnlock: () => void }) {
   const [splash, setSplash] = useState(true)
   const [pin, setPin] = useState('')
-  const [firstRun] = useState(() => !localStorage.getItem(PIN_STORAGE))
+  const [initDone, setInitDone] = useState(false)
+  const [firstRun, setFirstRun] = useState(() => !localStorage.getItem(PIN_STORAGE))
   const [confirming, setConfirming] = useState(false)
   const pendingRef = useRef('')
   const [error, setError] = useState('')
@@ -82,6 +109,26 @@ export default function AccessGate({ onUnlock }: { onUnlock: () => void }) {
   useEffect(() => {
     const t = setTimeout(() => setSplash(false), 1600)
     return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const shared = await fetchSharedPin()
+      if (cancelled) return
+      if (shared) {
+        localStorage.setItem(PIN_STORAGE, shared)
+        setFirstRun(false)
+      } else {
+        const local = localStorage.getItem(PIN_STORAGE)
+        if (local && isNewFormat(local)) {
+          void pushSharedPin(local)
+          setFirstRun(false)
+        }
+      }
+      setInitDone(true)
+    })()
+    return () => { cancelled = true }
   }, [])
 
   const unlock = () => {
@@ -99,7 +146,9 @@ export default function AccessGate({ onUnlock }: { onUnlock: () => void }) {
         setError('Confirma tu PIN')
       } else {
         if (pinsEqual(pendingRef.current, value)) {
-          localStorage.setItem(PIN_STORAGE, await hashPin(pendingRef.current))
+          const hash = await hashPin(pendingRef.current)
+          localStorage.setItem(PIN_STORAGE, hash)
+          void pushSharedPin(hash)
           unlock()
         } else {
           pendingRef.current = ''
@@ -114,7 +163,9 @@ export default function AccessGate({ onUnlock }: { onUnlock: () => void }) {
     if (stored && pinsEqual(await hashPin(value), stored)) {
       unlock()
     } else if (stored && !isNewFormat(stored) && pinsEqual(hashPinLegacy(value), stored)) {
-      localStorage.setItem(PIN_STORAGE, await hashPin(value))
+      const hash = await hashPin(value)
+      localStorage.setItem(PIN_STORAGE, hash)
+      void pushSharedPin(hash)
       unlock()
     } else {
       setPin('')
@@ -132,7 +183,7 @@ export default function AccessGate({ onUnlock }: { onUnlock: () => void }) {
   const onBack = () => setPin((p) => p.slice(0, -1))
 
   useEffect(() => {
-    if (splash) return
+    if (splash || !initDone) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key >= '0' && e.key <= '9') onDigit(e.key)
       else if (e.key === 'Backspace') onBack()
@@ -140,7 +191,7 @@ export default function AccessGate({ onUnlock }: { onUnlock: () => void }) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [splash, pin])
+  }, [splash, initDone, pin])
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden bg-[#f6f1e7] dark:bg-slate-900">
@@ -166,7 +217,7 @@ export default function AccessGate({ onUnlock }: { onUnlock: () => void }) {
             )}
           </div>
           <PinDots length={pin.length} done={false} />
-          <Keypad disabled={false} onDigit={onDigit} onBack={onBack} />
+          <Keypad disabled={!initDone} onDigit={onDigit} onBack={onBack} />
         </div>
       )}
     </div>

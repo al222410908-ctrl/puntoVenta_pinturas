@@ -207,6 +207,38 @@ const server = createServer((req, res) => {
     return
   }
 
+  if (url.pathname === '/api/access') {
+    if (!isAuthed(req)) return send401(res)
+    if (req.method === 'GET') {
+      res.end(JSON.stringify({ ok: true, pinHash: data.gate?.pinHash || '', updatedAt: data.gate?.updatedAt || 0 }))
+      return
+    }
+    if (req.method === 'POST') {
+      let body = ''
+      req.on('data', (c) => { body += c; if (body.length > 10_000) req.destroy() })
+      req.on('end', () => {
+        try {
+          const parsed = JSON.parse(body || '{}')
+          const pinHash = typeof parsed.pinHash === 'string' ? parsed.pinHash.trim() : ''
+          if (!/^[0-9a-f]{64}$/.test(pinHash)) {
+            res.statusCode = 400
+            res.end(JSON.stringify({ ok: false, error: 'pinHash inválido' }))
+            return
+          }
+          data.gate = { pinHash, updatedAt: Date.now() }
+          save().then(() => {
+            res.statusCode = 200
+            res.end(JSON.stringify({ ok: true, pinHash, updatedAt: data.gate.updatedAt }))
+          })
+        } catch (e) {
+          res.statusCode = 400
+          res.end(JSON.stringify({ ok: false, error: String(e) }))
+        }
+      })
+      return
+    }
+  }
+
   res.statusCode = 404
   res.end(JSON.stringify({ ok: false, error: 'not found' }))
 })
