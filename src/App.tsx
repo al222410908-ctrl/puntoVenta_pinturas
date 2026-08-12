@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { ShoppingCart, Package, Truck, Boxes, BarChart3, Wallet, Moon, Sun, RefreshCw } from 'lucide-react'
-import Pos from './screens/Pos'
-import Products from './screens/Products'
-import Restock from './screens/Restock'
-import Inventory from './screens/Inventory'
-import Reports from './screens/Reports'
-import Money from './screens/Money'
 import AccessGate from './components/AccessGate'
 import { syncNow, lastSyncAt, onLocalChange } from './lib/sync'
+
+const Pos = lazy(() => import('./screens/Pos'))
+const Products = lazy(() => import('./screens/Products'))
+const Restock = lazy(() => import('./screens/Restock'))
+const Inventory = lazy(() => import('./screens/Inventory'))
+const Reports = lazy(() => import('./screens/Reports'))
+const Money = lazy(() => import('./screens/Money'))
 
 type SyncState = 'ok' | 'offline' | 'syncing'
 
@@ -182,12 +183,14 @@ export default function App() {
             <ThemeToggle dark={dark} onToggle={() => setDark((d) => !d)} />
           </header>
           <main className="min-h-0 flex-1 pb-[calc(env(safe-area-inset-bottom)+4rem)] md:pb-0">
-            {tab === 'vender' && <Pos />}
-            {tab === 'catalogo' && <Products />}
-            {tab === 'resurtir' && <Restock />}
-            {tab === 'inventario' && <Inventory />}
-            {tab === 'caja' && <Money />}
-            {tab === 'reportes' && <Reports />}
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-400">Cargando…</div>}>
+              {tab === 'vender' && <Pos />}
+              {tab === 'catalogo' && <Products />}
+              {tab === 'resurtir' && <Restock />}
+              {tab === 'inventario' && <Inventory />}
+              {tab === 'caja' && <Money />}
+              {tab === 'reportes' && <Reports />}
+            </Suspense>
           </main>
         </div>
       </div>

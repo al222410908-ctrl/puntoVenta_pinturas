@@ -56,9 +56,11 @@ export default function Pos() {
   const cartCount = cart.reduce((s, l) => s + l.qty, 0)
 
   const topSellers = useMemo(() => {
+    const since = Date.now() - 30 * 24 * 60 * 60 * 1000
     const byId = new Map(products.map((p) => [p.id, p]))
     const m = new Map<string, { p: Product; qty: number }>()
     for (const s of sales) {
+      if (s.date < since) continue
       for (const it of s.items) {
         const p = byId.get(it.productId)
         if (!p) continue
