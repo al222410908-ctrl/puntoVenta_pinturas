@@ -1,7 +1,10 @@
 export type Unit =
   | 'pieza'
   | 'litro'
+  | 'medio'
+  | 'cuarto'
   | 'galon'
+  | 'cubeta'
   | 'kg'
   | 'metro'
   | 'bolsa'
@@ -20,6 +23,12 @@ export interface Supplier {
   phone?: string
   notes?: string
   updatedAt?: number
+}
+
+export interface SalePresentation {
+  unit: Unit
+  /** 1 presentación equivale a `factor` unidades base del producto (ej. 1 caja = 50 piezas) */
+  factor: number
 }
 
 export interface Product {
@@ -41,6 +50,10 @@ export interface Product {
   isPackage?: boolean
   pkgUnits?: number
   pkgQty?: number
+  /** Presentaciones en las que se puede vender (ej. litro, medio; caja de 50 piezas). El stock se cuenta en `unit`. */
+  salePresentations?: SalePresentation[]
+  /** @deprecated Reemplazado por `salePresentations`. Se conserva solo para migrar datos previos. */
+  saleUnits?: Unit[]
   updatedAt?: number
 }
 

@@ -10,31 +10,44 @@ import type {
   PurchaseOrderItem,
   Sale,
   SaleItem,
+  SalePresentation,
   Tombstone,
 } from '../types'
 import { round2, uid } from '../lib/utils'
 import { notifyLocalChange } from '../lib/sync'
+import { toBaseQty, presentationFactor } from '../lib/units'
 
 export interface CartLine {
   productId: string
   name: string
   unit: SaleItem['unit']
   fractional?: boolean
+  /** Presentaciones disponibles para vender este producto */
+  presentations: SalePresentation[]
+  /** Presentación seleccionada en la línea */
+  saleUnit: SaleItem['unit']
+  /** Cantidad en la presentación seleccionada */
   qty: number
+  /** Cantidad convertida a la unidad base del producto */
+  baseQty: number
   unitPrice: number
   cost: number
 }
 
 export function cartToItems(lines: CartLine[]): SaleItem[] {
-  return lines.map((l) => ({
-    productId: l.productId,
-    name: l.name,
-    unit: l.unit,
-    qty: l.qty,
-    unitPrice: l.unitPrice,
-    cost: l.cost,
-    lineTotal: round2(l.qty * l.unitPrice),
-  }))
+  return lines.map((l) => {
+    const factor = presentationFactor({ unit: l.unit, salePresentations: l.presentations }, l.saleUnit)
+    const baseQty = round2(l.baseQty ?? toBaseQty(l.qty, factor))
+    return {
+      productId: l.productId,
+      name: l.name,
+      unit: l.unit,
+      qty: baseQty,
+      unitPrice: l.unitPrice,
+      cost: l.cost,
+      lineTotal: round2(baseQty * l.unitPrice),
+    }
+  })
 }
 
 export async function registerSale(

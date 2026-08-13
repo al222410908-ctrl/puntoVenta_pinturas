@@ -15,9 +15,9 @@ import {
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
 import { registerSale, undoLastSale } from '../db/repos'
-import type { Product, Payment } from '../types'
+import type { Product, Payment, Unit, SalePresentation } from '../types'
 import { formatMoney, round2 } from '../lib/utils'
-import { formatQty } from '../lib/units'
+import { UNIT_LABELS, formatQty, productPresentations, presentationFactor, toBaseQty, fromBaseQty } from '../lib/units'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { Button, EmptyState, Input, Modal } from '../components/ui'
 
@@ -52,7 +52,7 @@ export default function Pos() {
     setVisible(80)
   }, [search, categoryId])
 
-  const cartTotal = round2(cart.reduce((s, l) => s + l.qty * l.unitPrice, 0))
+  const cartTotal = round2(cart.reduce((s, l) => s + l.baseQty * l.unitPrice, 0))
   const cartCount = cart.reduce((s, l) => s + l.qty, 0)
 
   const topSellers = useMemo(() => {
@@ -72,58 +72,100 @@ export default function Pos() {
     return [...m.values()].sort((a, b) => b.qty - a.qty).slice(0, 8)
   }, [sales, products])
 
+  const presentationsOf = (p: Product): SalePresentation[] => productPresentations(p)
+
+  const factorOf = (p: Product, saleUnit: Unit): number => presentationFactor(p, saleUnit)
+
+  const makeLine = (p: Product, saleUnit: Unit, qty: number): CartLine => ({
+    productId: p.id,
+    name: p.name,
+    unit: p.unit,
+    fractional: p.fractional,
+    presentations: presentationsOf(p),
+    saleUnit,
+    qty,
+    baseQty: toBaseQty(qty, factorOf(p, saleUnit)),
+    unitPrice: p.price,
+    cost: p.cost,
+  })
+
   const addToCart = (p: Product) => {
-    const inCart = cart.find((l) => l.productId === p.id)?.qty ?? 0
-    const available = Math.max(0, p.stock - inCart)
-    if (p.stock <= 0) {
-      toast.error(`${p.name} está sin stock`)
-      return
-    }
-    if (available <= 0) {
-      toast.error(`Solo hay ${p.stock} ${formatQty(p.stock, p.unit)} de ${p.name}`)
-      return
-    }
+    const saleUnit = presentationsOf(p)[0]?.unit ?? p.unit
+    const factor = factorOf(p, saleUnit)
     setCart((prev) => {
-      const existing = prev.find((l) => l.productId === p.id)
+      if (p.stock <= 0) {
+        toast.error(`${p.name} está sin stock`)
+        return prev
+      }
+      const existing = prev.find((l) => l.productId === p.id && l.saleUnit === saleUnit)
+      const otherBase = prev.reduce((s, l) => (l.productId === p.id && l.saleUnit !== saleUnit ? s + l.baseQty : s), 0)
+      const nextQty = round2((existing?.qty ?? 0) + 1)
+      const nextBase = toBaseQty(nextQty, factor)
+      const totalBase = round2(otherBase + nextBase)
+      if (totalBase > p.stock) {
+        toast.error(`Solo hay ${formatQty(p.stock, p.unit)} de ${p.name}`)
+        const maxBase = Math.max(0, round2(p.stock - otherBase))
+        const maxQty = fromBaseQty(maxBase, factor)
+        if (existing) {
+          return prev.map((l) =>
+            l.productId === p.id && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
+          )
+        }
+        return prev
+      }
       if (existing) {
         return prev.map((l) =>
-          l.productId === p.id
-            ? { ...l, qty: Math.min(p.stock, round2(l.qty + 1)) }
-            : l,
+          l.productId === p.id && l.saleUnit === saleUnit ? { ...l, qty: nextQty, baseQty: nextBase } : l,
         )
       }
-      return [
-        ...prev,
-        {
-          productId: p.id,
-          name: p.name,
-          unit: p.unit,
-          fractional: p.fractional,
-          qty: 1,
-          unitPrice: p.price,
-          cost: p.cost,
-        },
-      ]
+      return [...prev, makeLine(p, saleUnit, 1)]
     })
   }
 
-  const setLineQty = (productId: string, qty: number) => {
+  const setLineQty = (productId: string, saleUnit: Unit, qty: number) => {
     if (qty < 0) return
     const product = products.find((p) => p.id === productId)
-    if (product && qty > product.stock) {
-      toast.error(`Solo hay ${product.stock} ${formatQty(product.stock, product.unit)}`)
-      setCart((prev) =>
-        prev.map((l) => (l.productId === productId ? { ...l, qty: product.stock } : l)),
+    const factor = product ? factorOf(product, saleUnit) : 1
+    setCart((prev) => {
+      const otherBase = prev.reduce(
+        (s, l) => (l.productId === productId && l.saleUnit !== saleUnit ? s + l.baseQty : s),
+        0,
       )
-      return
-    }
+      const nextBase = toBaseQty(qty, factor)
+      if (product && round2(otherBase + nextBase) > product.stock) {
+        toast.error(`Solo hay ${formatQty(product.stock, product.unit)}`)
+        const maxBase = Math.max(0, round2(product.stock - otherBase))
+        const maxQty = fromBaseQty(maxBase, factor)
+        return prev.map((l) =>
+          l.productId === productId && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
+        )
+      }
+      return prev.map((l) =>
+        l.productId === productId && l.saleUnit === saleUnit ? { ...l, qty, baseQty: nextBase } : l,
+      )
+    })
+  }
+
+  const setLineSale = (productId: string, saleUnit: Unit) => {
+    const product = products.find((p) => p.id === productId)
+    if (!product) return
     setCart((prev) =>
-      prev.map((l) => (l.productId === productId ? { ...l, qty } : l)),
+      prev.map((l) => {
+        if (l.productId !== productId) return l
+        const otherBase = prev.reduce(
+          (s, x) => (x.productId === productId && x.saleUnit !== l.saleUnit ? s + x.baseQty : s),
+          0,
+        )
+        const baseQty = Math.min(l.baseQty, Math.max(0, round2(product.stock - otherBase)))
+        const factor = factorOf(product, saleUnit)
+        const qty = fromBaseQty(baseQty, factor) || 1
+        return { ...l, saleUnit, qty, baseQty: toBaseQty(qty, factor) }
+      }),
     )
   }
 
-  const removeLine = (productId: string) =>
-    setCart((prev) => prev.filter((l) => l.productId !== productId))
+  const removeLine = (productId: string, saleUnit: Unit) =>
+    setCart((prev) => prev.filter((l) => !(l.productId === productId && l.saleUnit === saleUnit)))
 
   const handleScan = (code: string) => {
     setScanOpen(false)
@@ -309,6 +351,7 @@ export default function Pos() {
           cart={cart}
           cartTotal={cartTotal}
           setLineQty={setLineQty}
+          setLineSale={setLineSale}
           removeLine={removeLine}
           onPay={openPayment}
           onUndo={() => void handleUndo()}
@@ -335,6 +378,7 @@ export default function Pos() {
           cart={cart}
           cartTotal={cartTotal}
           setLineQty={setLineQty}
+          setLineSale={setLineSale}
           removeLine={removeLine}
           onPay={openPayment}
           onUndo={() => void handleUndo()}
@@ -407,14 +451,16 @@ function CartPanel({
   cart,
   cartTotal,
   setLineQty,
+  setLineSale,
   removeLine,
   onPay,
   onUndo,
 }: {
   cart: CartLine[]
   cartTotal: number
-  setLineQty: (productId: string, qty: number) => void
-  removeLine: (productId: string) => void
+  setLineQty: (productId: string, saleUnit: Unit, qty: number) => void
+  setLineSale: (productId: string, saleUnit: Unit) => void
+  removeLine: (productId: string, saleUnit: Unit) => void
   onPay: () => void
   onUndo: () => void
 }) {
@@ -439,45 +485,82 @@ function CartPanel({
       ) : (
         <>
           <div className="flex-1 overflow-y-auto p-3">
-            {cart.map((l) => (
-              <div key={l.productId} className="border-b border-slate-100 py-2 last:border-0 dark:border-slate-700">
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{l.name}</p>
-                    <p className="text-xs text-slate-400">{formatMoney(l.unitPrice)} / {l.unit}</p>
+            {cart.map((l) => {
+              const key = `${l.productId}:${l.saleUnit}`
+              return (
+                <div key={key} className="border-b border-slate-100 py-2 last:border-0 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{l.name}</p>
+                      <p className="text-xs text-slate-400">
+                        {formatMoney(l.unitPrice)} / {UNIT_LABELS[l.unit]}
+                        {l.presentations.length > 1 && (
+                          <select
+                            value={l.saleUnit}
+                            onChange={(e) => setLineSale(l.productId, e.target.value as Unit)}
+                            className="ml-1 rounded border border-slate-200 bg-white px-1 py-0.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                          >
+                            {l.presentations.map((s) => (
+                              <option key={s.unit} value={s.unit}>{UNIT_LABELS[s.unit]}</option>
+                            ))}
+                          </select>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty - 1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Minus className="h-4 w-4" /></button>
+                      <input
+                        value={l.qty}
+                        inputMode="decimal"
+                        onChange={(e) => setLineQty(l.productId, l.saleUnit, Math.max(0, Number(e.target.value) || 0))}
+                        className="w-14 rounded-md border border-slate-200 px-1 py-0.5 text-center text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                      />
+                      <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty + 1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Plus className="h-4 w-4" /></button>
+                    </div>
+                    <span className="w-20 text-right text-sm font-semibold dark:text-slate-100">{formatMoney(round2(l.baseQty * l.unitPrice))}</span>
+                    <button onClick={() => removeLine(l.productId, l.saleUnit)} className="rounded-md p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"><Trash2 className="h-4 w-4" /></button>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setLineQty(l.productId, round2(l.qty - 1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Minus className="h-4 w-4" /></button>
-                    <input
-                      value={l.qty}
-                      inputMode="decimal"
-                      onChange={(e) => setLineQty(l.productId, Math.max(0, Number(e.target.value) || 0))}
-                      className="w-14 rounded-md border border-slate-200 px-1 py-0.5 text-center text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-                    />
-                    <button onClick={() => setLineQty(l.productId, round2(l.qty + 1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Plus className="h-4 w-4" /></button>
+                  <div className="mt-1 text-[11px] text-slate-400">
+                    {l.saleUnit !== l.unit && (
+                      <span>≡ {formatQty(l.baseQty, l.unit)}</span>
+                    )}
                   </div>
-                  <span className="w-20 text-right text-sm font-semibold dark:text-slate-100">{formatMoney(round2(l.qty * l.unitPrice))}</span>
-                  <button onClick={() => removeLine(l.productId)} className="rounded-md p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"><Trash2 className="h-4 w-4" /></button>
+                  {l.presentations.length > 1 ? (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {l.presentations.map((s) => (
+                        <button
+                          key={s.unit}
+                          onClick={() => setLineQty(l.productId, s.unit, 1)}
+                          className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
+                            l.saleUnit === s.unit && l.qty === 1
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                          }`}
+                        >
+                          1 {UNIT_LABELS[s.unit]}
+                        </button>
+                      ))}
+                    </div>
+                  ) : l.fractional ? (
+                    <div className="mt-1 flex gap-1">
+                      {[0.5, 1, 2, 5].map((v) => (
+                        <button
+                          key={v}
+                          onClick={() => setLineQty(l.productId, l.saleUnit, v)}
+                          className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
+                            l.qty === v
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                          }`}
+                        >
+                          {v} {UNIT_LABELS[l.unit]}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-                {l.fractional && (
-                  <div className="mt-1 flex gap-1">
-                    {[0.5, 1, 2, 5].map((v) => (
-                      <button
-                        key={v}
-                        onClick={() => setLineQty(l.productId, v)}
-                        className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
-                          l.qty === v
-                            ? 'border-primary bg-primary text-white'
-                            : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                        }`}
-                      >
-                        {v} {l.unit}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
           <div className="border-t border-slate-200 p-3 dark:border-slate-800">
             <div className="mb-2 flex items-center justify-between">

@@ -1,11 +1,20 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { toast } from 'sonner'
-import { Calculator, Check, ImagePlus, Image as ImageIcon } from 'lucide-react'
+import { Calculator, Check, ImagePlus, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { db } from '../db/db'
 import { notifyLocalChange } from '../lib/sync'
-import type { Category, Product, Supplier } from '../types'
-import { UNITS } from '../lib/units'
+import type { Category, Product, Supplier, Unit } from '../types'
+import {
+  UNITS,
+  SALE_PRESENTATIONS,
+  UNIT_LABELS,
+  defaultPresentations,
+  productPresentations,
+  unitPlural,
+  unitFactor,
+  isLiquid,
+} from '../lib/units'
 import { formatMoney, round2, uid } from '../lib/utils'
 import { compressImageFile } from '../lib/image'
 import { Button, Field, Input, Modal, Select } from '../components/ui'
@@ -57,6 +66,7 @@ export function ProductForm({
     subcategory: product?.subcategory ?? '',
     subsubcategory: product?.subsubcategory ?? '',
     isPackage: product?.isPackage ?? false,
+    presentations: product ? productPresentations(product) : defaultPresentations('pieza'),
     pkgCost: product?.isPackage
       ? String(round2((product.cost ?? 0) * (product.pkgUnits ?? 1)))
       : '',
@@ -88,6 +98,48 @@ export function ProductForm({
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
+
+  const toggleSale = (u: Unit) =>
+    setForm((f) => {
+      const baseFactor = unitFactor(f.unit)
+      const factor = Math.round((unitFactor(u) / baseFactor) * 1000) / 1000
+      const has = f.presentations.some((s) => s.unit === u)
+      const next = has
+        ? f.presentations.filter((s) => s.unit !== u)
+        : [...f.presentations, { unit: u, factor }]
+      return { ...f, presentations: next.length ? next : [{ unit: f.unit, factor: 1 }] }
+    })
+
+  const onUnitChange = (u: Unit) =>
+    setForm((f) => ({
+      ...f,
+      unit: u,
+      fractional: f.fractional || isLiquid(u),
+      presentations: isLiquid(u) ? defaultPresentations(u) : [{ unit: u, factor: 1 }],
+    }))
+
+  const [pack, setPack] = useState<{ unit: Unit; qty: string }>({ unit: 'caja', qty: '' })
+
+  const addPack = () => {
+    const factor = Number(pack.qty)
+    if (!(factor > 0)) {
+      toast.error(`Indica cuántas ${unitPlural(form.unit)} trae cada presentación`)
+      return
+    }
+    if (form.presentations.some((s) => s.unit === pack.unit)) {
+      toast.error(`Ya existe la presentación ${UNIT_LABELS[pack.unit]}`)
+      return
+    }
+    set('presentations', [...form.presentations, { unit: pack.unit, factor: round2(factor) }])
+    setPack((p) => ({ ...p, qty: '' }))
+  }
+
+  const removePresentation = (u: Unit) =>
+    setForm((f) => {
+      if (u === f.unit) return f
+      const next = f.presentations.filter((s) => s.unit !== u)
+      return { ...f, presentations: next.length ? next : [{ unit: f.unit, factor: 1 }] }
+    })
 
   const isPkg = form.isPackage
   const pkgCostNum = Math.max(0, Number(form.pkgCost) || 0)
@@ -189,11 +241,32 @@ if (!(unit > 0) || !(price > 0)) {
       stock: round2(stock),
       minStock: round2(minStock),
       isPackage: isPkg || undefined,
+      salePresentations: isPkg ? undefined : form.presentations,
       pkgUnits,
       pkgQty,
     }
     if (product) {
-      await db.products.update(product.id, { ...data, updatedAt: Date.now() })
+      const now = Date.now()
+      const stockDelta = round2(data.stock - (product.stock ?? 0))
+      await db.transaction(
+        'rw',
+        [db.products, db.stockMovements],
+        async () => {
+          await db.products.update(product.id, { ...data, updatedAt: now })
+          if (stockDelta !== 0) {
+            await db.stockMovements.add({
+              id: uid(),
+              date: now,
+              type: 'ajuste',
+              productId: product.id,
+              productName: data.name,
+              unit: data.unit,
+              qty: stockDelta,
+              note: 'Ajuste desde edición de producto',
+            })
+          }
+        },
+      )
       notifyLocalChange()
       toast.success('Producto actualizado')
     } else {
@@ -248,7 +321,7 @@ if (!(unit > 0) || !(price > 0)) {
             <Select
               value={form.unit}
               disabled={isPkg}
-              onChange={(e) => set('unit', e.target.value as typeof form.unit)}
+              onChange={(e) => onUnitChange(e.target.value as typeof form.unit)}
             >
               {UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
             </Select>
@@ -317,6 +390,89 @@ if (!(unit > 0) || !(price > 0)) {
             />
             Se vende en cantidades fraccionadas (0.5, 1.25, …)
           </label>
+        )}
+
+        {!isPkg && isLiquid(form.unit) && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Presentaciones de venta
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              El stock se cuenta en {unitPlural(form.unit)} y se convierte automáticamente al vender.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {SALE_PRESENTATIONS.map((u) => {
+                const active = form.presentations.some((s) => s.unit === u)
+                return (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => toggleSale(u)}
+                    className={`rounded-full border px-3 py-1 text-sm font-medium ${
+                      active
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-slate-300 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
+                  >
+                    {UNIT_LABELS[u]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {!isPkg && !isLiquid(form.unit) && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Presentaciones de venta
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Define cómo vendes este producto. Ej.: 1 caja = 50 {unitPlural(form.unit)}.
+            </p>
+            <div className="mt-2 space-y-1.5">
+              {form.presentations.map((s) => (
+                <div
+                  key={s.unit}
+                  className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-sm dark:bg-slate-900"
+                >
+                  <span className="text-slate-700 dark:text-slate-200">
+                    1 {UNIT_LABELS[s.unit]} = {s.factor} {s.factor === 1 ? UNIT_LABELS[form.unit] : unitPlural(form.unit)}
+                  </span>
+                  {s.unit !== form.unit && (
+                    <button
+                      type="button"
+                      onClick={() => removePresentation(s.unit)}
+                      className="rounded-md p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+              <Field label="Presentación">
+                <Select value={pack.unit} onChange={(e) => setPack((p) => ({ ...p, unit: e.target.value as Unit }))}>
+                  {UNITS.filter((u) => u.value !== form.unit).map((u) => (
+                    <option key={u.value} value={u.value}>{u.label}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={`${unitPlural(form.unit)} por ${UNIT_LABELS[pack.unit]}`}>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="1"
+                  step="1"
+                  value={pack.qty}
+                  onChange={(e) => setPack((p) => ({ ...p, qty: e.target.value }))}
+                  placeholder="Ej. 50"
+                />
+              </Field>
+              <Button type="button" className="shrink-0" onClick={addPack}>Agregar</Button>
+            </div>
+          </div>
         )}
 
         <div className="grid grid-cols-2 gap-3">
