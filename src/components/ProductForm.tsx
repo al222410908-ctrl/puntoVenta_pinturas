@@ -7,12 +7,10 @@ import { notifyLocalChange } from '../lib/sync'
 import type { Category, Product, Supplier, Unit } from '../types'
 import {
   UNITS,
-  SALE_PRESENTATIONS,
   UNIT_LABELS,
   defaultPresentations,
   productPresentations,
   unitPlural,
-  unitFactor,
   isLiquid,
 } from '../lib/units'
 import { formatMoney, round2, uid } from '../lib/utils'
@@ -98,17 +96,6 @@ export function ProductForm({
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
-
-  const toggleSale = (u: Unit) =>
-    setForm((f) => {
-      const baseFactor = unitFactor(f.unit)
-      const factor = Math.round((unitFactor(u) / baseFactor) * 1000) / 1000
-      const has = f.presentations.some((s) => s.unit === u)
-      const next = has
-        ? f.presentations.filter((s) => s.unit !== u)
-        : [...f.presentations, { unit: u, factor }]
-      return { ...f, presentations: next.length ? next : [{ unit: f.unit, factor: 1 }] }
-    })
 
   const onUnitChange = (u: Unit) =>
     setForm((f) => ({
@@ -390,36 +377,6 @@ if (!(unit > 0) || !(price > 0)) {
             />
             Se vende en cantidades fraccionadas (0.5, 1.25, …)
           </label>
-        )}
-
-        {!isPkg && isLiquid(form.unit) && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Presentaciones de venta
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              El stock se cuenta en {unitPlural(form.unit)} y se convierte automáticamente al vender.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {SALE_PRESENTATIONS.map((u) => {
-                const active = form.presentations.some((s) => s.unit === u)
-                return (
-                  <button
-                    key={u}
-                    type="button"
-                    onClick={() => toggleSale(u)}
-                    className={`rounded-full border px-3 py-1 text-sm font-medium ${
-                      active
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-slate-300 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                    }`}
-                  >
-                    {UNIT_LABELS[u]}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
         )}
 
         {!isPkg && !isLiquid(form.unit) && (

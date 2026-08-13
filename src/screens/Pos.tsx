@@ -457,26 +457,18 @@ export default function Pos() {
   )
 }
 
-function quickButtons(l: CartLine): { qty: number; label: string }[] {
-  if (!isLiquid(l.unit) && !l.fractional && l.presentations.length <= 1) return []
-  const factor = l.presentations.find((s) => s.unit === l.saleUnit)?.factor ?? 1
+function quickButtons(l: CartLine): { unit: Unit; qty: number; label: string }[] {
   if (isLiquid(l.unit)) {
-    if (factor < 1) {
-      return [0.5, 1, 2, 5].map((base) => {
-        const qty = fromBaseQty(base, factor)
-        return { qty, label: `${formatQty(qty, l.saleUnit)} (${formatQty(base, l.unit)})` }
-      })
-    }
-    if (factor > 1) {
-      return [1, 2, 5, 10].map((v) => {
-        const base = round2(v * factor)
-        return { qty: v, label: `${formatQty(v, l.saleUnit)} (${formatQty(base, l.unit)})` }
-      })
-    }
-    return [0.5, 1, 2, 5].map((v) => ({ qty: v, label: formatQty(v, l.saleUnit) }))
+    return [
+      { unit: 'cuarto', qty: 1, label: '1 cuarto' },
+      { unit: 'medio', qty: 1, label: '1 medio' },
+      { unit: 'litro', qty: 1, label: '1 L' },
+      { unit: 'litro', qty: 2, label: '2 L' },
+    ]
   }
+  if (!l.fractional && l.presentations.length <= 1) return []
   const presets = l.fractional ? [0.5, 1, 2, 5] : [1, 2, 5, 10]
-  return presets.map((v) => ({ qty: v, label: formatQty(v, l.saleUnit) }))
+  return presets.map((v) => ({ unit: l.saleUnit, qty: v, label: formatQty(v, l.saleUnit) }))
 }
 
 function CartPanel({
@@ -496,6 +488,15 @@ function CartPanel({
   onPay: () => void
   onUndo: () => void
 }) {
+  const applyPreset = (l: CartLine, b: { unit: Unit; qty: number }) => {
+    if (b.unit === l.saleUnit) {
+      setLineQty(l.productId, l.saleUnit, b.qty)
+    } else {
+      setLineSale(l.productId, b.unit)
+      setLineQty(l.productId, b.unit, b.qty)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2.5 dark:border-slate-800">
@@ -526,7 +527,22 @@ function CartPanel({
                       <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{l.name}</p>
                       <p className="text-xs text-slate-400">
                         {formatMoney(l.unitPrice)} / {UNIT_LABELS[l.unit]}
-                        {l.presentations.length > 1 && (
+                        {isLiquid(l.unit) ? (
+                          <select
+                            value={l.saleUnit === 'galon' || l.saleUnit === 'cubeta' ? l.saleUnit : 'base'}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              if (v !== 'base') setLineSale(l.productId, v as Unit)
+                            }}
+                            className="ml-1 rounded border border-slate-200 bg-white px-1 py-0.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                          >
+                            {l.saleUnit !== 'galon' && l.saleUnit !== 'cubeta' && (
+                              <option value="base">{UNIT_LABELS[l.unit]}</option>
+                            )}
+                            <option value="galon">Galón</option>
+                            <option value="cubeta">Cubeta</option>
+                          </select>
+                        ) : l.presentations.length > 1 ? (
                           <select
                             value={l.saleUnit}
                             onChange={(e) => setLineSale(l.productId, e.target.value as Unit)}
@@ -536,7 +552,7 @@ function CartPanel({
                               <option key={s.unit} value={s.unit}>{UNIT_LABELS[s.unit]}</option>
                             ))}
                           </select>
-                        )}
+                        ) : null}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
@@ -571,9 +587,9 @@ function CartPanel({
                   {quickButtons(l).map((b) => (
                     <button
                       key={b.label}
-                      onClick={() => setLineQty(l.productId, l.saleUnit, b.qty)}
+                      onClick={() => applyPreset(l, b)}
                       className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
-                        Math.abs(l.qty - b.qty) < 1e-6
+                        l.saleUnit === b.unit && Math.abs(l.qty - b.qty) < 1e-6
                           ? 'border-primary bg-primary text-white'
                           : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
                       }`}
