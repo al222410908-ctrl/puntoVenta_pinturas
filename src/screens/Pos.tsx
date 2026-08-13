@@ -527,22 +527,7 @@ function CartPanel({
                       <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{l.name}</p>
                       <p className="text-xs text-slate-400">
                         {formatMoney(l.unitPrice)} / {UNIT_LABELS[l.unit]}
-                        {isLiquid(l.unit) ? (
-                          <select
-                            value={l.saleUnit === 'galon' || l.saleUnit === 'cubeta' ? l.saleUnit : 'base'}
-                            onChange={(e) => {
-                              const v = e.target.value
-                              if (v !== 'base') setLineSale(l.productId, v as Unit)
-                            }}
-                            className="ml-1 rounded border border-slate-200 bg-white px-1 py-0.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
-                          >
-                            {l.saleUnit !== 'galon' && l.saleUnit !== 'cubeta' && (
-                              <option value="base">{UNIT_LABELS[l.unit]}</option>
-                            )}
-                            <option value="galon">Galón</option>
-                            <option value="cubeta">Cubeta</option>
-                          </select>
-                        ) : l.presentations.length > 1 ? (
+                        {!isLiquid(l.unit) && l.presentations.length > 1 && (
                           <select
                             value={l.saleUnit}
                             onChange={(e) => setLineSale(l.productId, e.target.value as Unit)}
@@ -552,7 +537,7 @@ function CartPanel({
                               <option key={s.unit} value={s.unit}>{UNIT_LABELS[s.unit]}</option>
                             ))}
                           </select>
-                        ) : null}
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
