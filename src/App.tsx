@@ -179,7 +179,7 @@ export default function App() {
           </div>
         </aside>
 
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 md:hidden dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center gap-2">
               <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-8 w-8 rounded-lg object-cover" />
@@ -187,7 +187,7 @@ export default function App() {
             </div>
             <ThemeToggle dark={dark} onToggle={() => setDark((d) => !d)} />
           </header>
-          <main className="min-h-0 flex-1 pb-[calc(env(safe-area-inset-bottom)+4rem)] md:pb-0">
+          <main className="min-h-0 min-w-0 flex-1 pb-[calc(env(safe-area-inset-bottom)+4rem)] md:pb-0">
             <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-400">Cargando…</div>}>
               {tab === 'vender' && <Pos />}
               {tab === 'catalogo' && <Products />}

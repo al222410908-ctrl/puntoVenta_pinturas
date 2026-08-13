@@ -103,7 +103,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-surface text-ink font-sans antialiased;
+    @apply overflow-x-clip bg-surface text-ink font-sans antialiased;
   }
   .dark {
     color-scheme: dark;

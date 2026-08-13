@@ -30,6 +30,8 @@ export interface CartLine {
   qty: number
   /** Cantidad convertida a la unidad base del producto */
   baseQty: number
+  /** Stock actual del producto en la unidad base */
+  stock?: number
   unitPrice: number
   cost: number
 }

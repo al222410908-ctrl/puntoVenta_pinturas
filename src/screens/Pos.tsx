@@ -17,7 +17,15 @@ import type { CartLine } from '../db/repos'
 import { registerSale, undoLastSale } from '../db/repos'
 import type { Product, Payment, Unit, SalePresentation } from '../types'
 import { formatMoney, round2 } from '../lib/utils'
-import { UNIT_LABELS, formatQty, productPresentations, presentationFactor, toBaseQty, fromBaseQty } from '../lib/units'
+import {
+  UNIT_LABELS,
+  formatQty,
+  productPresentations,
+  presentationFactor,
+  toBaseQty,
+  fromBaseQty,
+  isLiquid,
+} from '../lib/units'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { Button, EmptyState, Input, Modal } from '../components/ui'
 
@@ -85,12 +93,14 @@ export default function Pos() {
     saleUnit,
     qty,
     baseQty: toBaseQty(qty, factorOf(p, saleUnit)),
+    stock: p.stock,
     unitPrice: p.price,
     cost: p.cost,
   })
 
   const addToCart = (p: Product) => {
-    const saleUnit = presentationsOf(p)[0]?.unit ?? p.unit
+    const pres = presentationsOf(p)
+    const saleUnit = pres.some((s) => s.unit === p.unit) ? p.unit : pres[0]?.unit ?? p.unit
     const factor = factorOf(p, saleUnit)
     setCart((prev) => {
       if (p.stock <= 0) {
@@ -230,8 +240,8 @@ export default function Pos() {
   }
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
-      <div className="flex-1 p-3">
+    <div className="flex h-full min-w-0 flex-col lg:flex-row">
+      <div className="min-w-0 flex-1 p-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
@@ -305,13 +315,13 @@ export default function Pos() {
                   <button
                     key={p.id}
                     onClick={() => addToCart(p)}
-                    className="card flex flex-col gap-1 p-2.5 text-left transition hover:border-primary-600 hover:shadow-md"
+                    className="card flex min-w-0 flex-col gap-1 p-2.5 text-left transition hover:border-primary-600 hover:shadow-md"
                   >
                     {p.photo ? (
                       <img
                         src={p.photo}
                         alt={p.name}
-                        className="mb-1 h-16 w-full rounded-lg object-cover"
+                        className="mb-1 h-16 w-full min-w-0 rounded-lg object-cover"
                       />
                     ) : (
                       <span className="mb-1 flex h-16 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
@@ -447,6 +457,28 @@ export default function Pos() {
   )
 }
 
+function quickButtons(l: CartLine): { qty: number; label: string }[] {
+  if (!isLiquid(l.unit) && !l.fractional && l.presentations.length <= 1) return []
+  const factor = l.presentations.find((s) => s.unit === l.saleUnit)?.factor ?? 1
+  if (isLiquid(l.unit)) {
+    if (factor < 1) {
+      return [0.5, 1, 2, 5].map((base) => {
+        const qty = fromBaseQty(base, factor)
+        return { qty, label: `${formatQty(qty, l.saleUnit)} (${formatQty(base, l.unit)})` }
+      })
+    }
+    if (factor > 1) {
+      return [1, 2, 5, 10].map((v) => {
+        const base = round2(v * factor)
+        return { qty: v, label: `${formatQty(v, l.saleUnit)} (${formatQty(base, l.unit)})` }
+      })
+    }
+    return [0.5, 1, 2, 5].map((v) => ({ qty: v, label: formatQty(v, l.saleUnit) }))
+  }
+  const presets = l.fractional ? [0.5, 1, 2, 5] : [1, 2, 5, 10]
+  return presets.map((v) => ({ qty: v, label: formatQty(v, l.saleUnit) }))
+}
+
 function CartPanel({
   cart,
   cartTotal,
@@ -520,44 +552,35 @@ function CartPanel({
                     <span className="w-20 text-right text-sm font-semibold dark:text-slate-100">{formatMoney(round2(l.baseQty * l.unitPrice))}</span>
                     <button onClick={() => removeLine(l.productId, l.saleUnit)} className="rounded-md p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"><Trash2 className="h-4 w-4" /></button>
                   </div>
-                  <div className="mt-1 text-[11px] text-slate-400">
+                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
                     {l.saleUnit !== l.unit && (
                       <span>≡ {formatQty(l.baseQty, l.unit)}</span>
                     )}
+                    {(() => {
+                      const factor = l.presentations.find((s) => s.unit === l.saleUnit)?.factor ?? 1
+                      if (l.stock == null || factor <= 0) return null
+                      const avail = fromBaseQty(l.stock, factor)
+                      return (
+                        <span>
+                          Disponible: {formatQty(avail, l.saleUnit)}
+                          {l.saleUnit !== l.unit && ` (${formatQty(l.stock, l.unit)})`}
+                        </span>
+                      )
+                    })()}
                   </div>
-                  {l.presentations.length > 1 ? (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {l.presentations.map((s) => (
-                        <button
-                          key={s.unit}
-                          onClick={() => setLineQty(l.productId, s.unit, 1)}
-                          className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
-                            l.saleUnit === s.unit && l.qty === 1
-                              ? 'border-primary bg-primary text-white'
-                              : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                          }`}
-                        >
-                          1 {UNIT_LABELS[s.unit]}
-                        </button>
-                      ))}
-                    </div>
-                  ) : l.fractional ? (
-                    <div className="mt-1 flex gap-1">
-                      {[0.5, 1, 2, 5].map((v) => (
-                        <button
-                          key={v}
-                          onClick={() => setLineQty(l.productId, l.saleUnit, v)}
-                          className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
-                            l.qty === v
-                              ? 'border-primary bg-primary text-white'
-                              : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                          }`}
-                        >
-                          {v} {UNIT_LABELS[l.unit]}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                  {quickButtons(l).map((b) => (
+                    <button
+                      key={b.label}
+                      onClick={() => setLineQty(l.productId, l.saleUnit, b.qty)}
+                      className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
+                        Math.abs(l.qty - b.qty) < 1e-6
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                      }`}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
                 </div>
               )
             })}
