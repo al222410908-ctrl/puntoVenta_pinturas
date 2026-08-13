@@ -101,7 +101,6 @@ export function ProductForm({
     setForm((f) => ({
       ...f,
       unit: u,
-      fractional: f.fractional || isLiquid(u),
       presentations: isLiquid(u) ? defaultPresentations(u) : [{ unit: u, factor: 1 }],
     }))
 
@@ -375,7 +374,7 @@ if (!(unit > 0) || !(price > 0)) {
               onChange={(e) => set('fractional', e.target.checked)}
               className="h-4 w-4 accent-blue-700"
             />
-            Se vende en cantidades fraccionadas (0.5, 1.25, …)
+            Se vende en cantidades fraccionadas {isLiquid(form.unit) ? '(1 cuarto, 1 medio, 1 L, 2 L)' : '(0.5, 1.25, …)'}
           </label>
         )}
 

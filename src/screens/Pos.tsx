@@ -458,7 +458,7 @@ export default function Pos() {
 }
 
 function quickButtons(l: CartLine): { unit: Unit; qty: number; label: string }[] {
-  if (isLiquid(l.unit)) {
+  if (isLiquid(l.unit) && l.fractional) {
     return [
       { unit: 'cuarto', qty: 1, label: '1 cuarto' },
       { unit: 'medio', qty: 1, label: '1 medio' },
@@ -466,6 +466,7 @@ function quickButtons(l: CartLine): { unit: Unit; qty: number; label: string }[]
       { unit: 'litro', qty: 2, label: '2 L' },
     ]
   }
+  if (isLiquid(l.unit)) return []
   if (!l.fractional && l.presentations.length <= 1) return []
   const presets = l.fractional ? [0.5, 1, 2, 5] : [1, 2, 5, 10]
   return presets.map((v) => ({ unit: l.saleUnit, qty: v, label: formatQty(v, l.saleUnit) }))
