@@ -29,6 +29,8 @@ export interface SalePresentation {
   unit: Unit
   /** 1 presentación equivale a `factor` unidades base del producto (ej. 1 caja = 50 piezas) */
   factor: number
+  /** Precio de venta de 1 presentación (ej. 1 medio = $60). Si no se define, se calcula proporcional al precio base. */
+  price?: number
 }
 
 export interface Product {

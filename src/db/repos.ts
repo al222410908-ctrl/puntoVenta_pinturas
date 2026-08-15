@@ -32,7 +32,10 @@ export interface CartLine {
   baseQty: number
   /** Stock actual del producto en la unidad base */
   stock?: number
+  /** Precio unitario en la unidad base (p.price) */
   unitPrice: number
+  /** Precio por presentación si la presentación tiene precio propio (ej. 1 medio = $60) */
+  salePrice?: number
   cost: number
 }
 
@@ -40,14 +43,15 @@ export function cartToItems(lines: CartLine[]): SaleItem[] {
   return lines.map((l) => {
     const factor = presentationFactor({ unit: l.unit, salePresentations: l.presentations }, l.saleUnit)
     const baseQty = round2(l.baseQty ?? toBaseQty(l.qty, factor))
+    const unitPrice = l.salePrice != null ? round2(l.salePrice / (factor || 1)) : l.unitPrice
     return {
       productId: l.productId,
       name: l.name,
       unit: l.unit,
       qty: baseQty,
-      unitPrice: l.unitPrice,
+      unitPrice,
       cost: l.cost,
-      lineTotal: round2(baseQty * l.unitPrice),
+      lineTotal: round2(baseQty * unitPrice),
     }
   })
 }

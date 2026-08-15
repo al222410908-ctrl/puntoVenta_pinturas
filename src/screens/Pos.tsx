@@ -60,7 +60,7 @@ export default function Pos() {
     setVisible(80)
   }, [search, categoryId])
 
-  const cartTotal = round2(cart.reduce((s, l) => s + l.baseQty * l.unitPrice, 0))
+  const cartTotal = round2(cart.reduce((s, l) => s + lineTotal(l), 0))
   const cartCount = cart.reduce((s, l) => s + l.qty, 0)
 
   const topSellers = useMemo(() => {
@@ -95,6 +95,7 @@ export default function Pos() {
     baseQty: toBaseQty(qty, factorOf(p, saleUnit)),
     stock: p.stock,
     unitPrice: p.price,
+    salePrice: presentationsOf(p).find((s) => s.unit === saleUnit)?.price,
     cost: p.cost,
   })
 
@@ -113,15 +114,19 @@ export default function Pos() {
       const nextBase = toBaseQty(nextQty, factor)
       const totalBase = round2(otherBase + nextBase)
       if (totalBase > p.stock) {
-        toast.error(`Solo hay ${formatQty(p.stock, p.unit)} de ${p.name}`)
         const maxBase = Math.max(0, round2(p.stock - otherBase))
         const maxQty = fromBaseQty(maxBase, factor)
+        if (maxBase <= 0) {
+          toast.error(`${p.name} está sin stock`)
+          return prev
+        }
+        toast.error(`Solo hay ${formatQty(p.stock, p.unit)} de ${p.name}, se agregó lo disponible`)
         if (existing) {
           return prev.map((l) =>
             l.productId === p.id && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
           )
         }
-        return prev
+        return [...prev, makeLine(p, saleUnit, maxQty)]
       }
       if (existing) {
         return prev.map((l) =>
@@ -169,7 +174,8 @@ export default function Pos() {
         const baseQty = Math.min(l.baseQty, Math.max(0, round2(product.stock - otherBase)))
         const factor = factorOf(product, saleUnit)
         const qty = fromBaseQty(baseQty, factor) || 1
-        return { ...l, saleUnit, qty, baseQty: toBaseQty(qty, factor) }
+        const salePrice = presentationsOf(product).find((s) => s.unit === saleUnit)?.price
+        return { ...l, saleUnit, qty, baseQty: toBaseQty(qty, factor), salePrice }
       }),
     )
   }
@@ -457,6 +463,10 @@ export default function Pos() {
   )
 }
 
+function lineTotal(l: CartLine): number {
+  return l.salePrice != null ? round2(l.qty * l.salePrice) : round2(l.baseQty * l.unitPrice)
+}
+
 function quickButtons(l: CartLine): { unit: Unit; qty: number; label: string }[] {
   if (l.saleUnit === 'kg') {
     return [
@@ -535,7 +545,7 @@ function CartPanel({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{l.name}</p>
                       <p className="text-xs text-slate-400">
-                        {formatMoney(l.unitPrice)} / {UNIT_LABELS[l.unit]}
+                        {formatMoney(l.salePrice ?? l.unitPrice)} / {UNIT_LABELS[l.salePrice != null ? l.saleUnit : l.unit]}
                         {!isLiquid(l.unit) && l.presentations.length > 1 && (
                           <select
                             value={l.saleUnit}
@@ -577,7 +587,7 @@ function CartPanel({
                         </>
                       )}
                     </div>
-                    <span className="w-20 text-right text-sm font-semibold dark:text-slate-100">{formatMoney(round2(l.baseQty * l.unitPrice))}</span>
+                    <span className="w-20 text-right text-sm font-semibold dark:text-slate-100">{formatMoney(lineTotal(l))}</span>
                     <button onClick={() => removeLine(l.productId, l.saleUnit)} className="rounded-md p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"><Trash2 className="h-4 w-4" /></button>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-400">

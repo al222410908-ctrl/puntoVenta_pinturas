@@ -378,56 +378,77 @@ if (!(unit > 0) || !(price > 0)) {
           </label>
         )}
 
-        {!isPkg && !isLiquid(form.unit) && (
+        {!isPkg && (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Presentaciones de venta
             </p>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              Define cómo vendes este producto. Ej.: 1 caja = 50 {unitPlural(form.unit)}.
+              Define cómo vendes este producto y el precio de cada presentación. Ej.: 1 caja = 50 {unitPlural(form.unit)} o 1 medio = $60.
             </p>
             <div className="mt-2 space-y-1.5">
               {form.presentations.map((s) => (
                 <div
                   key={s.unit}
-                  className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 text-sm dark:bg-slate-900"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5 text-sm dark:bg-slate-900"
                 >
                   <span className="text-slate-700 dark:text-slate-200">
                     1 {UNIT_LABELS[s.unit]} = {s.factor} {s.factor === 1 ? UNIT_LABELS[form.unit] : unitPlural(form.unit)}
                   </span>
-                  {s.unit !== form.unit && (
-                    <button
-                      type="button"
-                      onClick={() => removePresentation(s.unit)}
-                      className="rounded-md p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      className="w-24"
+                      placeholder={s.unit === form.unit ? 'Precio base' : 'Proporcional'}
+                      value={s.price != null ? String(s.price) : ''}
+                      onChange={(e) =>
+                        set(
+                          'presentations',
+                          form.presentations.map((x) =>
+                            x.unit === s.unit ? { ...x, price: e.target.value === '' ? undefined : Number(e.target.value) } : x,
+                          ),
+                        )
+                      }
+                    />
+                    {s.unit !== form.unit && (
+                      <button
+                        type="button"
+                        onClick={() => removePresentation(s.unit)}
+                        className="rounded-md p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
-              <Field label="Presentación">
-                <Select value={pack.unit} onChange={(e) => setPack((p) => ({ ...p, unit: e.target.value as Unit }))}>
-                  {UNITS.filter((u) => u.value !== form.unit).map((u) => (
-                    <option key={u.value} value={u.value}>{u.label}</option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label={`${unitPlural(form.unit)} por ${UNIT_LABELS[pack.unit]}`}>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  min="1"
-                  step="1"
-                  value={pack.qty}
-                  onChange={(e) => setPack((p) => ({ ...p, qty: e.target.value }))}
-                  placeholder="Ej. 50"
-                />
-              </Field>
-              <Button type="button" className="shrink-0" onClick={addPack}>Agregar</Button>
-            </div>
+            {!isLiquid(form.unit) && (
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+                <Field label="Presentación">
+                  <Select value={pack.unit} onChange={(e) => setPack((p) => ({ ...p, unit: e.target.value as Unit }))}>
+                    {UNITS.filter((u) => u.value !== form.unit).map((u) => (
+                      <option key={u.value} value={u.value}>{u.label}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label={`${unitPlural(form.unit)} por ${UNIT_LABELS[pack.unit]}`}>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="1"
+                    step="1"
+                    value={pack.qty}
+                    onChange={(e) => setPack((p) => ({ ...p, qty: e.target.value }))}
+                    placeholder="Ej. 50"
+                  />
+                </Field>
+                <Button type="button" className="shrink-0" onClick={addPack}>Agregar</Button>
+              </div>
+            )}
           </div>
         )}
 
