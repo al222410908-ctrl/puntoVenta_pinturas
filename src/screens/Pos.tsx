@@ -458,6 +458,14 @@ export default function Pos() {
 }
 
 function quickButtons(l: CartLine): { unit: Unit; qty: number; label: string }[] {
+  if (l.saleUnit === 'kg') {
+    return [
+      { unit: 'kg', qty: 0.25, label: '250 g (¼ kg)' },
+      { unit: 'kg', qty: 0.5, label: '500 g (½ kg)' },
+      { unit: 'kg', qty: 1, label: '1 kg' },
+      { unit: 'kg', qty: 2, label: '2 kg' },
+    ]
+  }
   if (isLiquid(l.unit) && l.fractional) {
     return [
       { unit: 'cuarto', qty: 1, label: '1 cuarto' },
@@ -542,22 +550,40 @@ function CartPanel({
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty - 1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Minus className="h-4 w-4" /></button>
-                      <input
-                        value={l.qty}
-                        inputMode="decimal"
-                        onChange={(e) => setLineQty(l.productId, l.saleUnit, Math.max(0, Number(e.target.value) || 0))}
-                        className="w-14 rounded-md border border-slate-200 px-1 py-0.5 text-center text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-                      />
-                      <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty + 1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Plus className="h-4 w-4" /></button>
+                      {l.saleUnit === 'kg' ? (
+                        <>
+                          <button onClick={() => setLineQty(l.productId, l.saleUnit, Math.max(0, round2(l.qty - 0.1)))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Minus className="h-4 w-4" /></button>
+                          <input
+                            value={Math.round(l.qty * 1000)}
+                            inputMode="numeric"
+                            onChange={(e) =>
+                              setLineQty(l.productId, l.saleUnit, (Math.max(0, Number(e.target.value) || 0)) / 1000)
+                            }
+                            className="w-16 rounded-md border border-slate-200 px-1 py-0.5 text-center text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                          />
+                          <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">g</span>
+                          <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty + 0.1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Plus className="h-4 w-4" /></button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty - 1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Minus className="h-4 w-4" /></button>
+                          <input
+                            value={l.qty}
+                            inputMode="decimal"
+                            onChange={(e) => setLineQty(l.productId, l.saleUnit, Math.max(0, Number(e.target.value) || 0))}
+                            className="w-14 rounded-md border border-slate-200 px-1 py-0.5 text-center text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                          />
+                          <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty + 1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Plus className="h-4 w-4" /></button>
+                        </>
+                      )}
                     </div>
                     <span className="w-20 text-right text-sm font-semibold dark:text-slate-100">{formatMoney(round2(l.baseQty * l.unitPrice))}</span>
                     <button onClick={() => removeLine(l.productId, l.saleUnit)} className="rounded-md p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"><Trash2 className="h-4 w-4" /></button>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
-                    {l.saleUnit !== l.unit && (
+                    {l.saleUnit === 'kg' || l.saleUnit !== l.unit ? (
                       <span>≡ {formatQty(l.baseQty, l.unit)}</span>
-                    )}
+                    ) : null}
                     {(() => {
                       const factor = l.presentations.find((s) => s.unit === l.saleUnit)?.factor ?? 1
                       if (l.stock == null || factor <= 0) return null
