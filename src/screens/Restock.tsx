@@ -332,10 +332,6 @@ function OrderForm({ onClose }: { onClose: () => void }) {
   }, [products, productQuery])
 
   const addProduct = (p: Product) => {
-    if (lines.some((l) => l.productId === p.id)) {
-      toast.error(`${p.name} ya está en la lista`)
-      return
-    }
     setLines((l) => [
       ...l,
       {
