@@ -468,7 +468,7 @@ function lineTotal(l: CartLine): number {
 }
 
 function quickButtons(l: CartLine): { unit: Unit; qty: number; label: string }[] {
-  if (l.saleUnit === 'kg') {
+  if (l.saleUnit === 'kg' && l.fractional) {
     return [
       { unit: 'kg', qty: 0.25, label: '250 g (¼ kg)' },
       { unit: 'kg', qty: 0.5, label: '500 g (½ kg)' },
@@ -560,7 +560,7 @@ function CartPanel({
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      {l.saleUnit === 'kg' ? (
+                      {l.saleUnit === 'kg' && l.fractional ? (
                         <>
                           <button onClick={() => setLineQty(l.productId, l.saleUnit, Math.max(0, round2(l.qty - 0.1)))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Minus className="h-4 w-4" /></button>
                           <input

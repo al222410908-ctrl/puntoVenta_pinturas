@@ -73,8 +73,8 @@ function factorFor(unit: Unit, baseUnit: Unit): number {
 }
 
 /** Presentaciones por defecto para un producto, relativas a su unidad base. */
-export function defaultPresentations(unit: Unit): SalePresentation[] {
-  if (isLiquid(unit)) {
+export function defaultPresentations(unit: Unit, fractional = false): SalePresentation[] {
+  if (isLiquid(unit) && fractional) {
     return SALE_PRESENTATIONS.map((u) => ({ unit: u, factor: factorFor(u, unit) }))
   }
   return [{ unit, factor: 1 }]
@@ -83,12 +83,16 @@ export function defaultPresentations(unit: Unit): SalePresentation[] {
 /**
  * Presentaciones efectivas de un producto, migrando el formato antiguo `saleUnits`.
  * Siempre devuelve al menos la unidad base.
+ * Si el producto no es fraccionado, la unidad base se trata como unidad independiente
+ * (ej. unidad "cuarto" → el stock se cuenta en cuartos, no en litros).
  */
 export function productPresentations(p: {
   unit: Unit
+  fractional?: boolean
   saleUnits?: Unit[]
   salePresentations?: SalePresentation[]
 }): SalePresentation[] {
+  if (!p.fractional) return [{ unit: p.unit, factor: 1 }]
   if (p.salePresentations && p.salePresentations.length) return p.salePresentations
   if (p.saleUnits && p.saleUnits.length) {
     return p.saleUnits.map((u) => ({ unit: u, factor: factorFor(u, p.unit) || 1 }))

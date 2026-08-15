@@ -101,7 +101,7 @@ export function ProductForm({
     setForm((f) => ({
       ...f,
       unit: u,
-      presentations: isLiquid(u) ? defaultPresentations(u) : [{ unit: u, factor: 1 }],
+      presentations: f.fractional ? defaultPresentations(u, true) : [{ unit: u, factor: 1 }],
     }))
 
   const [pack, setPack] = useState<{ unit: Unit; qty: string }>({ unit: 'caja', qty: '' })
@@ -371,14 +371,20 @@ if (!(unit > 0) || !(price > 0)) {
             <input
               type="checkbox"
               checked={form.fractional}
-              onChange={(e) => set('fractional', e.target.checked)}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  fractional: e.target.checked,
+                  presentations: e.target.checked ? defaultPresentations(f.unit, true) : [{ unit: f.unit, factor: 1 }],
+                }))
+              }
               className="h-4 w-4 accent-blue-700"
             />
             Se vende en cantidades fraccionadas {isLiquid(form.unit) ? '(1 cuarto, 1 medio, 1 L, 2 L)' : '(0.5, 1.25, …)'}
           </label>
         )}
 
-        {!isPkg && (
+        {!isPkg && form.fractional && (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Presentaciones de venta
