@@ -29,6 +29,7 @@ import {
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { SaleNoteModal } from '../components/SaleNoteModal'
 import { Button, EmptyState, Input, Modal } from '../components/ui'
+import { loadScannerSettings, useBarcodeScanner } from '../lib/scanner'
 
 export default function Pos() {
   const products = useLiveQuery(() => db.products.toArray(), []) ?? []
@@ -45,6 +46,10 @@ export default function Pos() {
   const [cash, setCash] = useState('')
   const [card, setCard] = useState('')
   const [noteSale, setNoteSale] = useState<Sale | null>(null)
+  const [scanner] = useState<{ enabled: boolean; suffix: 'Enter' | 'Tab' }>(() => {
+    const s = loadScannerSettings()
+    return { enabled: s.enabled, suffix: s.suffix }
+  })
 
   const allFiltered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -199,6 +204,10 @@ export default function Pos() {
     }
   }
 
+  const scannerActive = scanner.enabled && !payOpen && !scanOpen
+  useBarcodeScanner(handleScan, scannerActive, scanner.suffix)
+
+
   const handleUndo = async () => {
     const last = await undoLastSale()
     if (!last) {
@@ -256,17 +265,23 @@ export default function Pos() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <Input
+                id="pos-search"
                 className="pl-9"
                 placeholder="Buscar producto…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Button onClick={() => setScanOpen(true)} className="shrink-0">
+            <Button onClick={() => setScanOpen(true)} className="shrink-0" title="Escanear con cámara (celular)">
               <ScanLine className="h-5 w-5" />
               <span className="hidden sm:inline">Escanear</span>
             </Button>
           </div>
+          {scannerActive && (
+            <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
+              Lector de barras (PC) activo: escanea directo para agregar productos.
+            </p>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 lg:pb-3">

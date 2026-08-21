@@ -1,17 +1,25 @@
 import { useRef, useState } from 'react'
-import { ImagePlus, Save, Store, Trash2 } from 'lucide-react'
+import { ImagePlus, Save, Store, Trash2, ScanLine } from 'lucide-react'
 import { toast } from 'sonner'
 import type { BusinessInfo } from '../types'
 import { loadBusinessInfo, saveBusinessInfo } from '../lib/ticket'
+import { loadScannerSettings, saveScannerSettings, type ScannerSettings } from '../lib/scanner'
 import { compressImageFile } from '../lib/image'
-import { Button, Field, Input, TextArea } from '../components/ui'
+import { Button, Field, Input, Segmented, TextArea } from '../components/ui'
 
 export default function Settings() {
   const [form, setForm] = useState<BusinessInfo>(() => loadBusinessInfo())
+  const [scanner, setScanner] = useState<ScannerSettings>(() => loadScannerSettings())
   const [savingLogo, setSavingLogo] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const set = (patch: Partial<BusinessInfo>) => setForm((f) => ({ ...f, ...patch }))
+  const setScannerPatch = (patch: Partial<ScannerSettings>) =>
+    setScanner((s) => {
+      const next = { ...s, ...patch }
+      saveScannerSettings(next)
+      return next
+    })
 
   const handleSave = () => {
     if (!form.name.trim()) {
@@ -123,6 +131,38 @@ export default function Settings() {
               onChange={(e) => void handleLogo(e.target.files?.[0])}
             />
           </div>
+        </div>
+
+        <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20">
+          <div className="flex items-center gap-2">
+            <ScanLine className="h-5 w-5 text-primary" />
+            <h2 className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">
+              Lector de código de barras (PC)
+            </h2>
+          </div>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Para computadora con lector USB (ej. Volteck 2D alámbrico). El lector "escribe" el código como
+            teclado; activa esto y escanea directo para agregar productos sin tocar la cámara.
+          </p>
+          <label className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Activar lector en PC</span>
+            <input
+              type="checkbox"
+              checked={scanner.enabled}
+              onChange={(e) => setScannerPatch({ enabled: e.target.checked })}
+              className="h-5 w-5 accent-primary"
+            />
+          </label>
+          <Field label="Terminador del lector">
+            <Segmented
+              value={scanner.suffix}
+              onChange={(v) => setScannerPatch({ suffix: v })}
+              options={[
+                { value: 'Enter', label: 'Enter' },
+                { value: 'Tab', label: 'Tab' },
+              ]}
+            />
+          </Field>
         </div>
 
         <Button className="btn-primary w-full" onClick={handleSave}>
