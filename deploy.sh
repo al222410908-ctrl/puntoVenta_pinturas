@@ -11,6 +11,9 @@ echo "==> Actualizando sync-server"
 cp server/sync-server.mjs server/sync-core.mjs /home/ubuntu/puntoVenta_pinturas/
 sudo systemctl restart pinturas-sync
 
+echo "==> Dependencias"
+npm install
+
 echo "==> Build produccion"
 # Ya no se usa VITE_SYNC_TOKEN — la auth usa el hash del PIN.
 # Si tienes un SYNC_TOKEN maestro en el servidor, configúralo en el
