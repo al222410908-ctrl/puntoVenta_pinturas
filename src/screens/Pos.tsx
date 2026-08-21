@@ -247,119 +247,123 @@ export default function Pos() {
 
   return (
     <div className="flex h-full min-w-0 flex-col lg:flex-row">
-      <div className="min-w-0 flex-1 p-3">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-            <Input
-              className="pl-9"
-              placeholder="Buscar producto…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <Button onClick={() => setScanOpen(true)} className="shrink-0">
-            <ScanLine className="h-5 w-5" />
-            <span className="hidden sm:inline">Escanear</span>
-          </Button>
-        </div>
-
-        {topSellers.length > 0 && (
-          <div className="mt-3">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Más vendidos
-            </p>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {topSellers.map(({ p }) => (
-                <button
-                  key={p.id}
-                  onClick={() => addToCart(p)}
-                  className="shrink-0 rounded-full border border-primary-200 bg-white px-3 py-1 text-sm font-medium text-primary hover:bg-primary hover:text-white dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-primary dark:hover:text-white"
-                >
-                  {p.name}
-                </button>
-              ))}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="p-3 pb-2">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+              <Input
+                className="pl-9"
+                placeholder="Buscar producto…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
+            <Button onClick={() => setScanOpen(true)} className="shrink-0">
+              <ScanLine className="h-5 w-5" />
+              <span className="hidden sm:inline">Escanear</span>
+            </Button>
           </div>
-        )}
-
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          <button
-            onClick={() => setCategoryId('')}
-            className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
-              categoryId === '' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-            }`}
-          >
-            Todos
-          </button>
-          {categories.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setCategoryId(c.id)}
-              className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
-                categoryId === c.id ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-              }`}
-            >
-              {c.name}
-            </button>
-          ))}
         </div>
 
-        {filtered.length === 0 ? (
-          <EmptyState
-            icon={<ShoppingCart className="h-10 w-10" />}
-            title={search ? 'Sin resultados' : 'Agrega productos en Catálogo'}
-            hint={search ? 'Prueba con otro nombre' : undefined}
-          />
-        ) : (
-          <>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-              {filtered.map((p) => {
-                const out = p.stock <= 0
-                const low = !out && p.stock <= p.minStock
-                return (
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 lg:pb-3">
+          {topSellers.length > 0 && (
+            <div className="mt-3">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Más vendidos
+              </p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {topSellers.map(({ p }) => (
                   <button
                     key={p.id}
                     onClick={() => addToCart(p)}
-                    className="card flex min-w-0 flex-col gap-1 p-2.5 text-left transition hover:border-primary-600 hover:shadow-md"
+                    className="shrink-0 rounded-full border border-primary-200 bg-white px-3 py-1 text-sm font-medium text-primary hover:bg-primary hover:text-white dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-primary dark:hover:text-white"
                   >
-                    {p.photo ? (
-                      <img
-                        src={p.photo}
-                        alt={p.name}
-                        className="mb-1 h-16 w-full min-w-0 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <span className="mb-1 flex h-16 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
-                        <ImageIcon className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-                      </span>
-                    )}
-                    <span className="line-clamp-2 min-h-[2.4rem] text-sm font-medium text-slate-800 dark:text-slate-100">
-                      {p.name}
-                    </span>
-                    <span className="text-base font-bold text-primary dark:text-blue-400">{formatMoney(p.price)}</span>
-                    <span className="text-xs text-slate-400">{formatQty(1, p.unit)}</span>
-                    <span
-                      className={`chip ${
-                        out ? 'chip-bad' : low ? 'chip-warn' : 'chip-ok'
-                      }`}
-                    >
-                      {out ? 'Agotado' : `Stock ${formatQty(p.stock, p.unit)}`}
-                    </span>
+                    {p.name}
                   </button>
-                )
-              })}
+                ))}
+              </div>
             </div>
-            {visible < allFiltered.length && (
+          )}
+
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            <button
+              onClick={() => setCategoryId('')}
+              className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
+                categoryId === '' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+              }`}
+            >
+              Todos
+            </button>
+            {categories.map((c) => (
               <button
-                onClick={() => setVisible((v) => v + 80)}
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white py-2 text-sm font-medium text-primary hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                key={c.id}
+                onClick={() => setCategoryId(c.id)}
+                className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
+                  categoryId === c.id ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                }`}
               >
-                Ver más ({allFiltered.length - visible} restantes)
+                {c.name}
               </button>
-            )}
-          </>
-        )}
+            ))}
+          </div>
+
+          {filtered.length === 0 ? (
+            <EmptyState
+              icon={<ShoppingCart className="h-10 w-10" />}
+              title={search ? 'Sin resultados' : 'Agrega productos en Catálogo'}
+              hint={search ? 'Prueba con otro nombre' : undefined}
+            />
+          ) : (
+            <>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+                {filtered.map((p) => {
+                  const out = p.stock <= 0
+                  const low = !out && p.stock <= p.minStock
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => addToCart(p)}
+                      className="card flex min-w-0 flex-col gap-1 p-2.5 text-left transition hover:border-primary-600 hover:shadow-md"
+                    >
+                      {p.photo ? (
+                        <img
+                          src={p.photo}
+                          alt={p.name}
+                          className="mb-1 h-16 w-full min-w-0 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <span className="mb-1 flex h-16 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
+                          <ImageIcon className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                        </span>
+                      )}
+                      <span className="line-clamp-2 min-h-[2.4rem] text-sm font-medium text-slate-800 dark:text-slate-100">
+                        {p.name}
+                      </span>
+                      <span className="text-base font-bold text-primary dark:text-blue-400">{formatMoney(p.price)}</span>
+                      <span className="text-xs text-slate-400">{formatQty(1, p.unit)}</span>
+                      <span
+                        className={`chip ${
+                          out ? 'chip-bad' : low ? 'chip-warn' : 'chip-ok'
+                        }`}
+                      >
+                        {out ? 'Agotado' : `Stock ${formatQty(p.stock, p.unit)}`}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              {visible < allFiltered.length && (
+                <button
+                  onClick={() => setVisible((v) => v + 80)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white py-2 text-sm font-medium text-primary hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  Ver más ({allFiltered.length - visible} restantes)
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <div className="hidden w-80 shrink-0 flex-col border-l border-slate-200 bg-white lg:flex dark:border-slate-800 dark:bg-slate-900">
