@@ -91,6 +91,11 @@ export function openWhatsAppText(sale: Sale, business: BusinessInfo, clientPhone
   window.open(`${base}?text=${encodeURIComponent(whatsappText(sale, business))}`, '_blank')
 }
 
+/** Abre directamente el chat de WhatsApp del cliente, sin mensaje predefinido. */
+export function openWhatsAppChat(clientPhone: string): void {
+  window.open(`https://wa.me/${clientPhone}`, '_blank')
+}
+
 const PT = 0.352778
 const W = 80
 const M = 5
@@ -293,4 +298,224 @@ export async function downloadTicketPdf(sale: Sale, business: BusinessInfo): Pro
   const { blob, fileName } = await buildTicketPdf(sale, business)
   downloadBlob(blob, fileName)
   return fileName
+}
+
+function wrapCanvas(ctx: CanvasRenderingContext2D, text: string, font: string, maxW: number): string[] {
+  ctx.font = font
+  const words = text.split(/\s+/)
+  const lines: string[] = []
+  let cur = ''
+  for (const w of words) {
+    const test = cur ? `${cur} ${w}` : w
+    if (!cur || ctx.measureText(test).width <= maxW) cur = test
+    else {
+      lines.push(cur)
+      cur = w
+    }
+  }
+  if (cur) lines.push(cur)
+  return lines.length ? lines : ['']
+}
+
+function loadLogoEl(dataUrl: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = dataUrl
+  })
+}
+
+/** Genera la nota como imagen PNG con diseño (se ve bien en cualquier visor/WhatsApp). */
+export async function buildTicketImage(
+  sale: Sale,
+  business: BusinessInfo,
+): Promise<{ blob: Blob; fileName: string }> {
+  const S = 2
+  const WL = 360
+  const PADL = 20
+  const USABLE = WL - PADL * 2
+  const BRAND = '#174a3b'
+  const DARK = '#1e293b'
+  const GRAY = '#64748b'
+  const LINE = '#cbd5e1'
+  const BLUE = '#2563eb'
+  const F = (size: number, weight = 400) =>
+    `${weight} ${size}px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`
+
+  const logo = business.logo ? await loadLogoEl(business.logo) : null
+
+  function dash(ctx: CanvasRenderingContext2D, y: number): number {
+    ctx.strokeStyle = LINE
+    ctx.lineWidth = 1
+    ctx.setLineDash([5, 4])
+    ctx.beginPath()
+    ctx.moveTo(PADL, y)
+    ctx.lineTo(WL - PADL, y)
+    ctx.stroke()
+    ctx.setLineDash([])
+    return y + 10
+  }
+
+  function render(ctx: CanvasRenderingContext2D): number {
+    let y = 0
+
+    // Encabezado con color de marca
+    const nameLines = wrapCanvas(ctx, business.name.toUpperCase(), F(21, 700), USABLE)
+    const addrLines = business.address?.trim() ? wrapCanvas(ctx, business.address.trim(), F(12), USABLE) : []
+    const tel = business.phone?.trim() ? `Tel: ${business.phone.trim()}` : ''
+    let logoH = 0
+    if (logo && logo.naturalWidth > 0) {
+      logoH = Math.max(20, Math.min(56, (USABLE / logo.naturalWidth) * logo.naturalHeight))
+    }
+    const headH =
+      18 +
+      (logoH ? logoH + 10 : 0) +
+      nameLines.length * 27 +
+      (addrLines.length ? addrLines.length * 17 + 2 : 0) +
+      (tel ? 17 : 0) +
+      16
+    ctx.fillStyle = BRAND
+    ctx.fillRect(0, 0, WL, headH)
+
+    y = 18
+    ctx.textAlign = 'center'
+    if (logo && logoH) {
+      const lw = (logo.naturalWidth / logo.naturalHeight) * logoH
+      ctx.drawImage(logo, (WL - lw) / 2, y, lw, logoH)
+      y += logoH + 10
+    }
+    ctx.fillStyle = '#ffffff'
+    ctx.font = F(21, 700)
+    for (const ln of nameLines) {
+      ctx.fillText(ln, WL / 2, y + 17)
+      y += 27
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'
+    ctx.font = F(12)
+    for (const ln of addrLines) {
+      ctx.fillText(ln, WL / 2, y + 12)
+      y += 17
+    }
+    if (tel) {
+      ctx.fillText(tel, WL / 2, y + 12)
+      y += 17
+    }
+
+    y = headH + 14
+
+    // Nota / fecha
+    ctx.textAlign = 'left'
+    ctx.fillStyle = DARK
+    ctx.font = F(13, 600)
+    ctx.fillText(`Nota ${folioLabel(sale)}`, PADL, y + 12)
+    ctx.textAlign = 'right'
+    ctx.fillStyle = GRAY
+    ctx.font = F(11.5)
+    ctx.fillText(formatTicketDate(sale.date), WL - PADL, y + 12)
+    y += 22
+    y = dash(ctx, y + 4)
+
+    // Productos
+    for (const it of sale.items) {
+      const nameL = wrapCanvas(ctx, it.name, F(13.5, 600), USABLE)
+      ctx.textAlign = 'left'
+      ctx.fillStyle = DARK
+      ctx.font = F(13.5, 600)
+      for (const ln of nameL) {
+        ctx.fillText(ln, PADL, y + 13)
+        y += 18
+      }
+      ctx.fillStyle = GRAY
+      ctx.font = F(12)
+      ctx.fillText(`${formatQty(it.qty, it.unit)} × ${formatMoney(it.unitPrice)}`, PADL + 6, y + 12)
+      ctx.textAlign = 'right'
+      ctx.fillStyle = DARK
+      ctx.font = F(12.5, 600)
+      ctx.fillText(formatMoney(it.lineTotal), WL - PADL, y + 12)
+      y += 20
+    }
+    y = dash(ctx, y + 2)
+
+    // Total
+    ctx.textAlign = 'left'
+    ctx.fillStyle = DARK
+    ctx.font = F(14, 800)
+    ctx.fillText('TOTAL', PADL, y + 16)
+    ctx.textAlign = 'right'
+    ctx.fillStyle = BRAND
+    ctx.font = F(23, 800)
+    ctx.fillText(formatMoney(sale.total), WL - PADL, y + 18)
+    y += 30
+
+    // Pagos y cambio
+    for (const p of sale.payments) {
+      ctx.textAlign = 'left'
+      ctx.fillStyle = GRAY
+      ctx.font = F(12)
+      ctx.fillText(p.type === 'efectivo' ? 'Efectivo' : 'Tarjeta', PADL, y + 12)
+      ctx.textAlign = 'right'
+      ctx.fillText(formatMoney(p.amount), WL - PADL, y + 12)
+      y += 17
+    }
+    const paid = sale.payments.reduce((s, p) => s + p.amount, 0)
+    const change = Math.round((paid - sale.total) * 100) / 100
+    if (change > 0) {
+      ctx.textAlign = 'left'
+      ctx.fillStyle = BLUE
+      ctx.font = F(12, 600)
+      ctx.fillText('Cambio', PADL, y + 12)
+      ctx.textAlign = 'right'
+      ctx.fillText(formatMoney(change), WL - PADL, y + 12)
+      y += 17
+    }
+
+    if (sale.notes?.trim()) {
+      y += 4
+      const noteLines = wrapCanvas(ctx, `Nota: ${sale.notes.trim()}`, F(11.5), USABLE)
+      ctx.textAlign = 'left'
+      ctx.fillStyle = GRAY
+      ctx.font = F(11.5)
+      for (const ln of noteLines) {
+        ctx.fillText(ln, PADL, y + 12)
+        y += 16
+      }
+    }
+
+    if (business.footer?.trim()) {
+      y = dash(ctx, y + 4)
+      const footerLines = wrapCanvas(ctx, business.footer.trim(), F(12, 600), USABLE)
+      ctx.textAlign = 'center'
+      ctx.fillStyle = GRAY
+      ctx.font = F(12, 600)
+      for (const ln of footerLines) {
+        ctx.fillText(ln, WL / 2, y + 13)
+        y += 18
+      }
+    }
+
+    return y + 18
+  }
+
+  // Pasada 1: medir; pasada 2: dibujar en lienzo del tamaño exacto
+  const measure = document.createElement('canvas')
+  measure.width = WL * S
+  measure.height = 400 * S
+  const mctx = measure.getContext('2d')!
+  mctx.scale(S, S)
+  const contentH = Math.ceil(render(mctx))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = WL * S
+  canvas.height = contentH * S
+  const ctx = canvas.getContext('2d')!
+  ctx.scale(S, S)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, WL, contentH)
+  render(ctx)
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No se pudo generar la imagen'))), 'image/png')
+  })
+  return { blob, fileName: ticketFileName(sale).replace(/\.pdf$/, '.png') }
 }

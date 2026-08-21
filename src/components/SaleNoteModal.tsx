@@ -4,13 +4,15 @@ import { toast } from 'sonner'
 import type { Sale } from '../types'
 import { Button, Field, Input, Modal } from './ui'
 import {
+  buildTicketImage,
+  downloadBlob,
   downloadTicketPdf,
   folioLabel,
   formatTicketDate,
   loadBusinessInfo,
   loadClientPhone,
   normalizePhone,
-  openWhatsAppText,
+  openWhatsAppChat,
   saveClientPhone,
 } from '../lib/ticket'
 import { formatMoney } from '../lib/utils'
@@ -33,11 +35,12 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
     setBusy(true)
     try {
       saveClientPhone(phone)
-      const name = await downloadTicketPdf(sale, business)
-      openWhatsAppText(sale, business, normalized)
-      toast.success(`PDF descargado (${name}). Adjúntalo en el chat del cliente que se abrió.`)
+      const { blob, fileName } = await buildTicketImage(sale, business)
+      downloadBlob(blob, fileName)
+      openWhatsAppChat(normalized)
+      toast.success(`Imagen de la nota descargada. Adjúntala en el chat del cliente que se abrió.`)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'No se pudo generar el PDF')
+      toast.error(e instanceof Error ? e.message : 'No se pudo generar la nota')
     } finally {
       setBusy(false)
     }
@@ -119,7 +122,7 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
 
         <Button className="btn-primary w-full" disabled={busy} onClick={() => void handleSend()}>
           <MessageCircle className="mr-2 inline h-4 w-4" />
-          Enviar por WhatsApp
+          Enviar por WhatsApp (imagen)
         </Button>
         <Button className="btn-secondary w-full" disabled={busy} onClick={() => void handleDownload()}>
           <Download className="mr-2 inline h-4 w-4" />
