@@ -12,7 +12,6 @@ import {
   normalizePhone,
   openWhatsAppText,
   saveClientPhone,
-  shareTicketPdf,
 } from '../lib/ticket'
 import { formatMoney } from '../lib/utils'
 import { formatQty } from '../lib/units'
@@ -25,28 +24,20 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
   const paid = sale.payments.reduce((s, p) => s + p.amount, 0)
   const change = Math.round((paid - sale.total) * 100) / 100
 
-  const handleShare = async () => {
+  const handleSend = async () => {
+    const normalized = normalizePhone(phone)
+    if (!normalized) {
+      toast.error('Escribe el número de WhatsApp del cliente')
+      return
+    }
     setBusy(true)
     try {
-      const normalized = normalizePhone(phone)
-      if (normalized) {
-        // Chat directo al cliente: se descarga el PDF y se abre el chat con el resumen
-        saveClientPhone(phone)
-        const name = await downloadTicketPdf(sale, business)
-        openWhatsAppText(sale, business, normalized)
-        toast.success(`PDF descargado (${name}). Adjúntalo en el chat de WhatsApp que se abrió.`)
-      } else {
-        const res = await shareTicketPdf(sale, business)
-        if (res === 'downloaded') {
-          toast.info('PDF descargado: adjúntalo a tu mensaje de WhatsApp')
-        } else {
-          toast.success('Nota compartida')
-        }
-      }
+      saveClientPhone(phone)
+      const name = await downloadTicketPdf(sale, business)
+      openWhatsAppText(sale, business, normalized)
+      toast.success(`PDF descargado (${name}). Adjúntalo en el chat del cliente que se abrió.`)
     } catch (e) {
-      if (!(e instanceof DOMException && e.name === 'AbortError')) {
-        toast.error(e instanceof Error ? e.message : 'No se pudo generar el PDF')
-      }
+      toast.error(e instanceof Error ? e.message : 'No se pudo generar el PDF')
     } finally {
       setBusy(false)
     }
@@ -114,10 +105,11 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
           {business.footer?.trim() && <p className="mt-2 text-center text-[10px]">{business.footer}</p>}
         </div>
 
-        <Field label="WhatsApp del cliente (opcional)">
+        <Field label="WhatsApp del cliente">
           <Input
             type="tel"
             inputMode="tel"
+            autoFocus
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="10 dígitos, ej. 871 123 4567"
@@ -125,7 +117,7 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
           />
         </Field>
 
-        <Button className="btn-primary w-full" disabled={busy} onClick={() => void handleShare()}>
+        <Button className="btn-primary w-full" disabled={busy} onClick={() => void handleSend()}>
           <MessageCircle className="mr-2 inline h-4 w-4" />
           Enviar por WhatsApp
         </Button>
@@ -133,13 +125,6 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
           <Download className="mr-2 inline h-4 w-4" />
           Descargar PDF
         </Button>
-        <button
-          onClick={() => openWhatsAppText(sale, business, normalizePhone(phone))}
-          disabled={busy}
-          className="text-xs text-primary underline-offset-2 hover:underline"
-        >
-          O enviar solo el resumen en texto
-        </button>
         <Button className="btn-ghost mx-auto" onClick={onClose}>
           <X className="mr-1 inline h-4 w-4" />
           Cerrar
