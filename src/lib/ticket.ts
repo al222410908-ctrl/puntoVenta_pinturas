@@ -1,8 +1,10 @@
+import type { jsPDF } from 'jspdf'
 import type { BusinessInfo, Sale } from '../types'
 import { formatMoney } from './utils'
 import { formatQty } from './units'
 
 const BUSINESS_KEY = 'pos_business'
+const CLIENT_PHONE_KEY = 'pos_cliente_phone'
 
 export const DEFAULT_BUSINESS: BusinessInfo = { name: 'Pinturas POS' }
 
@@ -23,6 +25,23 @@ export function loadBusinessInfo(): BusinessInfo {
 
 export function saveBusinessInfo(info: BusinessInfo): void {
   localStorage.setItem(BUSINESS_KEY, JSON.stringify(info))
+}
+
+export function loadClientPhone(): string {
+  return localStorage.getItem(CLIENT_PHONE_KEY) ?? ''
+}
+
+export function saveClientPhone(phone: string): void {
+  localStorage.setItem(CLIENT_PHONE_KEY, phone.trim())
+}
+
+/** Deja solo dígitos; si tiene 10 dígitos asume México y agrega 52. */
+export function normalizePhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return null
+  if (digits.length === 10) return `52${digits}`
+  if (digits.length >= 8) return digits
+  return null
 }
 
 export function folioLabel(sale: Sale): string {
@@ -66,40 +85,27 @@ export function whatsappText(sale: Sale, business: BusinessInfo): string {
   return lines.join('\n')
 }
 
-export function openWhatsAppText(sale: Sale, business: BusinessInfo): void {
-  window.open(`https://wa.me/?text=${encodeURIComponent(whatsappText(sale, business))}`, '_blank')
+/** Abre el chat de WhatsApp (con número de cliente si se da) con el resumen. */
+export function openWhatsAppText(sale: Sale, business: BusinessInfo, clientPhone?: string | null): void {
+  const base = clientPhone ? `https://wa.me/${clientPhone}` : 'https://wa.me/'
+  window.open(`${base}?text=${encodeURIComponent(whatsappText(sale, business))}`, '_blank')
 }
 
 const PT = 0.352778
 const W = 80
 const M = 5
 const RIGHT = W - M
+const USABLE = W - M * 2
 
 type Row =
-  | { kind: 'text'; text: string; size: number; bold: boolean; align: 'left' | 'center' | 'right'; gap: number }
+  | { kind: 'text'; lines: string[]; size: number; bold: boolean; align: 'left' | 'center' | 'right'; gap: number }
   | { kind: 'cols'; left: string; right: string; size: number; bold: boolean; gap: number }
   | { kind: 'sep'; gap: number }
 
-function wrapText(text: string, maxChars: number): string {
-  const words = text.split(/\s+/)
-  const lines: string[] = []
-  let cur = ''
-  for (const w of words) {
-    if (!cur.length) cur = w
-    else if ((cur + ' ' + w).length <= maxChars) cur += ' ' + w
-    else {
-      lines.push(cur)
-      cur = w
-    }
-  }
-  if (cur.length) lines.push(cur)
-  return lines.join('\n')
-}
-
 function rowHeight(r: Row): number {
   if (r.kind === 'sep') return 2 + r.gap
-  const lh = r.size * PT * 1.25
-  const lines = r.kind === 'text' ? r.text.split('\n').length : 1
+  const lh = r.size * PT * 1.3
+  const lines = r.kind === 'text' ? r.lines.length : 1
   return lines * lh + r.gap
 }
 
@@ -112,39 +118,55 @@ async function loadImageSize(dataUrl: string): Promise<{ w: number; h: number }>
   })
 }
 
+function wrapWith(doc: jsPDF, text: string, size: number, bold: boolean): string[] {
+  doc.setFont('helvetica', bold ? 'bold' : 'normal')
+  doc.setFontSize(size)
+  return doc.splitTextToSize(text, USABLE) as string[]
+}
+
 export async function buildTicketPdf(
   sale: Sale,
   business: BusinessInfo,
 ): Promise<{ blob: Blob; fileName: string }> {
-  const rows: Row[] = []
+  const { jsPDF: JsPDF } = await import('jspdf')
+  // Documento auxiliar solo para medir texto con las fuentes reales
+  const measurer = new JsPDF({ unit: 'mm', format: [W, 100] })
 
   let logoH = 0
   let logoW = 0
   if (business.logo) {
     try {
       const size = await loadImageSize(business.logo)
-      logoW = Math.min(30, size.w * (18 / size.h))
-      logoH = Math.min(18, size.h * (logoW / size.w))
+      logoH = Math.min(18, size.h * (30 / size.w))
       logoW = Math.min(30, size.w * (logoH / size.h))
+      logoH = Math.min(18, size.h * (logoW / size.w))
     } catch {
       logoH = 0
       logoW = 0
     }
   }
 
-  rows.push({ kind: 'text', text: business.name.toUpperCase(), size: 12, bold: true, align: 'center', gap: 1 })
+  const rows: Row[] = []
+  rows.push({
+    kind: 'text',
+    lines: wrapWith(measurer, business.name.toUpperCase(), 12, true),
+    size: 12,
+    bold: true,
+    align: 'center',
+    gap: 1,
+  })
   if (business.address?.trim()) {
-    rows.push({ kind: 'text', text: wrapText(business.address.trim(), 38), size: 8, bold: false, align: 'center', gap: 0.5 })
+    rows.push({ kind: 'text', lines: wrapWith(measurer, business.address.trim(), 8, false), size: 8, bold: false, align: 'center', gap: 0.5 })
   }
   if (business.phone?.trim()) {
-    rows.push({ kind: 'text', text: `Tel: ${business.phone.trim()}`, size: 8, bold: false, align: 'center', gap: 0.5 })
+    rows.push({ kind: 'text', lines: [`Tel: ${business.phone.trim()}`], size: 8, bold: false, align: 'center', gap: 0.5 })
   }
   rows.push({ kind: 'sep', gap: 1 })
   rows.push({ kind: 'cols', left: `Nota ${folioLabel(sale)}`, right: formatTicketDate(sale.date), size: 8, bold: false, gap: 0.5 })
   rows.push({ kind: 'sep', gap: 1 })
 
   for (const it of sale.items) {
-    rows.push({ kind: 'text', text: wrapText(it.name, 34), size: 8, bold: false, align: 'left', gap: 0 })
+    rows.push({ kind: 'text', lines: wrapWith(measurer, it.name, 8, false), size: 8, bold: false, align: 'left', gap: 0 })
     rows.push({
       kind: 'cols',
       left: `  ${formatQty(it.qty, it.unit)} × ${formatMoney(it.unitPrice)}`,
@@ -174,18 +196,17 @@ export async function buildTicketPdf(
   }
   if (sale.notes?.trim()) {
     rows.push({ kind: 'sep', gap: 1 })
-    rows.push({ kind: 'text', text: wrapText(`Nota: ${sale.notes.trim()}`, 38), size: 7.5, bold: false, align: 'left', gap: 0.5 })
+    rows.push({ kind: 'text', lines: wrapWith(measurer, `Nota: ${sale.notes.trim()}`, 7.5, false), size: 7.5, bold: false, align: 'left', gap: 0.5 })
   }
   if (business.footer?.trim()) {
     rows.push({ kind: 'sep', gap: 1 })
-    rows.push({ kind: 'text', text: wrapText(business.footer.trim(), 40), size: 8, bold: false, align: 'center', gap: 0 })
+    rows.push({ kind: 'text', lines: wrapWith(measurer, business.footer.trim(), 8, false), size: 8, bold: false, align: 'center', gap: 0 })
   }
 
-  let totalH = M * 2 + (logoH > 0 ? logoH + 2 : 0)
+  let totalH = M * 2 + 4 + (logoH > 0 ? logoH + 2 : 0)
   for (const r of rows) totalH += rowHeight(r)
 
-  const { jsPDF } = await import('jspdf')
-  const doc = new jsPDF({ unit: 'mm', format: [W, Math.max(totalH, 40)] })
+  const doc = new JsPDF({ unit: 'mm', format: [W, Math.max(totalH, 40)] })
 
   let y = M
   if (logoH > 0 && business.logo) {
@@ -202,20 +223,20 @@ export async function buildTicketPdf(
       case 'text': {
         doc.setFont('helvetica', r.bold ? 'bold' : 'normal')
         doc.setFontSize(r.size)
-        const lh = r.size * PT * 1.25
+        const lh = r.size * PT * 1.3
         const x = r.align === 'left' ? M : r.align === 'right' ? RIGHT : W / 2
         let ty = y + lh * 0.85
-        for (const ln of r.text.split('\n')) {
+        for (const ln of r.lines) {
           doc.text(ln, x, ty, { align: r.align })
           ty += lh
         }
-        y += r.text.split('\n').length * lh + r.gap
+        y += r.lines.length * lh + r.gap
         break
       }
       case 'cols': {
         doc.setFont('helvetica', r.bold ? 'bold' : 'normal')
         doc.setFontSize(r.size)
-        const lh = r.size * PT * 1.25
+        const lh = r.size * PT * 1.3
         doc.text(r.left, M, y + lh * 0.85)
         doc.text(r.right, RIGHT, y + lh * 0.85, { align: 'right' })
         y += lh + r.gap

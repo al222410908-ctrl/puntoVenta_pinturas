@@ -2,13 +2,16 @@ import { useState } from 'react'
 import { Download, MessageCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Sale } from '../types'
-import { Button, Modal } from './ui'
+import { Button, Field, Input, Modal } from './ui'
 import {
   downloadTicketPdf,
   folioLabel,
   formatTicketDate,
   loadBusinessInfo,
+  loadClientPhone,
+  normalizePhone,
   openWhatsAppText,
+  saveClientPhone,
   shareTicketPdf,
 } from '../lib/ticket'
 import { formatMoney } from '../lib/utils'
@@ -16,6 +19,7 @@ import { formatQty } from '../lib/units'
 
 export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: () => void }) {
   const [busy, setBusy] = useState(false)
+  const [phone, setPhone] = useState(() => loadClientPhone())
   if (!sale) return null
   const business = loadBusinessInfo()
   const paid = sale.payments.reduce((s, p) => s + p.amount, 0)
@@ -24,11 +28,20 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
   const handleShare = async () => {
     setBusy(true)
     try {
-      const res = await shareTicketPdf(sale, business)
-      if (res === 'downloaded') {
-        toast.info('PDF descargado: adjúntalo a tu mensaje de WhatsApp')
+      const normalized = normalizePhone(phone)
+      if (normalized) {
+        // Chat directo al cliente: se descarga el PDF y se abre el chat con el resumen
+        saveClientPhone(phone)
+        const name = await downloadTicketPdf(sale, business)
+        openWhatsAppText(sale, business, normalized)
+        toast.success(`PDF descargado (${name}). Adjúntalo en el chat de WhatsApp que se abrió.`)
       } else {
-        toast.success('Nota compartida')
+        const res = await shareTicketPdf(sale, business)
+        if (res === 'downloaded') {
+          toast.info('PDF descargado: adjúntalo a tu mensaje de WhatsApp')
+        } else {
+          toast.success('Nota compartida')
+        }
       }
     } catch (e) {
       if (!(e instanceof DOMException && e.name === 'AbortError')) {
@@ -101,18 +114,27 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
           {business.footer?.trim() && <p className="mt-2 text-center text-[10px]">{business.footer}</p>}
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Button className="btn-primary" disabled={busy} onClick={() => void handleShare()}>
-            <MessageCircle className="mr-2 inline h-4 w-4" />
-            Enviar por WhatsApp
-          </Button>
-          <Button className="btn-secondary" disabled={busy} onClick={() => void handleDownload()}>
-            <Download className="mr-2 inline h-4 w-4" />
-            Descargar PDF
-          </Button>
-        </div>
+        <Field label="WhatsApp del cliente (opcional)">
+          <Input
+            type="tel"
+            inputMode="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="10 dígitos, ej. 871 123 4567"
+            maxLength={20}
+          />
+        </Field>
+
+        <Button className="btn-primary w-full" disabled={busy} onClick={() => void handleShare()}>
+          <MessageCircle className="mr-2 inline h-4 w-4" />
+          Enviar por WhatsApp
+        </Button>
+        <Button className="btn-secondary w-full" disabled={busy} onClick={() => void handleDownload()}>
+          <Download className="mr-2 inline h-4 w-4" />
+          Descargar PDF
+        </Button>
         <button
-          onClick={() => openWhatsAppText(sale, business)}
+          onClick={() => openWhatsAppText(sale, business, normalizePhone(phone))}
           disabled={busy}
           className="text-xs text-primary underline-offset-2 hover:underline"
         >
