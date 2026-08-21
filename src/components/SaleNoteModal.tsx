@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import type { Sale } from '../types'
 import { Button, Field, Input, Modal } from './ui'
 import {
-  buildTicketImage,
+  buildTicketPdf,
   downloadBlob,
   downloadTicketPdf,
   folioLabel,
@@ -35,10 +35,10 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
     setBusy(true)
     try {
       saveClientPhone(phone)
-      const { blob, fileName } = await buildTicketImage(sale, business)
+      const { blob, fileName } = await buildTicketPdf(sale, business)
       downloadBlob(blob, fileName)
       openWhatsAppChat(normalized)
-      toast.success(`Imagen de la nota descargada. Adjúntala en el chat del cliente que se abrió.`)
+      toast.success(`PDF de la nota descargado. Adjúntalo en el chat del cliente que se abrió.`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo generar la nota')
     } finally {
@@ -122,7 +122,7 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
 
         <Button className="btn-primary w-full" disabled={busy} onClick={() => void handleSend()}>
           <MessageCircle className="mr-2 inline h-4 w-4" />
-          Enviar por WhatsApp (imagen)
+          Enviar por WhatsApp (PDF)
         </Button>
         <Button className="btn-secondary w-full" disabled={busy} onClick={() => void handleDownload()}>
           <Download className="mr-2 inline h-4 w-4" />

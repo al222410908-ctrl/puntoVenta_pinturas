@@ -1,4 +1,3 @@
-import type { jsPDF } from 'jspdf'
 import type { BusinessInfo, Sale } from '../types'
 import { formatMoney } from './utils'
 import { formatQty } from './units'
@@ -97,22 +96,6 @@ export function openWhatsAppChat(clientPhone: string): void {
 }
 
 const PT = 0.352778
-const W = 80
-const M = 5
-const RIGHT = W - M
-const USABLE = W - M * 2
-
-type Row =
-  | { kind: 'text'; lines: string[]; size: number; bold: boolean; align: 'left' | 'center' | 'right'; gap: number }
-  | { kind: 'cols'; left: string; right: string; size: number; bold: boolean; gap: number }
-  | { kind: 'sep'; gap: number }
-
-function rowHeight(r: Row): number {
-  if (r.kind === 'sep') return 2 + r.gap
-  const lh = r.size * PT * 1.3
-  const lines = r.kind === 'text' ? r.lines.length : 1
-  return lines * lh + r.gap
-}
 
 async function loadImageSize(dataUrl: string): Promise<{ w: number; h: number }> {
   return new Promise((resolve, reject) => {
@@ -123,137 +106,152 @@ async function loadImageSize(dataUrl: string): Promise<{ w: number; h: number }>
   })
 }
 
-function wrapWith(doc: jsPDF, text: string, size: number, bold: boolean): string[] {
-  doc.setFont('helvetica', bold ? 'bold' : 'normal')
-  doc.setFontSize(size)
-  return doc.splitTextToSize(text, USABLE) as string[]
-}
-
 export async function buildTicketPdf(
   sale: Sale,
   business: BusinessInfo,
 ): Promise<{ blob: Blob; fileName: string }> {
   const { jsPDF: JsPDF } = await import('jspdf')
-  // Documento auxiliar solo para medir texto con las fuentes reales
-  const measurer = new JsPDF({ unit: 'mm', format: [W, 100] })
+  // A5 (148 x 210 mm): tamaño estándar que los visores de PDF/WhatsApp
+  // muestran completo, sin recortar (a diferencia de páginas muy angostas).
+  const doc = new JsPDF({ unit: 'mm', format: 'a5' })
+  const PW = doc.internal.pageSize.getWidth()
+  const M = 14
+  const RIGHT = PW - M
+  const USABLE = PW - M * 2
+  const lineH = (s: number) => s * PT * 1.35
+
+  const BRAND: [number, number, number] = [23, 74, 59]
+  const DARK: [number, number, number] = [30, 41, 59]
+  const GRAY: [number, number, number] = [100, 116, 139]
+  const LINE: [number, number, number] = [203, 213, 225]
+  const BLUE: [number, number, number] = [37, 99, 235]
+
+  const style = (size: number, bold: boolean, color: [number, number, number]) => {
+    doc.setFont('helvetica', bold ? 'bold' : 'normal')
+    doc.setFontSize(size)
+    doc.setTextColor(color[0], color[1], color[2])
+  }
+  const wrap = (text: string, size: number, bold: boolean): string[] => {
+    style(size, bold, DARK)
+    return doc.splitTextToSize(text, USABLE) as string[]
+  }
+  const sep = (y: number) => {
+    doc.setDrawColor(LINE[0], LINE[1], LINE[2])
+    doc.setLineWidth(0.3)
+    doc.line(M, y, RIGHT, y)
+  }
 
   let logoH = 0
   let logoW = 0
   if (business.logo) {
     try {
       const size = await loadImageSize(business.logo)
-      logoH = Math.min(18, size.h * (30 / size.w))
-      logoW = Math.min(30, size.w * (logoH / size.h))
-      logoH = Math.min(18, size.h * (logoW / size.w))
+      logoH = Math.min(24, (size.h * 40) / size.w)
+      logoW = Math.min(40, (size.w * logoH) / size.h)
+      logoH = Math.min(24, (size.h * logoW) / size.w)
     } catch {
       logoH = 0
       logoW = 0
     }
   }
 
-  const rows: Row[] = []
-  rows.push({
-    kind: 'text',
-    lines: wrapWith(measurer, business.name.toUpperCase(), 12, true),
-    size: 12,
-    bold: true,
-    align: 'center',
-    gap: 1,
-  })
-  if (business.address?.trim()) {
-    rows.push({ kind: 'text', lines: wrapWith(measurer, business.address.trim(), 8, false), size: 8, bold: false, align: 'center', gap: 0.5 })
+  // --- Encabezado con color de marca ---
+  let y = 14
+  const nameLines = wrap(business.name.toUpperCase(), 14, true)
+  const addrLines = business.address?.trim() ? wrap(business.address.trim(), 10, false) : []
+  const tel = business.phone?.trim() ? `Tel: ${business.phone.trim()}` : ''
+  const headH =
+    y +
+    (logoH ? logoH + 4 : 0) +
+    nameLines.length * lineH(14) +
+    (addrLines.length ? addrLines.length * lineH(10) + 1 : 0) +
+    (tel ? lineH(10) : 0) +
+    12
+
+  doc.setFillColor(BRAND[0], BRAND[1], BRAND[2])
+  doc.rect(0, 0, PW, headH, 'F')
+
+  if (logoH > 0 && business.logo) {
+    doc.addImage(business.logo, 'JPEG', (PW - logoW) / 2, y, logoW, logoH)
+    y += logoH + 4
   }
-  if (business.phone?.trim()) {
-    rows.push({ kind: 'text', lines: [`Tel: ${business.phone.trim()}`], size: 8, bold: false, align: 'center', gap: 0.5 })
+  style(14, true, [255, 255, 255])
+  for (const ln of nameLines) {
+    doc.text(ln, PW / 2, y, { align: 'center' })
+    y += lineH(14)
   }
-  rows.push({ kind: 'sep', gap: 1 })
-  rows.push({ kind: 'cols', left: `Nota ${folioLabel(sale)}`, right: formatTicketDate(sale.date), size: 8, bold: false, gap: 0.5 })
-  rows.push({ kind: 'sep', gap: 1 })
+  style(10, false, [235, 245, 242])
+  for (const ln of addrLines) {
+    doc.text(ln, PW / 2, y, { align: 'center' })
+    y += lineH(10)
+  }
+  if (tel) {
+    doc.text(tel, PW / 2, y, { align: 'center' })
+    y += lineH(10)
+  }
+
+  // --- Cuerpo ---
+  let yb = headH + 12
+  style(12, true, DARK)
+  doc.text(`Nota ${folioLabel(sale)}`, M, yb)
+  style(10, false, GRAY)
+  doc.text(formatTicketDate(sale.date), RIGHT, yb, { align: 'right' })
+  yb += Math.max(lineH(12), lineH(10)) + 4
+  sep(yb)
+  yb += 12
 
   for (const it of sale.items) {
-    rows.push({ kind: 'text', lines: wrapWith(measurer, it.name, 8, false), size: 8, bold: false, align: 'left', gap: 0 })
-    rows.push({
-      kind: 'cols',
-      left: `  ${formatQty(it.qty, it.unit)} × ${formatMoney(it.unitPrice)}`,
-      right: formatMoney(it.lineTotal),
-      size: 8,
-      bold: false,
-      gap: 0.8,
-    })
+    const nl = wrap(it.name, 12, true)
+    style(12, true, DARK)
+    for (const ln of nl) {
+      doc.text(ln, M, yb)
+      yb += lineH(12)
+    }
+    style(10, false, GRAY)
+    doc.text(`${formatQty(it.qty, it.unit)} × ${formatMoney(it.unitPrice)}`, M + 4, yb)
+    style(11, true, DARK)
+    doc.text(formatMoney(it.lineTotal), RIGHT, yb, { align: 'right' })
+    yb += lineH(10) + 6
   }
+  sep(yb)
+  yb += 12
 
-  rows.push({ kind: 'sep', gap: 1 })
-  rows.push({ kind: 'cols', left: 'TOTAL', right: formatMoney(sale.total), size: 11, bold: true, gap: 0.5 })
+  style(13, true, DARK)
+  doc.text('TOTAL', M, yb)
+  style(20, true, BRAND)
+  doc.text(formatMoney(sale.total), RIGHT, yb, { align: 'right' })
+  yb += lineH(20) + 6
+
   for (const p of sale.payments) {
-    rows.push({
-      kind: 'cols',
-      left: p.type === 'efectivo' ? 'Efectivo' : 'Tarjeta',
-      right: formatMoney(p.amount),
-      size: 8,
-      bold: false,
-      gap: 0.3,
-    })
+    style(11, false, GRAY)
+    doc.text(p.type === 'efectivo' ? 'Efectivo' : 'Tarjeta', M, yb)
+    doc.text(formatMoney(p.amount), RIGHT, yb, { align: 'right' })
+    yb += lineH(11) + 3
   }
   const paid = sale.payments.reduce((s, p) => s + p.amount, 0)
   const change = Math.round((paid - sale.total) * 100) / 100
   if (change > 0) {
-    rows.push({ kind: 'cols', left: 'Cambio', right: formatMoney(change), size: 8, bold: false, gap: 0.3 })
+    style(11, true, BLUE)
+    doc.text('Cambio', M, yb)
+    doc.text(formatMoney(change), RIGHT, yb, { align: 'right' })
+    yb += lineH(11) + 3
   }
   if (sale.notes?.trim()) {
-    rows.push({ kind: 'sep', gap: 1 })
-    rows.push({ kind: 'text', lines: wrapWith(measurer, `Nota: ${sale.notes.trim()}`, 7.5, false), size: 7.5, bold: false, align: 'left', gap: 0.5 })
+    sep(yb)
+    yb += 12
+    style(10, false, GRAY)
+    for (const ln of wrap(`Nota: ${sale.notes.trim()}`, 10, false)) {
+      doc.text(ln, M, yb)
+      yb += lineH(10)
+    }
   }
   if (business.footer?.trim()) {
-    rows.push({ kind: 'sep', gap: 1 })
-    rows.push({ kind: 'text', lines: wrapWith(measurer, business.footer.trim(), 8, false), size: 8, bold: false, align: 'center', gap: 0 })
-  }
-
-  let totalH = M * 2 + 4 + (logoH > 0 ? logoH + 2 : 0)
-  for (const r of rows) totalH += rowHeight(r)
-
-  const doc = new JsPDF({ unit: 'mm', format: [W, Math.max(totalH, 40)] })
-
-  let y = M
-  if (logoH > 0 && business.logo) {
-    try {
-      doc.addImage(business.logo, 'JPEG', (W - logoW) / 2, y, logoW, logoH)
-    } catch {
-      // logo inválido: se omite
-    }
-    y += logoH + 2
-  }
-
-  for (const r of rows) {
-    switch (r.kind) {
-      case 'text': {
-        doc.setFont('helvetica', r.bold ? 'bold' : 'normal')
-        doc.setFontSize(r.size)
-        const lh = r.size * PT * 1.3
-        const x = r.align === 'left' ? M : r.align === 'right' ? RIGHT : W / 2
-        let ty = y + lh * 0.85
-        for (const ln of r.lines) {
-          doc.text(ln, x, ty, { align: r.align })
-          ty += lh
-        }
-        y += r.lines.length * lh + r.gap
-        break
-      }
-      case 'cols': {
-        doc.setFont('helvetica', r.bold ? 'bold' : 'normal')
-        doc.setFontSize(r.size)
-        const lh = r.size * PT * 1.3
-        doc.text(r.left, M, y + lh * 0.85)
-        doc.text(r.right, RIGHT, y + lh * 0.85, { align: 'right' })
-        y += lh + r.gap
-        break
-      }
-      case 'sep': {
-        doc.setDrawColor(150)
-        doc.setLineWidth(0.2)
-        doc.line(M, y + 1, RIGHT, y + 1)
-        y += 2 + r.gap
-        break
-      }
+    sep(yb)
+    yb += 12
+    style(10, false, GRAY)
+    for (const ln of wrap(business.footer.trim(), 10, false)) {
+      doc.text(ln, PW / 2, yb, { align: 'center' })
+      yb += lineH(10)
     }
   }
 
@@ -298,224 +296,4 @@ export async function downloadTicketPdf(sale: Sale, business: BusinessInfo): Pro
   const { blob, fileName } = await buildTicketPdf(sale, business)
   downloadBlob(blob, fileName)
   return fileName
-}
-
-function wrapCanvas(ctx: CanvasRenderingContext2D, text: string, font: string, maxW: number): string[] {
-  ctx.font = font
-  const words = text.split(/\s+/)
-  const lines: string[] = []
-  let cur = ''
-  for (const w of words) {
-    const test = cur ? `${cur} ${w}` : w
-    if (!cur || ctx.measureText(test).width <= maxW) cur = test
-    else {
-      lines.push(cur)
-      cur = w
-    }
-  }
-  if (cur) lines.push(cur)
-  return lines.length ? lines : ['']
-}
-
-function loadLogoEl(dataUrl: string): Promise<HTMLImageElement | null> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = () => resolve(null)
-    img.src = dataUrl
-  })
-}
-
-/** Genera la nota como imagen PNG con diseño (se ve bien en cualquier visor/WhatsApp). */
-export async function buildTicketImage(
-  sale: Sale,
-  business: BusinessInfo,
-): Promise<{ blob: Blob; fileName: string }> {
-  const S = 2
-  const WL = 360
-  const PADL = 20
-  const USABLE = WL - PADL * 2
-  const BRAND = '#174a3b'
-  const DARK = '#1e293b'
-  const GRAY = '#64748b'
-  const LINE = '#cbd5e1'
-  const BLUE = '#2563eb'
-  const F = (size: number, weight = 400) =>
-    `${weight} ${size}px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`
-
-  const logo = business.logo ? await loadLogoEl(business.logo) : null
-
-  function dash(ctx: CanvasRenderingContext2D, y: number): number {
-    ctx.strokeStyle = LINE
-    ctx.lineWidth = 1
-    ctx.setLineDash([5, 4])
-    ctx.beginPath()
-    ctx.moveTo(PADL, y)
-    ctx.lineTo(WL - PADL, y)
-    ctx.stroke()
-    ctx.setLineDash([])
-    return y + 10
-  }
-
-  function render(ctx: CanvasRenderingContext2D): number {
-    let y = 0
-
-    // Encabezado con color de marca
-    const nameLines = wrapCanvas(ctx, business.name.toUpperCase(), F(21, 700), USABLE)
-    const addrLines = business.address?.trim() ? wrapCanvas(ctx, business.address.trim(), F(12), USABLE) : []
-    const tel = business.phone?.trim() ? `Tel: ${business.phone.trim()}` : ''
-    let logoH = 0
-    if (logo && logo.naturalWidth > 0) {
-      logoH = Math.max(20, Math.min(56, (USABLE / logo.naturalWidth) * logo.naturalHeight))
-    }
-    const headH =
-      18 +
-      (logoH ? logoH + 10 : 0) +
-      nameLines.length * 27 +
-      (addrLines.length ? addrLines.length * 17 + 2 : 0) +
-      (tel ? 17 : 0) +
-      16
-    ctx.fillStyle = BRAND
-    ctx.fillRect(0, 0, WL, headH)
-
-    y = 18
-    ctx.textAlign = 'center'
-    if (logo && logoH) {
-      const lw = (logo.naturalWidth / logo.naturalHeight) * logoH
-      ctx.drawImage(logo, (WL - lw) / 2, y, lw, logoH)
-      y += logoH + 10
-    }
-    ctx.fillStyle = '#ffffff'
-    ctx.font = F(21, 700)
-    for (const ln of nameLines) {
-      ctx.fillText(ln, WL / 2, y + 17)
-      y += 27
-    }
-    ctx.fillStyle = 'rgba(255,255,255,0.85)'
-    ctx.font = F(12)
-    for (const ln of addrLines) {
-      ctx.fillText(ln, WL / 2, y + 12)
-      y += 17
-    }
-    if (tel) {
-      ctx.fillText(tel, WL / 2, y + 12)
-      y += 17
-    }
-
-    y = headH + 14
-
-    // Nota / fecha
-    ctx.textAlign = 'left'
-    ctx.fillStyle = DARK
-    ctx.font = F(13, 600)
-    ctx.fillText(`Nota ${folioLabel(sale)}`, PADL, y + 12)
-    ctx.textAlign = 'right'
-    ctx.fillStyle = GRAY
-    ctx.font = F(11.5)
-    ctx.fillText(formatTicketDate(sale.date), WL - PADL, y + 12)
-    y += 22
-    y = dash(ctx, y + 4)
-
-    // Productos
-    for (const it of sale.items) {
-      const nameL = wrapCanvas(ctx, it.name, F(13.5, 600), USABLE)
-      ctx.textAlign = 'left'
-      ctx.fillStyle = DARK
-      ctx.font = F(13.5, 600)
-      for (const ln of nameL) {
-        ctx.fillText(ln, PADL, y + 13)
-        y += 18
-      }
-      ctx.fillStyle = GRAY
-      ctx.font = F(12)
-      ctx.fillText(`${formatQty(it.qty, it.unit)} × ${formatMoney(it.unitPrice)}`, PADL + 6, y + 12)
-      ctx.textAlign = 'right'
-      ctx.fillStyle = DARK
-      ctx.font = F(12.5, 600)
-      ctx.fillText(formatMoney(it.lineTotal), WL - PADL, y + 12)
-      y += 20
-    }
-    y = dash(ctx, y + 2)
-
-    // Total
-    ctx.textAlign = 'left'
-    ctx.fillStyle = DARK
-    ctx.font = F(14, 800)
-    ctx.fillText('TOTAL', PADL, y + 16)
-    ctx.textAlign = 'right'
-    ctx.fillStyle = BRAND
-    ctx.font = F(23, 800)
-    ctx.fillText(formatMoney(sale.total), WL - PADL, y + 18)
-    y += 30
-
-    // Pagos y cambio
-    for (const p of sale.payments) {
-      ctx.textAlign = 'left'
-      ctx.fillStyle = GRAY
-      ctx.font = F(12)
-      ctx.fillText(p.type === 'efectivo' ? 'Efectivo' : 'Tarjeta', PADL, y + 12)
-      ctx.textAlign = 'right'
-      ctx.fillText(formatMoney(p.amount), WL - PADL, y + 12)
-      y += 17
-    }
-    const paid = sale.payments.reduce((s, p) => s + p.amount, 0)
-    const change = Math.round((paid - sale.total) * 100) / 100
-    if (change > 0) {
-      ctx.textAlign = 'left'
-      ctx.fillStyle = BLUE
-      ctx.font = F(12, 600)
-      ctx.fillText('Cambio', PADL, y + 12)
-      ctx.textAlign = 'right'
-      ctx.fillText(formatMoney(change), WL - PADL, y + 12)
-      y += 17
-    }
-
-    if (sale.notes?.trim()) {
-      y += 4
-      const noteLines = wrapCanvas(ctx, `Nota: ${sale.notes.trim()}`, F(11.5), USABLE)
-      ctx.textAlign = 'left'
-      ctx.fillStyle = GRAY
-      ctx.font = F(11.5)
-      for (const ln of noteLines) {
-        ctx.fillText(ln, PADL, y + 12)
-        y += 16
-      }
-    }
-
-    if (business.footer?.trim()) {
-      y = dash(ctx, y + 4)
-      const footerLines = wrapCanvas(ctx, business.footer.trim(), F(12, 600), USABLE)
-      ctx.textAlign = 'center'
-      ctx.fillStyle = GRAY
-      ctx.font = F(12, 600)
-      for (const ln of footerLines) {
-        ctx.fillText(ln, WL / 2, y + 13)
-        y += 18
-      }
-    }
-
-    return y + 18
-  }
-
-  // Pasada 1: medir; pasada 2: dibujar en lienzo del tamaño exacto
-  const measure = document.createElement('canvas')
-  measure.width = WL * S
-  measure.height = 400 * S
-  const mctx = measure.getContext('2d')!
-  mctx.scale(S, S)
-  const contentH = Math.ceil(render(mctx))
-
-  const canvas = document.createElement('canvas')
-  canvas.width = WL * S
-  canvas.height = contentH * S
-  const ctx = canvas.getContext('2d')!
-  ctx.scale(S, S)
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, WL, contentH)
-  render(ctx)
-
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No se pudo generar la imagen'))), 'image/png')
-  })
-  return { blob, fileName: ticketFileName(sale).replace(/\.pdf$/, '.png') }
 }
