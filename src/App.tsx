@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { ShoppingCart, Package, Truck, Boxes, BarChart3, Wallet, Moon, Sun, RefreshCw } from 'lucide-react'
+import { ShoppingCart, Package, Truck, Boxes, BarChart3, Wallet, Settings, Moon, Sun, RefreshCw } from 'lucide-react'
 import AccessGate from './components/AccessGate'
 import { syncNow, lastSyncAt, onLocalChange } from './lib/sync'
 
@@ -9,6 +9,7 @@ const Restock = lazy(() => import('./screens/Restock'))
 const Inventory = lazy(() => import('./screens/Inventory'))
 const Reports = lazy(() => import('./screens/Reports'))
 const Money = lazy(() => import('./screens/Money'))
+const SettingsScreen = lazy(() => import('./screens/Settings'))
 
 type SyncState = 'ok' | 'offline' | 'syncing'
 
@@ -19,6 +20,7 @@ const NAV = [
   { id: 'inventario', label: 'Inventario', icon: Boxes },
   { id: 'caja', label: 'Caja', icon: Wallet },
   { id: 'reportes', label: 'Reportes', icon: BarChart3 },
+  { id: 'ajustes', label: 'Ajustes', icon: Settings },
 ] as const
 
 type TabId = (typeof NAV)[number]['id']
@@ -195,13 +197,14 @@ export default function App() {
               {tab === 'inventario' && <Inventory />}
               {tab === 'caja' && <Money />}
               {tab === 'reportes' && <Reports />}
+              {tab === 'ajustes' && <SettingsScreen />}
             </Suspense>
           </main>
         </div>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden dark:border-slate-800 dark:bg-slate-900">
-        <div className="grid grid-cols-6">
+        <div className="grid grid-cols-7">
           {NAV.map((n) => {
             const Icon = n.icon
             const active = tab === n.id

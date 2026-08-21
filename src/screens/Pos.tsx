@@ -15,7 +15,7 @@ import {
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
 import { registerSale, undoLastSale } from '../db/repos'
-import type { Product, Payment, Unit, SalePresentation } from '../types'
+import type { Product, Payment, Unit, SalePresentation, Sale } from '../types'
 import { formatMoney, round2 } from '../lib/utils'
 import {
   UNIT_LABELS,
@@ -27,6 +27,7 @@ import {
   isLiquid,
 } from '../lib/units'
 import { BarcodeScanner } from '../components/BarcodeScanner'
+import { SaleNoteModal } from '../components/SaleNoteModal'
 import { Button, EmptyState, Input, Modal } from '../components/ui'
 
 export default function Pos() {
@@ -43,6 +44,7 @@ export default function Pos() {
   const [payOpen, setPayOpen] = useState(false)
   const [cash, setCash] = useState('')
   const [card, setCard] = useState('')
+  const [noteSale, setNoteSale] = useState<Sale | null>(null)
 
   const allFiltered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -235,11 +237,12 @@ export default function Pos() {
       return
     }
     try {
-      await registerSale(cart, payments)
+      const sale = await registerSale(cart, payments)
       toast.success('Venta registrada')
       setCart([])
       setPayOpen(false)
       setCartOpen(false)
+      setNoteSale(sale)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error al registrar la venta')
     }
@@ -463,6 +466,8 @@ export default function Pos() {
           </Button>
         </div>
       </Modal>
+
+      <SaleNoteModal sale={noteSale} onClose={() => setNoteSale(null)} />
     </div>
   )
 }

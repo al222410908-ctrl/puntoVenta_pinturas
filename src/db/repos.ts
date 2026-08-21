@@ -63,8 +63,10 @@ export async function registerSale(
 ): Promise<Sale> {
   const items = cartToItems(lines)
   const total = round2(items.reduce((s, i) => s + i.lineTotal, 0))
+  const lastSale = await db.sales.orderBy('date').last()
   const sale: Sale = {
     id: uid(),
+    folio: (lastSale?.folio ?? 0) + 1,
     date: Date.now(),
     items,
     payments,

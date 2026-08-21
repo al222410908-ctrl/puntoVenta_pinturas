@@ -78,11 +78,21 @@ export interface SaleItem {
 
 export interface Sale {
   id: string
+  /** Folio consecutivo de la nota de venta */
+  folio?: number
   date: number
   items: SaleItem[]
   payments: Payment[]
   total: number
   notes?: string
+}
+
+export interface BusinessInfo {
+  name: string
+  address?: string
+  phone?: string
+  footer?: string
+  logo?: string
 }
 
 export interface PurchaseItem {
