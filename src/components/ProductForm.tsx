@@ -1,7 +1,7 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { toast } from 'sonner'
-import { Calculator, Check, ImagePlus, Image as ImageIcon, Trash2 } from 'lucide-react'
+import { Calculator, Check, ImagePlus, Image as ImageIcon, ScanLine, Trash2 } from 'lucide-react'
 import { db } from '../db/db'
 import { notifyLocalChange } from '../lib/sync'
 import type { Category, Product, Supplier, Unit } from '../types'
@@ -15,6 +15,7 @@ import {
 } from '../lib/units'
 import { formatMoney, round2, uid } from '../lib/utils'
 import { compressImageFile } from '../lib/image'
+import { BarcodeScanner } from './BarcodeScanner'
 import { Button, Field, Input, Modal, Select } from '../components/ui'
 
 function dedupe(values: string[]): string[] {
@@ -80,6 +81,14 @@ export function ProductForm({
 
   const [calc, setCalc] = useState({ value: '', margin: '16', factor: '2' })
   const [res, setRes] = useState<{ cost: string; price: string }>({ cost: '', price: '' })
+  const [scanField, setScanField] = useState<'barcode' | 'purchaseCode' | null>(null)
+
+  const handleCodeScan = (code: string) => {
+    setScanField(null)
+    if (!scanField || !code.trim()) return
+    set(scanField, code.trim())
+    toast.success('Código escaneado')
+  }
 
   const handleCalcInput = (key: keyof typeof calc, value: string) => {
     const next = { ...calc, [key]: value }
@@ -296,10 +305,32 @@ if (!(unit > 0) || !(price > 0)) {
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Código de barras">
-            <Input value={form.barcode} onChange={(e) => set('barcode', e.target.value)} placeholder="Opcional" />
+            <div className="flex gap-1.5">
+              <Input value={form.barcode} onChange={(e) => set('barcode', e.target.value)} placeholder="Opcional" />
+              <Button
+                type="button"
+                className="btn-secondary shrink-0 px-2.5"
+                title="Escanear con la cámara"
+                aria-label="Escanear código de barras con la cámara"
+                onClick={() => setScanField('barcode')}
+              >
+                <ScanLine className="h-4 w-4" />
+              </Button>
+            </div>
           </Field>
           <Field label="Código de compra">
-            <Input value={form.purchaseCode} onChange={(e) => set('purchaseCode', e.target.value)} placeholder="El del proveedor, ej. 8762378" />
+            <div className="flex gap-1.5">
+              <Input value={form.purchaseCode} onChange={(e) => set('purchaseCode', e.target.value)} placeholder="El del proveedor, ej. 8762378" />
+              <Button
+                type="button"
+                className="btn-secondary shrink-0 px-2.5"
+                title="Escanear con la cámara"
+                aria-label="Escanear código de compra con la cámara"
+                onClick={() => setScanField('purchaseCode')}
+              >
+                <ScanLine className="h-4 w-4" />
+              </Button>
+            </div>
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -556,6 +587,12 @@ if (!(unit > 0) || !(price > 0)) {
           <Button onClick={() => void save()}>Guardar</Button>
         </div>
       </div>
+
+      <BarcodeScanner
+        open={scanField !== null}
+        onClose={() => setScanField(null)}
+        onScan={handleCodeScan}
+      />
     </Modal>
   )
 }
