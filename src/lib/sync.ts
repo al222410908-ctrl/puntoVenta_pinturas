@@ -2,6 +2,7 @@ import { db } from '../db/db'
 import type {
   CashEntry,
   Category,
+  Container,
   Product,
   Purchase,
   PurchaseOrder,
@@ -11,7 +12,7 @@ import type {
   Tombstone,
 } from '../types'
 
-const EDITABLE_TABLES = ['products', 'categories', 'suppliers'] as const
+const EDITABLE_TABLES = ['products', 'categories', 'suppliers', 'containers'] as const
 const APPEND_TABLES = ['sales', 'purchases', 'purchaseOrders', 'stockMovements', 'cashEntries'] as const
 
 type EditableTable = (typeof EDITABLE_TABLES)[number]
@@ -22,6 +23,7 @@ export interface SyncPayload {
   products: Product[]
   categories: Category[]
   suppliers: Supplier[]
+  containers: Container[]
   sales: Sale[]
   purchases: Purchase[]
   purchaseOrders: PurchaseOrder[]
@@ -67,11 +69,12 @@ export function touch<T extends { updatedAt?: number }>(rec: T): T {
 }
 
 export async function localPayload(since = 0): Promise<SyncPayload> {
-  const [products, categories, suppliers, sales, purchases, purchaseOrders, stockMovements, cashEntries, tombstones] =
+  const [products, categories, suppliers, containers, sales, purchases, purchaseOrders, stockMovements, cashEntries, tombstones] =
     await Promise.all([
       db.products.toArray(),
       db.categories.toArray(),
       db.suppliers.toArray(),
+      db.containers.toArray(),
       db.sales.toArray(),
       db.purchases.toArray(),
       db.purchaseOrders.toArray(),
@@ -83,6 +86,7 @@ export async function localPayload(since = 0): Promise<SyncPayload> {
     products: products.filter((p) => (p.updatedAt ?? 0) > since),
     categories: categories.filter((c) => (c.updatedAt ?? 0) > since),
     suppliers: suppliers.filter((s) => (s.updatedAt ?? 0) > since),
+    containers: containers.filter((c) => (c.updatedAt ?? 0) > since),
     sales: sales.filter((s) => s.date > since),
     purchases: purchases.filter((p) => p.date > since),
     purchaseOrders: purchaseOrders.filter((p) => p.date > since),
@@ -104,12 +108,13 @@ export async function applyPayload(payload: SyncPayload): Promise<void> {
   const { tombstones, ...rest } = payload
   await db.transaction(
     'rw',
-    [db.products, db.categories, db.suppliers, db.sales, db.purchases, db.purchaseOrders, db.stockMovements, db.cashEntries, db.tombstones],
+    [db.products, db.categories, db.suppliers, db.containers, db.sales, db.purchases, db.purchaseOrders, db.stockMovements, db.cashEntries, db.tombstones],
     async () => {
       await Promise.all([
         rest.products.length ? db.products.bulkPut(rest.products) : Promise.resolve(),
         rest.categories.length ? db.categories.bulkPut(rest.categories) : Promise.resolve(),
         rest.suppliers.length ? db.suppliers.bulkPut(rest.suppliers) : Promise.resolve(),
+        rest.containers?.length ? db.containers.bulkPut(rest.containers) : Promise.resolve(),
         rest.sales.length ? db.sales.bulkPut(rest.sales) : Promise.resolve(),
         rest.purchases.length ? db.purchases.bulkPut(rest.purchases) : Promise.resolve(),
         rest.purchaseOrders.length ? db.purchaseOrders.bulkPut(rest.purchaseOrders) : Promise.resolve(),
@@ -179,6 +184,7 @@ function countRecords(p: SyncPayload) {
     p.products.length +
     p.categories.length +
     p.suppliers.length +
+    (p.containers?.length ?? 0) +
     p.sales.length +
     p.purchases.length +
     p.purchaseOrders.length +

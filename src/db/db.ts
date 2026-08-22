@@ -3,6 +3,7 @@ import type { Table } from 'dexie'
 import type {
   CashEntry,
   Category,
+  Container,
   Product,
   Purchase,
   PurchaseOrder,
@@ -15,6 +16,7 @@ import type {
 export class PosDatabase extends Dexie {
   categories!: Table<Category, string>
   suppliers!: Table<Supplier, string>
+  containers!: Table<Container, string>
   products!: Table<Product, string>
   sales!: Table<Sale, string>
   purchases!: Table<Purchase, string>
@@ -47,6 +49,18 @@ export class PosDatabase extends Dexie {
     this.version(3).stores({
       categories: 'id, name',
       suppliers: 'id, name',
+      products: 'id, name, barcode, categoryId, supplierId',
+      sales: 'id, date',
+      purchases: 'id, date, supplierId',
+      purchaseOrders: 'id, date, supplierId, status',
+      stockMovements: 'id, date, type, productId',
+      cashEntries: 'id, date',
+      tombstones: 'id, table, at',
+    })
+    this.version(4).stores({
+      categories: 'id, name',
+      suppliers: 'id, name',
+      containers: 'id, name',
       products: 'id, name, barcode, categoryId, supplierId',
       sales: 'id, date',
       purchases: 'id, date, supplierId',

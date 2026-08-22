@@ -13,12 +13,67 @@ import {
   suggestedQty,
   unitsFromPackages,
 } from '../db/repos'
-import type { Product, PurchaseItem, PurchaseOrderItem, Supplier } from '../types'
+import type { Container, Product, PurchaseItem, PurchaseOrderItem, Supplier } from '../types'
 import { formatMoney, round2, uid } from '../lib/utils'
-import { formatQty } from '../lib/units'
+import { formatQty, isLiquid, unitFactor } from '../lib/units'
 import { Button, EmptyState, Field, Input, Modal, Segmented, Select } from '../components/ui'
 
 type Tab = 'sugerencia' | 'ordenes' | 'compras'
+
+/** Línea de compra/orden: `selUnit` = 'base' (unidad del producto) o id de envase. */
+interface DraftLine {
+  key: string
+  productId: string
+  qty: string
+  cost: string
+  selUnit: string
+}
+
+function useContainers(): Container[] {
+  const containers = useLiveQuery(() => db.containers.toArray(), []) ?? []
+  return useMemo(() => [...containers].sort((a, b) => a.name.localeCompare(b.name)), [containers])
+}
+
+/** Envase elegido en la línea, o undefined si compra en unidad base / producto no líquido. */
+function lineContainer(p: Product | undefined, selUnit: string, containers: Container[]): Container | undefined {
+  if (!p || selUnit === 'base' || !isLiquid(p.unit)) return undefined
+  return containers.find((c) => c.id === selUnit)
+}
+
+/** Unidades base del producto que aporta el envase seleccionado (1 si no hay envase). */
+function basePerSel(p: Product | undefined, sel: Container | undefined): number {
+  return sel && p ? round2(sel.liters / unitFactor(p.unit)) : 1
+}
+
+/**
+ * Convierte una línea de compra/orden a unidades base del producto.
+ * - Con envase: qty/cost son envases y costo por envase; el stock se acredita en la unidad base.
+ * - Sin envase: respeta el comportamiento de paquetes (`isPackage`) y unidad suelta.
+ */
+function lineParts(p: Product | undefined, l: DraftLine, containers: Container[]) {
+  const qty = Number(l.qty) || 0
+  const sel = lineContainer(p, l.selUnit, containers)
+  const basePer = basePerSel(p, sel)
+  const isPkg = !sel && !!p?.isPackage
+  const pkgUnits = p?.pkgUnits ?? 1
+  const unitQty = sel ? round2(qty * basePer) : isPkg ? round2(qty * pkgUnits) : qty
+  const fallbackCost = p
+    ? sel
+      ? round2((p.cost || 0) * basePer)
+      : isPkg
+        ? round2((p.cost || 0) * pkgUnits)
+        : p.cost || 0
+    : 0
+  const shownCost = Number(l.cost) || fallbackCost
+  const unitCostBase = sel
+    ? basePer > 0
+      ? round2(shownCost / basePer)
+      : 0
+    : isPkg
+      ? round2(shownCost / pkgUnits)
+      : shownCost
+  return { qty, sel, basePer, unitQty, shownCost, unitCostBase, lineTotal: round2(qty * shownCost) }
+}
 
 export default function Restock() {
   const [tab, setTab] = useState<Tab>('sugerencia')
@@ -313,9 +368,10 @@ function Orders() {
 function OrderForm({ onClose }: { onClose: () => void }) {
   const products = useLiveQuery(() => db.products.toArray(), []) ?? []
   const suppliers = useLiveQuery(() => db.suppliers.toArray(), []) ?? []
+  const containers = useContainers()
   const [supplierId, setSupplierId] = useState('')
   const [productQuery, setProductQuery] = useState('')
-  const [lines, setLines] = useState<{ key: string; productId: string; qty: string; cost: string }[]>([])
+  const [lines, setLines] = useState<DraftLine[]>([])
   const [busy, setBusy] = useState(false)
 
   const matches = useMemo(() => {
@@ -339,42 +395,36 @@ function OrderForm({ onClose }: { onClose: () => void }) {
         productId: p.id,
         qty: p.isPackage ? String(packagesFromUnits(p, suggestedQty(p))) : String(suggestedQty(p)),
         cost: p.isPackage ? String(round2((p.cost ?? 0) * (p.pkgUnits ?? 1))) : String(p.cost),
+        selUnit: 'base',
       },
     ])
     setProductQuery('')
   }
 
-  const setLine = (key: string, patch: Partial<{ productId: string; qty: string; cost: string }>) =>
+  const setLine = (key: string, patch: Partial<DraftLine>) =>
     setLines((l) => l.map((x) => (x.key === key ? { ...x, ...patch } : x)))
 
   const total = lines.reduce((s, l) => {
     const p = products.find((x) => x.id === l.productId)
-    const qty = Number(l.qty) || 0
-    const cost = Number(l.cost) || p?.cost || 0
-    const unitQty = p?.isPackage ? qty * (p.pkgUnits ?? 1) : qty
-    const unitCost = p?.isPackage ? cost / (p.pkgUnits ?? 1) : cost
-    return s + unitQty * unitCost
+    return s + lineParts(p, l, containers).lineTotal
   }, 0)
 
   const save = async () => {
     const items: PurchaseOrderItem[] = []
     for (const l of lines) {
       const p = products.find((x) => x.id === l.productId)
-      const qty = Number(l.qty) || 0
-      const cost = Number(l.cost) || p?.cost || 0
-      if (!p || qty <= 0 || cost <= 0) {
+      const parts = lineParts(p, l, containers)
+      if (!p || parts.qty <= 0 || parts.shownCost <= 0) {
         toast.error('Revisa las líneas: faltan producto, cantidad o costo')
         return
       }
-      const unitQty = p.isPackage ? round2(qty * (p.pkgUnits ?? 1)) : qty
-      const unitCost = p.isPackage ? round2(cost / (p.pkgUnits ?? 1)) : cost
       items.push({
         productId: p.id,
         name: p.name,
         unit: p.unit,
-        qty: unitQty,
-        unitCost,
-        lineTotal: round2(unitQty * unitCost),
+        qty: parts.unitQty,
+        unitCost: parts.unitCostBase,
+        lineTotal: parts.lineTotal,
       })
     }
     if (items.length === 0) {
@@ -441,6 +491,7 @@ function OrderForm({ onClose }: { onClose: () => void }) {
           {lines.map((l) => {
             const p = products.find((x) => x.id === l.productId)
             const isPkg = !!p?.isPackage
+            const parts = lineParts(p, l, containers)
             return (
               <div key={l.key} className="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/50">
                 <div className="flex items-center gap-2">
@@ -448,6 +499,7 @@ function OrderForm({ onClose }: { onClose: () => void }) {
                     <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{p?.name ?? 'Producto?'}</p>
                     <p className="text-xs text-slate-400">
                       {p?.purchaseCode ? `Compra ${p.purchaseCode}` : p?.barcode ? `Barras ${p.barcode}` : p?.unit ?? ''}
+                      {parts.sel ? ` · Aporta ${parts.basePer} ${p?.unit}/envase` : ''}
                     </p>
                   </div>
                   <button onClick={() => setLines((arr) => arr.filter((x) => x.key !== l.key))} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30">
@@ -455,13 +507,26 @@ function OrderForm({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {p && isLiquid(p.unit) && containers.length > 0 && (
+                    <Select
+                      className="max-w-36"
+                      value={l.selUnit}
+                      onChange={(e) => setLine(l.key, { selUnit: e.target.value })}
+                      title="Unidad de compra"
+                    >
+                      <option value="base">Por {p.unit}</option>
+                      {containers.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </Select>
+                  )}
                   <Input
                     className="w-20"
                     type="number"
                     inputMode="decimal"
                     min="0"
-                    placeholder={isPkg ? 'Paq.' : 'Cant.'}
-                    title={isPkg ? 'Cantidad de paquetes' : 'Cantidad'}
+                    placeholder={parts.sel ? 'Env.' : isPkg ? 'Paq.' : 'Cant.'}
+                    title={parts.sel ? `Cantidad de envases (${parts.sel.name})` : isPkg ? 'Cantidad de paquetes' : 'Cantidad'}
                     value={l.qty}
                     onChange={(e) => setLine(l.key, { qty: e.target.value })}
                   />
@@ -471,12 +536,12 @@ function OrderForm({ onClose }: { onClose: () => void }) {
                     inputMode="decimal"
                     min="0"
                     placeholder="Costo"
-                    title={isPkg ? 'Costo por paquete' : 'Costo unitario'}
+                    title={parts.sel ? `Costo por ${parts.sel.name}` : isPkg ? 'Costo por paquete' : 'Costo unitario'}
                     value={l.cost}
                     onChange={(e) => setLine(l.key, { cost: e.target.value })}
                   />
                   <span className="ml-auto w-20 text-right text-sm font-semibold dark:text-slate-100">
-                    {formatMoney((Number(l.qty) || 0) * (Number(l.cost) || p?.cost || 0))}
+                    {formatMoney(parts.lineTotal)}
                   </span>
                 </div>
               </div>
@@ -537,47 +602,38 @@ function Purchases() {
 function PurchaseForm({ onClose }: { onClose: () => void }) {
   const products = useLiveQuery(() => db.products.toArray(), []) ?? []
   const suppliers = useLiveQuery(() => db.suppliers.toArray(), []) ?? []
+  const containers = useContainers()
   const [supplierId, setSupplierId] = useState('')
-  const [lines, setLines] = useState<{ key: string; productId: string; qty: string; cost: string }[]>([])
+  const [lines, setLines] = useState<DraftLine[]>([])
   const [busy, setBusy] = useState(false)
 
   const addLine = () =>
-    setLines((l) => [...l, { key: uid(), productId: '', qty: '1', cost: '' }])
+    setLines((l) => [...l, { key: uid(), productId: '', qty: '1', cost: '', selUnit: 'base' }])
 
-  const setLine = (key: string, patch: Partial<{ productId: string; qty: string; cost: string }>) =>
+  const setLine = (key: string, patch: Partial<DraftLine>) =>
     setLines((l) => l.map((x) => (x.key === key ? { ...x, ...patch } : x)))
-
-  const lineUnits = (p: Product | undefined, qty: number) =>
-    p?.isPackage ? round2(qty * (p.pkgUnits ?? 1)) : qty
-  const lineUnitCost = (p: Product | undefined, cost: number) =>
-    p?.isPackage ? round2(cost / (p.pkgUnits ?? 1)) : cost
 
   const total = lines.reduce((s, l) => {
     const p = products.find((x) => x.id === l.productId)
-    const qty = Number(l.qty) || 0
-    const cost = Number(l.cost) || p?.cost || 0
-    return s + lineUnits(p, qty) * lineUnitCost(p, cost)
+    return s + lineParts(p, l, containers).lineTotal
   }, 0)
 
   const save = async () => {
     const items: PurchaseItem[] = []
     for (const l of lines) {
       const p = products.find((x) => x.id === l.productId)
-      const qty = Number(l.qty) || 0
-      const cost = Number(l.cost) || p?.cost || 0
-      if (!p || qty <= 0 || cost <= 0) {
+      const parts = lineParts(p, l, containers)
+      if (!p || parts.qty <= 0 || parts.shownCost <= 0) {
         toast.error('Revisa las líneas: faltan producto, cantidad o costo')
         return
       }
-      const unitQty = lineUnits(p, qty)
-      const unitCost = lineUnitCost(p, cost)
       items.push({
         productId: p.id,
         name: p.name,
         unit: p.unit,
-        qty: unitQty,
-        unitCost,
-        lineTotal: round2(unitQty * unitCost),
+        qty: parts.unitQty,
+        unitCost: parts.unitCostBase,
+        lineTotal: parts.lineTotal,
       })
     }
     if (items.length === 0) {
@@ -609,6 +665,7 @@ function PurchaseForm({ onClose }: { onClose: () => void }) {
           {lines.map((l) => {
             const p = products.find((x) => x.id === l.productId)
             const isPkg = !!p?.isPackage
+            const parts = lineParts(p, l, containers)
             return (
               <div key={l.key} className="flex flex-wrap items-center gap-2">
                 <Select
@@ -618,6 +675,7 @@ function PurchaseForm({ onClose }: { onClose: () => void }) {
                     const prod = products.find((x) => x.id === e.target.value)
                     setLine(l.key, {
                       productId: e.target.value,
+                      selUnit: 'base',
                       cost: prod
                         ? String(round2(prod.isPackage ? (prod.cost ?? 0) * (prod.pkgUnits ?? 1) : (prod.cost ?? 0)))
                         : l.cost,
@@ -627,13 +685,26 @@ function PurchaseForm({ onClose }: { onClose: () => void }) {
                   <option value="">Selecciona producto…</option>
                   {products.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                 </Select>
+                {p && isLiquid(p.unit) && containers.length > 0 && (
+                  <Select
+                    className="max-w-36"
+                    value={l.selUnit}
+                    onChange={(e) => setLine(l.key, { selUnit: e.target.value })}
+                    title="Unidad de compra"
+                  >
+                    <option value="base">Por {p.unit}</option>
+                    {containers.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </Select>
+                )}
                 <Input
                   className="w-20"
                   type="number"
                   inputMode="decimal"
                   min="0"
-                  placeholder={isPkg ? 'Paq.' : 'Cant.'}
-                  title={isPkg ? 'Cantidad de paquetes' : 'Cantidad'}
+                  placeholder={parts.sel ? 'Env.' : isPkg ? 'Paq.' : 'Cant.'}
+                  title={parts.sel ? `Cantidad de envases (${parts.sel.name})` : isPkg ? 'Cantidad de paquetes' : 'Cantidad'}
                   value={l.qty}
                   onChange={(e) => setLine(l.key, { qty: e.target.value })}
                 />
@@ -642,13 +713,13 @@ function PurchaseForm({ onClose }: { onClose: () => void }) {
                   type="number"
                   inputMode="decimal"
                   min="0"
-                  placeholder={p ? `Costo ${round2((p.isPackage ? (p.cost ?? 0) * (p.pkgUnits ?? 1) : p.cost ?? 0))}` : 'Costo'}
-                  title={isPkg ? 'Costo por paquete' : 'Costo unitario'}
+                  placeholder="Costo"
+                  title={parts.sel ? `Costo por ${parts.sel.name}` : isPkg ? 'Costo por paquete' : 'Costo unitario'}
                   value={l.cost}
                   onChange={(e) => setLine(l.key, { cost: e.target.value })}
                 />
                 <span className="w-20 text-right text-sm font-semibold dark:text-slate-100">
-                  {formatMoney((Number(l.qty) || 0) * (Number(l.cost) || p?.cost || 0))}
+                  {formatMoney(parts.lineTotal)}
                 </span>
                 <button onClick={() => setLines((arr) => arr.filter((x) => x.key !== l.key))} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30">
                   <Trash2 className="h-4 w-4" />

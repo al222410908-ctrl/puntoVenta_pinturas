@@ -2,6 +2,7 @@ import { db } from './db'
 import type {
   Backup,
   CashEntry,
+  Container,
   Payment,
   Product,
   Purchase,
@@ -15,7 +16,7 @@ import type {
 } from '../types'
 import { round2, uid } from '../lib/utils'
 import { notifyLocalChange } from '../lib/sync'
-import { toBaseQty, presentationFactor } from '../lib/units'
+import { toBaseQty, presentationFactor, unitFactor } from '../lib/units'
 
 export interface CartLine {
   productId: string
@@ -159,6 +160,43 @@ export function packagesFromUnits(product: Product, units: number): number {
 
 export function unitsFromPackages(product: Product, packages: number): number {
   return round2(packages * pkgUnits(product))
+}
+
+export async function saveContainer(input: {
+  id?: string
+  name: string
+  liters: number
+}): Promise<Container> {
+  const name = input.name.trim()
+  if (!name) throw new Error('El nombre del envase es obligatorio')
+  if (!(input.liters > 0)) throw new Error('El contenido en litros debe ser mayor a 0')
+  const existing = input.id ? await db.containers.get(input.id) : undefined
+  const rec: Container = {
+    id: existing?.id ?? uid(),
+    name,
+    liters: round2(input.liters),
+    updatedAt: Date.now(),
+  }
+  await db.containers.put(rec)
+  notifyLocalChange()
+  return rec
+}
+
+export async function deleteContainer(id: string): Promise<void> {
+  const now = Date.now()
+  await db.transaction('rw', [db.containers, db.tombstones], async () => {
+    await db.containers.delete(id)
+    await markDeleted('containers', id, now)
+  })
+  notifyLocalChange()
+}
+
+/**
+ * Unidades base del producto que aporta 1 envase.
+ * Ej. Tanque de 50 L sobre producto con unidad "litro" → 50; con unidad "galón" → 13.21.
+ */
+export function containerBaseQty(container: Container, product: Product): number {
+  return round2(container.liters / unitFactor(product.unit))
 }
 
 export async function registerPurchase(
@@ -371,10 +409,11 @@ export async function cashSummary() {
 }
 
 export async function exportBackup(): Promise<Backup> {
-  const [categories, suppliers, products, sales, purchases, purchaseOrders, stockMovements, cashEntries] =
+  const [categories, suppliers, containers, products, sales, purchases, purchaseOrders, stockMovements, cashEntries] =
     await Promise.all([
       db.categories.toArray(),
       db.suppliers.toArray(),
+      db.containers.toArray(),
       db.products.toArray(),
       db.sales.toArray(),
       db.purchases.toArray(),
@@ -387,6 +426,7 @@ export async function exportBackup(): Promise<Backup> {
     exportedAt: Date.now(),
     categories,
     suppliers,
+    containers,
     products,
     sales,
     purchases,
@@ -402,6 +442,7 @@ export async function restoreBackup(data: Backup): Promise<void> {
     [
       db.categories,
       db.suppliers,
+      db.containers,
       db.products,
       db.sales,
       db.purchases,
@@ -413,6 +454,7 @@ export async function restoreBackup(data: Backup): Promise<void> {
       await Promise.all([
         db.categories.clear(),
         db.suppliers.clear(),
+        db.containers.clear(),
         db.products.clear(),
         db.sales.clear(),
         db.purchases.clear(),
@@ -423,6 +465,7 @@ export async function restoreBackup(data: Backup): Promise<void> {
       await Promise.all([
         db.categories.bulkAdd(data.categories),
         db.suppliers.bulkAdd(data.suppliers),
+        data.containers ? db.containers.bulkAdd(data.containers) : Promise.resolve(),
         db.products.bulkAdd(data.products),
         db.sales.bulkAdd(data.sales),
         db.purchases.bulkAdd(data.purchases),

@@ -25,6 +25,15 @@ export interface Supplier {
   updatedAt?: number
 }
 
+/** Envase de compra configurable (ej. Tanque 50 L). El stock se acredita en la unidad base del producto. */
+export interface Container {
+  id: string
+  name: string
+  /** Contenido del envase en litros */
+  liters: number
+  updatedAt?: number
+}
+
 export interface SalePresentation {
   unit: Unit
   /** 1 presentación equivale a `factor` unidades base del producto (ej. 1 caja = 50 piezas) */
@@ -167,6 +176,7 @@ export interface Tombstone {
     | 'products'
     | 'categories'
     | 'suppliers'
+    | 'containers'
     | 'sales'
     | 'purchases'
     | 'purchaseOrders'
@@ -181,6 +191,7 @@ export interface Backup {
   exportedAt: number
   categories: Category[]
   suppliers: Supplier[]
+  containers?: Container[]
   products: Product[]
   sales: Sale[]
   purchases: Purchase[]

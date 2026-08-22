@@ -1,4 +1,4 @@
-export const EDITABLE = ['products', 'categories', 'suppliers']
+export const EDITABLE = ['products', 'categories', 'suppliers', 'containers']
 export const APPEND = ['sales', 'purchases', 'purchaseOrders', 'stockMovements', 'cashEntries']
 export const TABLES = [...EDITABLE, ...APPEND]
 
@@ -7,6 +7,7 @@ export function empty() {
     products: {},
     categories: {},
     suppliers: {},
+    containers: {},
     sales: {},
     purchases: {},
     purchaseOrders: {},

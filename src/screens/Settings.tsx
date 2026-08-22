@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react'
-import { ImagePlus, Save, Store, Trash2, ScanLine } from 'lucide-react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { ImagePlus, Save, Store, Trash2, ScanLine, Package, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
-import type { BusinessInfo } from '../types'
+import type { BusinessInfo, Container } from '../types'
+import { db } from '../db/db'
+import { deleteContainer, saveContainer } from '../db/repos'
 import { loadBusinessInfo, saveBusinessInfo } from '../lib/ticket'
 import { loadScannerSettings, saveScannerSettings, type ScannerSettings } from '../lib/scanner'
 import { compressImageFile } from '../lib/image'
@@ -169,6 +172,120 @@ export default function Settings() {
           <Save className="mr-2 inline h-4 w-4" />
           Guardar cambios
         </Button>
+      </div>
+
+      <ContainersCard />
+    </div>
+  )
+}
+
+function ContainersCard() {
+  const containers = useLiveQuery(() => db.containers.orderBy('name').toArray(), []) ?? []
+  const [editing, setEditing] = useState<Container | null>(null)
+  const [name, setName] = useState('')
+  const [liters, setLiters] = useState('')
+
+  const startEdit = (c: Container) => {
+    setEditing(c)
+    setName(c.name)
+    setLiters(String(c.liters))
+  }
+  const reset = () => {
+    setEditing(null)
+    setName('')
+    setLiters('')
+  }
+
+  const save = async () => {
+    try {
+      await saveContainer({ id: editing?.id, name, liters: Number(liters) || 0 })
+      toast.success(editing ? 'Envase actualizado' : 'Envase agregado')
+      reset()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error')
+    }
+  }
+
+  const remove = async (c: Container) => {
+    if (!confirm(`¿Eliminar el envase "${c.name}"?`)) return
+    await deleteContainer(c.id)
+    toast.success('Envase eliminado')
+    if (editing?.id === c.id) reset()
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20">
+      <div className="flex items-center gap-2">
+        <Package className="h-5 w-5 text-primary" />
+        <h2 className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">
+          Envases de compra
+        </h2>
+      </div>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Contenedores con los que compras producto a granel (ej. Tanque de 50 L). Al registrar una compra por
+        envase, el stock se acredita automáticamente en litros. Solo aplica a productos líquidos.
+      </p>
+
+      {containers.length > 0 && (
+        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+          {containers.map((c) => (
+            <li key={c.id} className="flex items-center justify-between gap-2 px-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{c.name}</p>
+                <p className="text-xs text-slate-400">Contiene {c.liters} L</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() => startEdit(c)}
+                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                  aria-label={`Editar ${c.name}`}
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => void remove(c)}
+                  className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+                  aria-label={`Eliminar ${c.name}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label={editing ? `Editando: ${editing.name}` : 'Nuevo envase'}>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nombre, ej. Tanque 50 L"
+            maxLength={40}
+          />
+        </Field>
+        <Field label="Litros">
+          <Input
+            className="w-24"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={liters}
+            onChange={(e) => setLiters(e.target.value)}
+            placeholder="50"
+          />
+        </Field>
+        <div className="flex gap-2 pb-0.5">
+          {editing && (
+            <Button type="button" className="btn-secondary" onClick={reset}>
+              Cancelar
+            </Button>
+          )}
+          <Button type="button" onClick={() => void save()}>
+            {editing ? 'Guardar' : 'Agregar'}
+          </Button>
+        </div>
       </div>
     </div>
   )
