@@ -101,9 +101,12 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    height: 100%;
   }
   body {
     @apply overflow-x-clip bg-surface text-ink font-sans antialiased;
+    height: 100%;
+    overscroll-behavior-y: contain;
   }
   .dark {
     color-scheme: dark;
@@ -114,6 +117,11 @@
   ::selection {
     @apply bg-amber-200 text-slate-900;
   }
+}
+
+@utility h-app {
+  height: 100vh;
+  height: 100dvh;
 }
 
 @layer components {

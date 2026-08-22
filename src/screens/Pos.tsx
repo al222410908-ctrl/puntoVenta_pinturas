@@ -259,7 +259,7 @@ export default function Pos() {
 
   return (
     <div className="flex h-full min-w-0 flex-col lg:flex-row">
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="p-3 pb-2">
           <div className="flex gap-2">
             <div className="relative flex-1">

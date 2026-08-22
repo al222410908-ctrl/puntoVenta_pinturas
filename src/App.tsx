@@ -112,7 +112,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-app flex-col">
       <header className="flex h-9 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 md:px-4 dark:border-slate-800 dark:bg-slate-900">
         <button
           onClick={() => void doSyncRef.current()}
@@ -189,7 +189,7 @@ export default function App() {
             </div>
             <ThemeToggle dark={dark} onToggle={() => setDark((d) => !d)} />
           </header>
-          <main className="min-h-0 min-w-0 flex-1 pb-[calc(env(safe-area-inset-bottom)+4rem)] md:pb-0">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col pb-[calc(env(safe-area-inset-bottom)+4rem)] md:pb-0">
             <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-400">Cargando…</div>}>
               {tab === 'vender' && <Pos />}
               {tab === 'catalogo' && <Products />}
