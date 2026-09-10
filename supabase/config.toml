@@ -1,0 +1,8 @@
+# Configuración del proyecto Supabase (para CLI/supabase functions deploy)
+project_id = "liibcmfsvxdqybpftnia"
+
+[functions.sync]
+verify_jwt = false
+
+[functions.access]
+verify_jwt = false

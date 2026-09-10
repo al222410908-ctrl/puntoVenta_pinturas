@@ -37,6 +37,14 @@ const LAST_SYNC_KEY = 'pos_last_sync'
 const PIN_STORAGE = 'pos_pin'
 
 /**
+ * Base URL de la API de sincronización.
+ * - Producción (Vercel): VITE_SYNC_URL apunta a las Edge Functions de Supabase,
+ *   ej. https://xxxx.supabase.co/functions/v1
+ * - Actualmente en AWS se usa la ruta relativa /api de forma local/dev.
+ */
+export const API_BASE: string = (import.meta.env.VITE_SYNC_URL as string | undefined) ?? '/api'
+
+/**
  * Devuelve el hash SHA-256 del PIN como token de autenticación.
  * De esta forma ningún secreto queda embebido en el bundle JS:
  * el servidor ya conoce el pinHash y puede validarlo directamente.
@@ -140,7 +148,7 @@ export async function syncNow(): Promise<SyncResult> {
   let resp: Response
   try {
     const token = getSyncToken()
-    resp = await fetch('/api/sync', {
+    resp = await fetch(`${API_BASE}/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

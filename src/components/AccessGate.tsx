@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Delete, Lock } from 'lucide-react'
-import { getSyncToken } from '../lib/sync'
+import { getSyncToken, API_BASE } from '../lib/sync'
 
 const PIN_STORAGE = 'pos_pin'
 const SESSION_STORAGE = 'pos_session'
@@ -8,7 +8,7 @@ const SESSION_STORAGE = 'pos_session'
 async function fetchSharedPin(): Promise<string | null> {
   try {
     const token = getSyncToken()
-    const resp = await fetch('/api/access', {
+    const resp = await fetch(`${API_BASE}/access`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     if (!resp.ok) return null
@@ -22,7 +22,7 @@ async function fetchSharedPin(): Promise<string | null> {
 async function pushSharedPin(pinHash: string): Promise<void> {
   try {
     const token = getSyncToken()
-    await fetch('/api/access', {
+    await fetch(`${API_BASE}/access`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ pinHash }),
