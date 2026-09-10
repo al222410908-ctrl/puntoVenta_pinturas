@@ -38,11 +38,11 @@ const PIN_STORAGE = 'pos_pin'
 
 /**
  * Base URL de la API de sincronización.
- * - Producción (Vercel): VITE_SYNC_URL apunta a las Edge Functions de Supabase,
- *   ej. https://xxxx.supabase.co/functions/v1
- * - Actualmente en AWS se usa la ruta relativa /api de forma local/dev.
+ * - Producción (Vercel): apunta a las Edge Functions de Supabase.
+ * - VITE_SYNC_URL puede sobrescribirla (build local y Vercel).
  */
-export const API_BASE: string = (import.meta.env.VITE_SYNC_URL as string | undefined) ?? '/api'
+export const API_BASE: string =
+  (import.meta.env.VITE_SYNC_URL as string | undefined) || 'https://liibcmfsvxdqybpftnia.supabase.co/functions/v1'
 
 /**
  * Devuelve el hash SHA-256 del PIN como token de autenticación.
