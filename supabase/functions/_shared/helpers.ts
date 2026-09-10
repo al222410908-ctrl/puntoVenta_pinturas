@@ -18,7 +18,7 @@ export function jsonResponse(body: unknown, status = 200): Response {
 
 export function handleOptions(req: Request): Response | null {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { status: 204, headers: corsHeaders() })
+    return new Response(null, { status: 204, headers: corsHeaders() })
   }
   return null
 }

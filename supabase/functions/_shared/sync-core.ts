@@ -108,12 +108,13 @@ export function snapshot(data, since = 0) {
     out[key] = []
   }
   for (const key of TABLES) {
-    for (const rec of Object.values(data[key] || {})) {
+    const store = data[key] || {}
+    for (const rec of Object.values(store)) {
       const at = recordAt(rec)
       if (at > since) {
-        out[key].push(JSON.parse(JSON.stringify(rec)))
+        out[key].push(rec)
       } else if (since === 0 && at === 0) {
-        out[key].push(JSON.parse(JSON.stringify(rec)))
+        out[key].push(rec)
       }
     }
   }

@@ -59,6 +59,12 @@ async function updateData(
       return { data: base, ret: changed, changed }
     }
 
+    // Si nada cambió, no reescribimos los ~17MB completos (evita timeouts de la DB
+    // y reduce coste). Devolvemos el documento tal cual.
+    if (changed === 0) {
+      return { data: base, ret: 0, changed: 0 }
+    }
+
     const { data: updated, error: upErr } = await supabase
       .from(SYNC_DATA_TABLE)
       .update({ data: base, updated_at: nextUpdatedAt })
@@ -121,7 +127,8 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ok: false, error: 'unauthorized' }, 401)
     }
     console.error('sync error', e)
-    return jsonResponse({ ok: false, error: String(e) }, 500)
+    const msg = e instanceof Error ? e.message : JSON.stringify(e)
+    return jsonResponse({ ok: false, error: msg }, 500)
   }
 
   return jsonResponse({ ok: false, error: 'method not allowed' }, 405)

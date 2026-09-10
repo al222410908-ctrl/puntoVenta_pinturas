@@ -26,3 +26,6 @@ dist-ssr
 
 # Supabase CLI temporal
 supabase/.temp/
+
+# Volcado de diagnóstico de prueba
+supabase-error-dump.txt
