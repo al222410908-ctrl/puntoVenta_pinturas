@@ -111,16 +111,20 @@ export function snapshot(data, since = 0) {
     const store = data[key] || {}
     for (const rec of Object.values(store)) {
       const at = recordAt(rec)
-      if (at > since) {
-        out[key].push(rec)
-      } else if (since === 0 && at === 0) {
-        out[key].push(rec)
+      if (at > since || (since === 0 && at === 0)) {
+        if (key === 'products') {
+          // Clonamos para NO mutar el objeto guardado en la DB:
+          // abajo se calcula stock y se elimina _baseStock, y un cambio
+          // sobre `rec` corrompería el almacén (stock doble contado).
+          const safe = { ...rec }
+          safe.stock = stockFor(data, safe)
+          delete safe._baseStock
+          out[key].push(safe)
+        } else {
+          out[key].push(rec)
+        }
       }
     }
-  }
-  for (const rec of out.products) {
-    rec.stock = stockFor(data, rec)
-    delete rec._baseStock
   }
   out.tombstones = Object.values(data.tombstones || {})
   return out
