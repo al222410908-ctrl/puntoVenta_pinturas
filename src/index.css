@@ -14,12 +14,28 @@
   --color-ink: #202423;
 
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-display: "Fraunces", Georgia, serif;
+  --font-display: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --animate-bounce-slow: bounce-slow 1.5s infinite;
+  --animate-fade-in: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide-up: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-scale-in: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+
   @keyframes bounce-slow {
     0%, 100% { transform: translateY(-3%); }
     50% { transform: translateY(3%); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
   }
 
   /* Fondos cálidos (slate -> gray cálido verdoso) */
@@ -117,6 +133,22 @@
   ::selection {
     @apply bg-amber-200 text-slate-900;
   }
+
+  /* Scrollbars estilizadas y sutiles */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(131, 138, 128, 0.25);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(131, 138, 128, 0.45);
+  }
 }
 
 @utility h-app {
@@ -124,50 +156,63 @@
   height: 100dvh;
 }
 
+@utility tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
 @layer components {
+  .animate-fade-in {
+    animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-slide-up {
+    animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-scale-in {
+    animation: scaleIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
   .card {
-    @apply rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800;
+    @apply rounded-2xl border border-slate-200/90 bg-white shadow-[0_2px_10px_-3px_rgba(23,74,59,0.06)] transition-all duration-200 ease-out hover:border-slate-300 hover:shadow-[0_8px_20px_-6px_rgba(23,74,59,0.1)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-slate-700;
   }
   .input {
-    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base text-ink outline-none transition focus:border-primary-600 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500;
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-base text-ink shadow-2xs outline-none transition focus:border-primary-600 focus:ring-4 focus:ring-primary/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-primary-600 dark:focus:ring-primary/20;
   }
   .label {
-    @apply mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300;
+    @apply mb-1.5 block text-xs font-semibold tracking-wide text-slate-700 uppercase dark:text-slate-300;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold tracking-tight transition-all duration-150 ease-out active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 select-none;
   }
   .btn-primary {
-    @apply bg-primary text-white shadow-sm hover:bg-primary-700;
+    @apply bg-gradient-to-b from-primary-600 to-primary text-white shadow-sm shadow-primary/25 hover:from-primary hover:to-primary-700 hover:shadow-md hover:shadow-primary/30;
   }
   .btn-secondary {
-    @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+    @apply border border-slate-200/90 bg-white text-slate-700 shadow-2xs hover:bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:border-slate-600;
   }
   .btn-accent {
-    @apply bg-accent text-[#241d05] hover:bg-amber-600;
+    @apply bg-gradient-to-b from-amber-400 to-accent text-slate-950 font-bold shadow-sm shadow-amber-500/20 hover:from-amber-500 hover:to-amber-600;
   }
   .btn-danger {
-    @apply bg-danger text-white hover:bg-red-700;
+    @apply bg-gradient-to-b from-red-500 to-danger text-white shadow-sm shadow-red-600/20 hover:from-red-600 hover:to-red-700;
   }
   .btn-ghost {
-    @apply text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700;
+    @apply text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100;
   }
   .chip {
-    @apply rounded-full px-2 py-0.5 text-xs font-semibold;
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide;
   }
   .chip-ok {
-    @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300;
+    @apply bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border dark:border-emerald-800/40;
   }
   .chip-warn {
-    @apply bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300;
+    @apply bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 dark:border dark:border-amber-800/40;
   }
   .chip-bad {
-    @apply bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300;
+    @apply bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 dark:border dark:border-red-800/40;
   }
   .chip-info {
-    @apply bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300;
+    @apply bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 dark:border dark:border-blue-800/40;
   }
   .chip-devol {
-    @apply bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300;
+    @apply bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 dark:border dark:border-purple-800/40;
   }
 }

@@ -182,31 +182,65 @@ export default function Reports() {
         <EmptyState icon={<BarChart3 className="h-10 w-10" />} title="Sin ventas en este periodo" />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <StatCard icon={<Wallet className="h-5 w-5" />} label="Ventas totales" value={formatMoney(totals.total)} accent="text-primary" />
-            <StatCard icon={<TrendingUp className="h-5 w-5" />} label="Utilidad" value={formatMoney(totals.profit)} accent="text-emerald-600" />
-            <StatCard icon={<Coins className="h-5 w-5" />} label="Efectivo" value={formatMoney(totals.cash)} accent="text-slate-700" />
-            <StatCard icon={<CreditCard className="h-5 w-5" />} label="Tarjeta" value={formatMoney(totals.card)} accent="text-slate-700" />
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+            <StatCard
+              icon={<Wallet className="h-4 w-4" />}
+              label="Ventas totales"
+              value={formatMoney(totals.total)}
+              accent="text-primary dark:text-emerald-400"
+              bgAccent="bg-primary/10 text-primary dark:bg-emerald-950/60 dark:text-emerald-400"
+            />
+            <StatCard
+              icon={<TrendingUp className="h-4 w-4" />}
+              label="Utilidad estimada"
+              value={formatMoney(totals.profit)}
+              accent="text-emerald-700 dark:text-emerald-400"
+              bgAccent="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+            />
+            <StatCard
+              icon={<Coins className="h-4 w-4" />}
+              label="Efectivo"
+              value={formatMoney(totals.cash)}
+              accent="text-slate-800 dark:text-slate-200"
+              bgAccent="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+            />
+            <StatCard
+              icon={<CreditCard className="h-4 w-4" />}
+              label="Tarjeta"
+              value={formatMoney(totals.card)}
+              accent="text-slate-800 dark:text-slate-200"
+              bgAccent="bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
+            />
           </div>
-          <div className="card p-3 text-sm text-slate-600 dark:text-slate-300">
-            {totals.count} venta{totals.count === 1 ? '' : 's'} · Margen{' '}
-            <b>{totals.total > 0 ? `${((totals.profit / totals.total) * 100).toFixed(1)}%` : '0%'}</b>
+          <div className="card flex items-center justify-between p-3.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+            <span className="font-semibold text-slate-800 dark:text-slate-100">
+              {totals.count} {totals.count === 1 ? 'operación registrada' : 'operaciones registradas'}
+            </span>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 border border-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/40">
+              <span>Margen global:</span>
+              <span className="tabular-nums">{totals.total > 0 ? `${((totals.profit / totals.total) * 100).toFixed(1)}%` : '0%'}</span>
+            </div>
           </div>
         </>
       )}
 
       <div className="card p-4">
-        <p className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">Ventas últimos 7 días</p>
-        <div className="mt-4 flex h-32 items-end gap-1.5">
+        <p className="font-display text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100 uppercase">
+          Ventas últimos 7 días
+        </p>
+        <div className="mt-4 flex h-36 items-end gap-2">
           {last7.map((d) => {
-            const pct = last7Max > 0 ? Math.max(6, Math.round((d.total / last7Max) * 100)) : 0
+            const pct = last7Max > 0 ? Math.max(8, Math.round((d.total / last7Max) * 100)) : 0
             return (
-              <div key={d.label} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
-                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+              <div key={d.label} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+                <span className="font-display text-[10px] font-bold text-slate-600 dark:text-slate-400 tabular-nums">
                   {d.total > 0 ? fmtCompact(d.total) : ''}
                 </span>
-                <div className="w-full rounded-t-md bg-primary/80" style={{ height: `${pct}%` }} />
-                <span className="text-[10px] text-slate-400 dark:text-slate-500">{d.label}</span>
+                <div
+                  className="w-full rounded-t-lg bg-gradient-to-t from-primary-700 via-primary to-primary-600 shadow-2xs transition-all duration-300 hover:brightness-110"
+                  style={{ height: `${pct}%` }}
+                />
+                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase">{d.label}</span>
               </div>
             )
           })}
@@ -214,21 +248,23 @@ export default function Reports() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 font-display text-base font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-100">
+        <div className="border-b border-slate-200/80 bg-slate-50/70 px-4 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-slate-700 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
           Top 5 más vendidos
         </div>
         {topByQty.length === 0 ? (
-          <p className="p-4 text-sm text-slate-400">Sin datos</p>
+          <p className="p-4 text-xs text-slate-400">Sin datos de venta</p>
         ) : (
-          <div className="divide-y divide-slate-100 dark:divide-slate-700">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {topByQty.map((r, i) => (
-              <div key={r.name} className="flex items-center gap-2 px-3 py-2">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+              <div key={r.name} className="flex items-center gap-3 px-4 py-2.5">
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${
+                  i === 0 ? 'bg-amber-500 text-slate-950 font-extrabold shadow-2xs' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                }`}>
                   {i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{r.name}</p>
-                  <p className="text-xs text-slate-400">{r.qty} vendido · {formatMoney(r.sales)}</p>
+                  <p className="truncate text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100">{r.name}</p>
+                  <p className="text-[11px] text-slate-400">{r.qty} unidades · {formatMoney(r.sales)}</p>
                 </div>
               </div>
             ))}
@@ -237,20 +273,22 @@ export default function Reports() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 font-display text-base font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-100">
+        <div className="border-b border-slate-200/80 bg-slate-50/70 px-4 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-slate-700 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
           Utilidad por producto
         </div>
         {totals.list.length === 0 ? (
-          <p className="p-4 text-sm text-slate-400">Sin datos</p>
+          <p className="p-4 text-xs text-slate-400">Sin datos de utilidad</p>
         ) : (
-          <div className="divide-y divide-slate-100 dark:divide-slate-700">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {totals.list.slice(0, 15).map((r) => (
-              <div key={r.name} className="flex items-center gap-2 px-3 py-2">
+              <div key={r.name} className="flex items-center gap-2 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{r.name}</p>
-                  <p className="text-xs text-slate-400">{r.qty} vendido · {formatMoney(r.sales)}</p>
+                  <p className="truncate text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100">{r.name}</p>
+                  <p className="text-[11px] text-slate-400">{r.qty} vendido · {formatMoney(r.sales)}</p>
                 </div>
-                <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(round2(r.profit))}</span>
+                <span className="font-display text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
+                  +{formatMoney(round2(r.profit))}
+                </span>
               </div>
             ))}
           </div>
@@ -258,7 +296,10 @@ export default function Reports() {
       </div>
 
       <div className="card space-y-3 p-4">
-        <p className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-100"><PackageOpen className="h-4 w-4" />Respaldo de datos</p>
+        <p className="flex items-center gap-2 font-display text-sm font-bold text-slate-800 dark:text-slate-100">
+          <PackageOpen className="h-4 w-4 text-primary dark:text-emerald-400" />
+          Respaldo de datos
+        </p>
         <div className="grid grid-cols-2 gap-2">
           <Button className="btn-secondary" onClick={() => void handleExport()}>
             <Download className="h-4 w-4" />Exportar
@@ -277,13 +318,16 @@ export default function Reports() {
             if (f) void handleImport(f)
           }}
         />
-        <p className="text-xs text-slate-400">
-          Los datos viven en este dispositivo. Exporta un respaldo cada cierto tiempo y guárdalo donde quieras.
+        <p className="text-[11px] text-slate-400 leading-relaxed">
+          Los datos viven localmente en este dispositivo. Exporta un respaldo periódicamente para tener siempre una copia segura.
         </p>
       </div>
 
       <div className="card space-y-3 p-4">
-        <p className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-100"><RefreshCw className="h-4 w-4" />Sincronización</p>
+        <p className="flex items-center gap-2 font-display text-sm font-bold text-slate-800 dark:text-slate-100">
+          <RefreshCw className="h-4 w-4 text-primary dark:text-emerald-400" />
+          Sincronización en la nube
+        </p>
         <Button
           onClick={() => void doSync()}
           disabled={syncing}
@@ -292,27 +336,42 @@ export default function Reports() {
           <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
           {syncing ? 'Sincronizando…' : 'Sincronizar ahora'}
         </Button>
-        <p className="text-xs text-slate-400">
+        <p className="text-[11px] text-slate-400">
           {lastSyncAt() > 0
             ? `Última sincronización: ${new Date(lastSyncAt()).toLocaleString()}`
             : 'Aún no se ha sincronizado con el servidor.'}
-        </p>
-        <p className="text-xs text-slate-400">
-          Unifica catálogo, ventas e inventario entre el celular y la computadora. Necesitas conexión a internet.
         </p>
       </div>
     </div>
   )
 }
 
-function StatCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent: string }) {
+function StatCard({
+  icon,
+  label,
+  value,
+  accent,
+  bgAccent,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  accent: string
+  bgAccent?: string
+}) {
   return (
-    <div className="card p-3">
-      <p className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-        <span className={accent}>{icon}</span>
-        {label}
+    <div className="card flex flex-col justify-between p-3.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          {label}
+        </span>
+        <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${bgAccent ?? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+          {icon}
+        </div>
+      </div>
+      <p className={`font-display text-xl sm:text-2xl font-extrabold tracking-tight mt-2 tabular-nums ${accent}`}>
+        {value}
       </p>
-      <p className={`font-display mt-1 text-xl font-semibold ${accent}`}>{value}</p>
     </div>
   )
 }

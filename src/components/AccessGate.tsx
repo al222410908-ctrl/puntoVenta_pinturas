@@ -52,12 +52,14 @@ function pinsEqual(a: string, b: string) {
 
 function PinDots({ length, done }: { length: number; done?: boolean }) {
   return (
-    <div className="flex justify-center gap-3">
+    <div className="flex justify-center gap-3.5">
       {[0, 1, 2, 3].map((i) => (
         <span
           key={i}
-          className={`h-4 w-4 rounded-full border-2 transition-all ${
-            i < length ? (done ? 'border-emerald-500 bg-emerald-500' : 'border-primary bg-primary') : 'border-slate-400 dark:border-slate-600'
+          className={`h-4 w-4 rounded-full border-2 transition-all duration-200 ${
+            i < length
+              ? (done ? 'border-emerald-500 bg-emerald-500 scale-110' : 'border-primary bg-primary scale-110 shadow-xs shadow-primary/30')
+              : 'border-slate-300 bg-transparent dark:border-slate-700'
           } ${done ? 'animate-pulse' : ''}`}
         />
       ))}
@@ -69,7 +71,7 @@ function Keypad({ onDigit, onBack, disabled }: { onDigit: (d: string) => void; o
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
   const layout = [...keys.slice(0, 9), 'back', '0', 'del']
   return (
-    <div className="mx-auto grid w-full max-w-[240px] grid-cols-3 gap-3">
+    <div className="mx-auto grid w-full max-w-[260px] grid-cols-3 gap-3.5">
       {layout.map((k) =>
         k === 'back' ? (
           <span key={k} />
@@ -78,7 +80,7 @@ function Keypad({ onDigit, onBack, disabled }: { onDigit: (d: string) => void; o
             key={k}
             disabled={disabled}
             onClick={onBack}
-            className="flex aspect-square items-center justify-center rounded-full text-slate-500 transition active:scale-95 disabled:opacity-40 dark:text-slate-300"
+            className="flex aspect-square items-center justify-center rounded-2xl text-slate-400 hover:text-slate-700 transition active:scale-90 disabled:opacity-30 dark:text-slate-400 dark:hover:text-slate-200"
           >
             <Delete className="h-6 w-6" />
           </button>
@@ -87,7 +89,7 @@ function Keypad({ onDigit, onBack, disabled }: { onDigit: (d: string) => void; o
             key={k}
             disabled={disabled}
             onClick={() => onDigit(k)}
-            className="flex aspect-square items-center justify-center rounded-full bg-white text-xl font-semibold text-slate-800 shadow ring-1 ring-slate-200 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40 dark:bg-slate-700 dark:text-slate-100 dark:ring-slate-600"
+            className="flex aspect-square items-center justify-center rounded-2xl border border-slate-200/90 bg-white font-display text-2xl font-bold text-slate-800 shadow-2xs transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-92 disabled:opacity-40 dark:border-slate-700/80 dark:bg-slate-800/90 dark:text-slate-100"
           >
             {k}
           </button>
@@ -194,26 +196,31 @@ export default function AccessGate({ onUnlock }: { onUnlock: () => void }) {
   }, [splash, initDone, pin])
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden bg-[#f6f1e7] dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden bg-surface dark:bg-slate-950">
       {splash ? (
-        <div className="flex flex-col items-center gap-4">
-          <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-20 w-20 animate-bounce-slow rounded-2xl object-cover shadow-lg" />
-          <p className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-100">Pinturas POS</p>
-          <p className="text-sm text-accent/70 animate-pulse">Venta e inventario</p>
+        <div className="flex flex-col items-center gap-4 animate-fade-in">
+          <div className="relative">
+            <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-24 w-24 rounded-3xl object-cover shadow-2xl ring-4 ring-primary/20 animate-bounce-slow" />
+            <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-950" />
+          </div>
+          <div className="text-center">
+            <p className="font-display text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Pinturas POS</p>
+            <p className="text-xs font-bold tracking-widest text-accent uppercase mt-1">Atelier & Punto de Venta</p>
+          </div>
         </div>
       ) : (
-        <div className="flex w-full max-w-sm flex-col gap-6 px-6">
+        <div className="flex w-full max-w-sm flex-col gap-6 px-6 animate-scale-in">
           <div className="flex flex-col items-center gap-3">
-            <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-white">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-primary text-white shadow-lg shadow-primary/25 ring-4 ring-primary/10">
               <Lock className="h-7 w-7" />
             </span>
-            <p className="font-display text-lg font-semibold text-slate-900 dark:text-slate-100">
+            <p className="font-display text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               {firstRun ? (confirming ? 'Confirma tu PIN' : 'Crea tu PIN de acceso') : 'Ingresa tu PIN'}
             </p>
             {error ? (
-              <p className={`text-sm font-medium ${error === 'Confirma tu PIN' ? 'text-accent' : 'text-red-500'}`}>{error}</p>
+              <p className={`text-xs font-semibold ${error === 'Confirma tu PIN' ? 'text-accent' : 'text-danger'}`}>{error}</p>
             ) : (
-              firstRun && !confirming && <p className="text-xs text-slate-500 dark:text-slate-400">Solo tú tendrás acceso a esta tienda</p>
+              firstRun && !confirming && <p className="text-xs text-slate-400 dark:text-slate-500">Solo tú tendrás acceso a esta terminal</p>
             )}
           </div>
           <PinDots length={pin.length} done={false} />

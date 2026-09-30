@@ -1,13 +1,13 @@
 import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ImagePlus, Save, Store, Trash2, ScanLine, Package, Pencil } from 'lucide-react'
+import { ImagePlus, Save, Store, Trash2, ScanLine, Package, Pencil, CloudUpload, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { BusinessInfo, Container } from '../types'
 import { db } from '../db/db'
 import { deleteContainer, saveContainer } from '../db/repos'
 import { loadBusinessInfo, saveBusinessInfo } from '../lib/ticket'
 import { loadScannerSettings, saveScannerSettings, type ScannerSettings } from '../lib/scanner'
-import { compressImageFile } from '../lib/image'
+import { uploadImage, migratePhotosToCloudinary, type MigrationProgress } from '../lib/image'
 import { Button, Field, Input, Segmented, TextArea } from '../components/ui'
 
 export default function Settings() {
@@ -36,12 +36,13 @@ export default function Settings() {
   const handleLogo = async (file: File | undefined) => {
     if (!file) return
     setSavingLogo(true)
+    const loadingToast = toast.loading('Subiendo logo…')
     try {
-      const dataUrl = await compressImageFile(file)
-      set({ logo: dataUrl })
-      toast.success('Logo listo. Guarda los cambios para aplicarlo.')
-    } catch {
-      toast.error('No se pudo procesar la imagen')
+      const url = await uploadImage(file)
+      set({ logo: url })
+      toast.success('Logo listo. Guarda los cambios para aplicarlo.', { id: loadingToast })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo subir la imagen', { id: loadingToast })
     } finally {
       setSavingLogo(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -49,18 +50,20 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-xl space-y-4">
-      <div className="flex items-center gap-2">
-        <Store className="h-5 w-5 text-primary" />
-        <h1 className="font-display text-lg font-semibold text-slate-800 dark:text-slate-100">
-          Datos del negocio
-        </h1>
-      </div>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Aparecen en la nota de venta que envías por WhatsApp o descargas en PDF.
-      </p>
+    <div className="mx-auto w-full max-w-xl space-y-4 p-3 pb-8">
+      <div className="card space-y-4 p-5">
+        <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+          <Store className="h-5 w-5 text-primary dark:text-emerald-400" />
+          <div>
+            <h1 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
+              Datos del negocio
+            </h1>
+            <p className="text-xs text-slate-400">
+              Aparecen en la nota de venta impresa o enviada por WhatsApp.
+            </p>
+          </div>
+        </div>
 
-      <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20">
         <Field label="Nombre del negocio *">
           <Input
             value={form.name}
@@ -96,16 +99,16 @@ export default function Settings() {
         </Field>
 
         <div>
-          <span className="label">Logo (opcional)</span>
+          <span className="label">Logo comercial (opcional)</span>
           <div className="flex items-center gap-3">
             {form.logo ? (
               <img
                 src={form.logo}
                 alt="Logo"
-                className="h-16 w-16 rounded-lg border border-slate-200 object-contain dark:border-slate-600"
+                className="h-16 w-16 rounded-xl border border-slate-200 object-contain p-1 dark:border-slate-700 bg-white"
               />
             ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-slate-300 text-slate-400 dark:border-slate-600">
+              <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-slate-300 text-slate-400 dark:border-slate-700">
                 <Store className="h-6 w-6" />
               </div>
             )}
@@ -136,45 +139,140 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20">
-          <div className="flex items-center gap-2">
-            <ScanLine className="h-5 w-5 text-primary" />
-            <h2 className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">
-              Lector de código de barras (PC)
-            </h2>
-          </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Para computadora con lector USB (ej. Volteck 2D alámbrico). El lector "escribe" el código como
-            teclado; activa esto y escanea directo para agregar productos sin tocar la cámara.
-          </p>
-          <label className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Activar lector en PC</span>
-            <input
-              type="checkbox"
-              checked={scanner.enabled}
-              onChange={(e) => setScannerPatch({ enabled: e.target.checked })}
-              className="h-5 w-5 accent-primary"
-            />
-          </label>
-          <Field label="Terminador del lector">
-            <Segmented
-              value={scanner.suffix}
-              onChange={(v) => setScannerPatch({ suffix: v })}
-              options={[
-                { value: 'Enter', label: 'Enter' },
-                { value: 'Tab', label: 'Tab' },
-              ]}
-            />
-          </Field>
-        </div>
-
-        <Button className="btn-primary w-full" onClick={handleSave}>
+        <Button className="btn-primary w-full py-2.5 shadow-sm shadow-primary/20" onClick={handleSave}>
           <Save className="mr-2 inline h-4 w-4" />
           Guardar cambios
         </Button>
       </div>
 
+      <div className="card space-y-4 p-5">
+        <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+          <ScanLine className="h-5 w-5 text-primary dark:text-emerald-400" />
+          <div>
+            <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
+              Lector de código de barras (PC)
+            </h2>
+            <p className="text-xs text-slate-400">
+              Para lector físico USB/Bluetooth alámbrico o inalámbrico.
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+          El lector "escribe" el código como teclado; activa esto para añadir productos directamente al carrito sin abrir la cámara.
+        </p>
+        <label className="flex items-center justify-between rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60 cursor-pointer">
+          <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Activar lector en PC</span>
+          <input
+            type="checkbox"
+            checked={scanner.enabled}
+            onChange={(e) => setScannerPatch({ enabled: e.target.checked })}
+            className="h-5 w-5 accent-primary cursor-pointer"
+          />
+        </label>
+        <Field label="Terminador del lector">
+          <Segmented
+            value={scanner.suffix}
+            onChange={(v) => setScannerPatch({ suffix: v })}
+            options={[
+              { value: 'Enter', label: 'Enter' },
+              { value: 'Tab', label: 'Tab' },
+            ]}
+          />
+        </Field>
+      </div>
+
       <ContainersCard />
+      <MigratePhotosCard />
+    </div>
+  )
+}
+
+function MigratePhotosCard() {
+  const [running, setRunning] = useState(false)
+  const [done, setDone] = useState(false)
+  const [progress, setProgress] = useState<MigrationProgress | null>(null)
+  const [result, setResult] = useState<{ migrated: number; errors: number } | null>(null)
+
+  // Contar cuántas fotos Base64 hay aún en IndexedDB
+  const pending = useLiveQuery(
+    () => db.products.filter((p) => !!p.photo?.startsWith('data:image/')).count(),
+    [],
+  ) ?? 0
+
+  if (pending === 0 && !done) return null
+
+  const handleMigrate = async () => {
+    setRunning(true)
+    setResult(null)
+    try {
+      const res = await migratePhotosToCloudinary((p) => setProgress(p))
+      setResult(res)
+      setDone(true)
+      if (res.migrated > 0) {
+        toast.success(`${res.migrated} foto${res.migrated > 1 ? 's' : ''} migrada${res.migrated > 1 ? 's' : ''} a Cloudinary`)
+      }
+      if (res.errors > 0) {
+        toast.error(`${res.errors} foto${res.errors > 1 ? 's' : ''} no pudieron subirse (se conservan en el dispositivo)`)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error en la migración')
+    } finally {
+      setRunning(false)
+      setProgress(null)
+    }
+  }
+
+  const pct = progress ? Math.round((progress.current / progress.total) * 100) : 0
+
+  return (
+    <div className="card space-y-4 p-5">
+      <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+        <CloudUpload className="h-5 w-5 text-primary dark:text-emerald-400" />
+        <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
+          Migrar fotos a Cloudinary
+        </h2>
+      </div>
+
+      {done && result ? (
+        <div className="flex items-center gap-2 rounded-xl bg-green-50 p-3 dark:bg-green-900/20">
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
+          <p className="text-sm text-green-700 dark:text-green-300">
+            ¡Migración completa! {result.migrated} foto{result.migrated !== 1 ? 's' : ''} subida{result.migrated !== 1 ? 's' : ''} a la nube.
+            {result.errors > 0 && ` ${result.errors} con error (conservadas localmente).`}
+          </p>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Tienes <strong className="text-slate-700 dark:text-slate-200">{pending} foto{pending !== 1 ? 's' : ''}</strong> guardada{pending !== 1 ? 's' : ''} como Base64 en este dispositivo.
+            Al migrarlas a Cloudinary estarán disponibles en todos tus dispositivos y la sincronización será más rápida.
+          </p>
+
+          {running && progress && (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span className="truncate pr-2">{progress.name}</span>
+                <span className="shrink-0">{progress.current}/{progress.total}</span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <Button
+            className="btn-primary w-full"
+            disabled={running}
+            onClick={() => void handleMigrate()}
+          >
+            <CloudUpload className="mr-2 inline h-4 w-4" />
+            {running ? 'Migrando…' : `Subir ${pending} foto${pending !== 1 ? 's' : ''} a Cloudinary`}
+          </Button>
+        </>
+      )}
     </div>
   )
 }
@@ -214,14 +312,14 @@ function ContainersCard() {
   }
 
   return (
-    <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20">
-      <div className="flex items-center gap-2">
-        <Package className="h-5 w-5 text-primary" />
-        <h2 className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">
+    <div className="card space-y-4 p-5">
+      <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+        <Package className="h-5 w-5 text-primary dark:text-emerald-400" />
+        <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
           Envases de compra
         </h2>
       </div>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
         Contenedores con los que compras producto a granel (ej. Tanque de 50 L). Al registrar una compra por
         envase, el stock se acredita automáticamente en litros. Solo aplica a productos líquidos.
       </p>

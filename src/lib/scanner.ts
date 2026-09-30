@@ -39,6 +39,7 @@ export function useBarcodeScanner(
   onScan: (code: string) => void,
   enabled: boolean,
   suffix: ScannerSuffix = 'Enter',
+  ignoreInModals = false,
 ) {
   const buffer = useRef('')
   const last = useRef(0)
@@ -66,14 +67,25 @@ export function useBarcodeScanner(
 
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      // Si ignoreInModals está activo y hay un modal abierto o el foco está en un input/textarea,
+      // no interceptamos para no estorbar el registro/edición de productos u otros formularios
+      if (ignoreInModals) {
+        const isModalOpen = Boolean(document.querySelector('[role="dialog"]'))
+        const activeTag = document.activeElement?.tagName
+        if (isModalOpen || activeTag === 'INPUT' || activeTag === 'TEXTAREA') {
+          return
+        }
+      }
+
       const now = performance.now()
       const dt = now - last.current
       last.current = now
       if (dt > THRESHOLD) buffer.current = ''
 
       if ((e.key === 'Enter' || e.key === 'Tab') && e.key === suffix) {
-        e.preventDefault()
         if (buffer.current.length >= MIN_LEN) {
+          e.preventDefault()
           const code = buffer.current.trim()
           buffer.current = ''
           clearFocusedInput()
@@ -92,5 +104,5 @@ export function useBarcodeScanner(
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [enabled, suffix])
+  }, [enabled, suffix, ignoreInModals])
 }

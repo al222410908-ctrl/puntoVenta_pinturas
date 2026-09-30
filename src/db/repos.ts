@@ -21,6 +21,7 @@ import { toBaseQty, presentationFactor, unitFactor } from '../lib/units'
 export interface CartLine {
   productId: string
   name: string
+  photo?: string
   unit: SaleItem['unit']
   fractional?: boolean
   /** Presentaciones disponibles para vender este producto */

@@ -14,7 +14,7 @@ import {
   isLiquid,
 } from '../lib/units'
 import { formatMoney, round2, uid } from '../lib/utils'
-import { compressImageFile } from '../lib/image'
+import { uploadImage } from '../lib/image'
 import { BarcodeScanner } from './BarcodeScanner'
 import { Button, Field, Input, Modal, Select } from '../components/ui'
 
@@ -82,6 +82,25 @@ export function ProductForm({
   const [calc, setCalc] = useState({ value: '', margin: '16', factor: '2' })
   const [res, setRes] = useState<{ cost: string; price: string }>({ cost: '', price: '' })
   const [scanField, setScanField] = useState<'barcode' | 'purchaseCode' | null>(null)
+
+  const liveCategories = useLiveQuery(() => db.categories.toArray(), []) ?? categories
+  const [showNewCategory, setShowNewCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+
+  const handleCreateCategory = async () => {
+    const trimmed = newCategoryName.trim()
+    if (!trimmed) {
+      toast.error('Escribe el nombre de la categoría')
+      return
+    }
+    const id = uid()
+    await db.categories.add({ id, name: trimmed, updatedAt: Date.now() })
+    notifyLocalChange()
+    set('categoryId', id)
+    setShowNewCategory(false)
+    setNewCategoryName('')
+    toast.success(`Categoría "${trimmed}" agregada`)
+  }
 
   const handleCodeScan = (code: string) => {
     setScanField(null)
@@ -172,10 +191,13 @@ export function ProductForm({
       toast.error('Imagen demasiado grande (máx. 12 MB)')
       return
     }
+    const loadingToast = toast.loading('Subiendo imagen…')
     try {
-      set('photo', await compressImageFile(file))
-    } catch {
-      toast.error('No se pudo procesar la imagen')
+      const url = await uploadImage(file)
+      set('photo', url)
+      toast.success('Imagen lista', { id: loadingToast })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo subir la imagen', { id: loadingToast })
     }
   }
 
@@ -343,11 +365,69 @@ if (!(unit > 0) || !(price > 0)) {
               {UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
             </Select>
           </Field>
-          <Field label="Categoría">
-            <Select value={form.categoryId} onChange={(e) => set('categoryId', e.target.value)}>
+          <Field
+            label={
+              <span className="flex items-center justify-between">
+                <span>Categoría</span>
+                <button
+                  type="button"
+                  onClick={() => setShowNewCategory(true)}
+                  className="text-xs font-semibold text-primary hover:underline dark:text-emerald-400"
+                >
+                  + Agregar categoría
+                </button>
+              </span>
+            }
+          >
+            <Select
+              value={form.categoryId}
+              onChange={(e) => {
+                if (e.target.value === '__add_new__') {
+                  setShowNewCategory(true)
+                } else {
+                  set('categoryId', e.target.value)
+                }
+              }}
+            >
               <option value="">Sin categoría</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {liveCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+              <option value="__add_new__" className="font-semibold text-primary">
+                ➕ Agregar categoría…
+              </option>
             </Select>
+            {showNewCategory && (
+              <div className="mt-2 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 p-2 dark:border-emerald-700/30 dark:bg-emerald-950/20">
+                <Input
+                  autoFocus
+                  placeholder="Nombre de la nueva categoría…"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      void handleCreateCategory()
+                    }
+                  }}
+                />
+                <Button type="button" onClick={() => void handleCreateCategory()}>
+                  Guardar
+                </Button>
+                <Button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setShowNewCategory(false)
+                    setNewCategoryName('')
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            )}
           </Field>
           <Field label="Proveedor">
             <Select value={form.supplierId} onChange={(e) => set('supplierId', e.target.value)}>

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Package, Tag, Truck, Search, Sparkles, Image as ImageIcon, Download, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Package, Tag, Truck, Search, Sparkles, Download, Upload } from 'lucide-react'
 import { db } from '../db/db'
 import { markDeleted } from '../db/repos'
 import { notifyLocalChange } from '../lib/sync'
@@ -17,6 +17,25 @@ type SampleProduct = Omit<Product, 'id' | 'stock' | 'categoryId' | 'supplierId'>
   category: string
   supplier: string
   stock: number
+}
+
+const SWATCH_GRADIENTS = [
+  'from-[#1f5d4a] to-[#123c31] text-[#eeeee6]',
+  'from-[#c9952d] to-[#9a6815] text-[#fcf5e8]',
+  'from-[#27656a] to-[#1d413d] text-[#eef4f3]',
+  'from-[#bd4e2c] to-[#8c351c] text-[#fdf1ec]',
+  'from-[#48534b] to-[#212c26] text-[#f7f6f2]',
+  'from-[#3f8a52] to-[#1a5233] text-[#edf5ee]',
+  'from-[#7c558f] to-[#3f2b47] text-[#f6f1f8]',
+]
+
+function getSwatch(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  const grad = SWATCH_GRADIENTS[Math.abs(hash) % SWATCH_GRADIENTS.length]
+  const words = name.trim().split(/\s+/)
+  const initials = words.length === 1 ? words[0].slice(0, 2).toUpperCase() : (words[0][0] + words[1][0]).toUpperCase()
+  return { grad, initials }
 }
 
 const SAMPLE_CATEGORIES = ['Pinturas', 'Herramientas', 'Ferretería']
@@ -335,37 +354,47 @@ const data = {
         <EmptyState icon={<Package className="h-10 w-10" />} title="Sin resultados" />
       ) : (
         <div className="space-y-2">
-          {filtered.map((p) => (
-            <div key={p.id} className="card flex items-center gap-3 p-3">
-              {p.photo ? (
-                <img src={p.photo} alt={p.name} className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-              ) : (
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
-                  <ImageIcon className="h-5 w-5 text-slate-400 dark:text-slate-500" />
-                </span>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-slate-800 dark:text-slate-100">{p.name}</p>
-                <p className="text-xs text-slate-400">
-                  {p.barcode && `Código ${p.barcode} · `}
-                  {p.purchaseCode && `Compra ${p.purchaseCode} · `}
-                  {catName(p.categoryId) ?? 'Sin categoría'} · {supName(p.supplierId) ?? 'Sin proveedor'}
-                  {p.isPackage && p.pkgUnits ? ` · ${p.pkgUnits} pza/paquete` : ''}
-                </p>
-                <p className={`mt-0.5 text-sm ${p.stock <= p.minStock ? 'font-semibold text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'}`}>
-                  Stock: {p.stock} · Mínimo: {p.minStock}
-                </p>
+          {filtered.map((p) => {
+            const swatch = getSwatch(p.name)
+            return (
+              <div key={p.id} className="card flex items-center gap-3 p-3 transition hover:border-slate-300">
+                {p.photo ? (
+                  <img src={p.photo} alt={p.name} className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-black/5" />
+                ) : (
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${swatch.grad} font-display text-xs font-bold uppercase shadow-2xs`}>
+                    {swatch.initials}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{p.name}</p>
+                  <p className="text-[11px] text-slate-400">
+                    {p.barcode && `Código ${p.barcode} · `}
+                    {p.purchaseCode && `Compra ${p.purchaseCode} · `}
+                    {catName(p.categoryId) ?? 'Sin categoría'} · {supName(p.supplierId) ?? 'Sin proveedor'}
+                    {p.isPackage && p.pkgUnits ? ` · ${p.pkgUnits} pza/paquete` : ''}
+                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className={`chip text-[10px] py-0.5 ${
+                      p.stock <= 0 ? 'chip-bad' : p.stock <= p.minStock ? 'chip-warn' : 'chip-ok'
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${p.stock <= 0 ? 'bg-red-500' : p.stock <= p.minStock ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                      Stock: {p.stock} (mín: {p.minStock})
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-display text-sm sm:text-base font-extrabold text-primary dark:text-emerald-400 tabular-nums">
+                    {formatMoney(p.price)}
+                  </p>
+                  <p className="text-[11px] text-slate-400 tabular-nums">Costo {formatMoney(p.cost)}</p>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => setEditing(p)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 transition" title="Editar"><Pencil className="h-4 w-4" /></button>
+                  <button onClick={() => setConfirmDelete(p)} className="rounded-xl p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="font-semibold text-slate-800 dark:text-slate-100">{formatMoney(p.price)}</p>
-                <p className="text-xs text-slate-400">Costo {formatMoney(p.cost)}</p>
-              </div>
-              <div className="flex gap-1">
-                <button onClick={() => setEditing(p)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"><Pencil className="h-4 w-4" /></button>
-                <button onClick={() => setConfirmDelete(p)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"><Trash2 className="h-4 w-4" /></button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

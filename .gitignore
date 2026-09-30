@@ -29,3 +29,6 @@ supabase/.temp/
 
 # Volcado de diagnóstico de prueba
 supabase-error-dump.txt
+
+.vercel
+.env*

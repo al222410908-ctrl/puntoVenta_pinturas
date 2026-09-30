@@ -10,7 +10,6 @@ import {
   Search,
   Check,
   Undo2,
-  Image as ImageIcon,
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
@@ -30,6 +29,25 @@ import { BarcodeScanner } from '../components/BarcodeScanner'
 import { SaleNoteModal } from '../components/SaleNoteModal'
 import { Button, EmptyState, Input, Modal } from '../components/ui'
 import { loadScannerSettings, useBarcodeScanner } from '../lib/scanner'
+
+const SWATCH_GRADIENTS = [
+  'from-[#1f5d4a] to-[#123c31] text-[#eeeee6]',
+  'from-[#c9952d] to-[#9a6815] text-[#fcf5e8]',
+  'from-[#27656a] to-[#1d413d] text-[#eef4f3]',
+  'from-[#bd4e2c] to-[#8c351c] text-[#fdf1ec]',
+  'from-[#48534b] to-[#212c26] text-[#f7f6f2]',
+  'from-[#3f8a52] to-[#1a5233] text-[#edf5ee]',
+  'from-[#7c558f] to-[#3f2b47] text-[#f6f1f8]',
+]
+
+function getSwatch(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  const grad = SWATCH_GRADIENTS[Math.abs(hash) % SWATCH_GRADIENTS.length]
+  const words = name.trim().split(/\s+/)
+  const initials = words.length === 1 ? words[0].slice(0, 2).toUpperCase() : (words[0][0] + words[1][0]).toUpperCase()
+  return { grad, initials }
+}
 
 export default function Pos() {
   const products = useLiveQuery(() => db.products.toArray(), []) ?? []
@@ -94,6 +112,7 @@ export default function Pos() {
   const makeLine = (p: Product, saleUnit: Unit, qty: number): CartLine => ({
     productId: p.id,
     name: p.name,
+    photo: p.photo,
     unit: p.unit,
     fractional: p.fractional,
     presentations: presentationsOf(p),
@@ -194,7 +213,9 @@ export default function Pos() {
     setScanOpen(false)
     const clean = code.replace(/\s|-/g, '')
     const product = products.find(
-      (p) => (p.barcode ?? '').replace(/\s|-/g, '') === clean,
+      (p) =>
+        (p.barcode ?? '').replace(/\s|-/g, '') === clean ||
+        (p.purchaseCode ?? '').replace(/\s|-/g, '') === clean,
     )
     if (product) {
       addToCart(product)
@@ -205,7 +226,18 @@ export default function Pos() {
   }
 
   const scannerActive = scanner.enabled && !payOpen && !scanOpen
-  useBarcodeScanner(handleScan, scannerActive, scanner.suffix)
+  useBarcodeScanner(handleScan, scannerActive, scanner.suffix, true)
+
+  useEffect(() => {
+    const onExternalAdd = (e: Event) => {
+      const custom = e as CustomEvent<Product>
+      if (custom.detail) {
+        addToCart(custom.detail)
+      }
+    }
+    window.addEventListener('pos:add_to_cart', onExternalAdd)
+    return () => window.removeEventListener('pos:add_to_cart', onExternalAdd)
+  }, [addToCart])
 
 
   const handleUndo = async () => {
@@ -286,16 +318,16 @@ export default function Pos() {
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 lg:pb-3">
           {topSellers.length > 0 && (
-            <div className="mt-3">
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Más vendidos
+            <div className="mt-2">
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                ★ Más vendidos
               </p>
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {topSellers.map(({ p }) => (
                   <button
                     key={p.id}
                     onClick={() => addToCart(p)}
-                    className="shrink-0 rounded-full border border-primary-200 bg-white px-3 py-1 text-sm font-medium text-primary hover:bg-primary hover:text-white dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-primary dark:hover:text-white"
+                    className="shrink-0 rounded-full border border-amber-200/90 bg-amber-50/70 px-3 py-1 text-xs font-semibold text-amber-900 shadow-2xs hover:bg-amber-100 hover:border-amber-300 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/60 transition"
                   >
                     {p.name}
                   </button>
@@ -304,11 +336,13 @@ export default function Pos() {
             </div>
           )}
 
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
             <button
               onClick={() => setCategoryId('')}
-              className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
-                categoryId === '' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition shadow-2xs ${
+                categoryId === ''
+                  ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-primary/20'
+                  : 'bg-white text-slate-700 border border-slate-200/90 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
               }`}
             >
               Todos
@@ -317,8 +351,10 @@ export default function Pos() {
               <button
                 key={c.id}
                 onClick={() => setCategoryId(c.id)}
-                className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
-                  categoryId === c.id ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition shadow-2xs ${
+                  categoryId === c.id
+                    ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-primary/20'
+                    : 'bg-white text-slate-700 border border-slate-200/90 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                 }`}
               >
                 {c.name}
@@ -334,38 +370,48 @@ export default function Pos() {
             />
           ) : (
             <>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+              <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                 {filtered.map((p) => {
                   const out = p.stock <= 0
                   const low = !out && p.stock <= p.minStock
+                  const swatch = getSwatch(p.name)
                   return (
                     <button
                       key={p.id}
                       onClick={() => addToCart(p)}
-                      className="card flex min-w-0 flex-col gap-1 p-2.5 text-left transition hover:border-primary-600 hover:shadow-md"
+                      className="card group flex min-w-0 flex-col gap-1 p-2.5 text-left transition hover:border-primary-600/50 hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
                     >
                       {p.photo ? (
                         <img
                           src={p.photo}
                           alt={p.name}
-                          className="mb-1 h-16 w-full min-w-0 rounded-lg object-cover"
+                          className="mb-1 h-18 w-full min-w-0 rounded-xl object-cover ring-1 ring-black/5"
                         />
                       ) : (
-                        <span className="mb-1 flex h-16 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
-                          <ImageIcon className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-                        </span>
+                        <div className={`relative mb-1 flex h-18 w-full items-center justify-center rounded-xl bg-gradient-to-br ${swatch.grad} shadow-2xs overflow-hidden`}>
+                          <div className="absolute inset-0 bg-white/5 backdrop-blur-[1px]" />
+                          <span className="font-display text-base font-extrabold tracking-widest uppercase">
+                            {swatch.initials}
+                          </span>
+                          <span className="absolute bottom-1 right-1.5 h-1.5 w-1.5 rounded-full bg-white/50" />
+                        </div>
                       )}
-                      <span className="line-clamp-2 min-h-[2.4rem] text-sm font-medium text-slate-800 dark:text-slate-100">
+                      <span className="line-clamp-2 min-h-[2.4rem] text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-primary dark:text-slate-100 dark:group-hover:text-emerald-400 leading-snug">
                         {p.name}
                       </span>
-                      <span className="text-base font-bold text-primary dark:text-blue-400">{formatMoney(p.price)}</span>
-                      <span className="text-xs text-slate-400">{formatQty(1, p.unit)}</span>
+                      <div className="flex items-baseline justify-between mt-auto pt-1">
+                        <span className="font-display text-base font-extrabold text-primary dark:text-emerald-400 tabular-nums">
+                          {formatMoney(p.price)}
+                        </span>
+                        <span className="text-[11px] font-medium text-slate-400">/{UNIT_LABELS[p.unit]}</span>
+                      </div>
                       <span
-                        className={`chip ${
+                        className={`chip text-[10px] py-0.5 justify-center ${
                           out ? 'chip-bad' : low ? 'chip-warn' : 'chip-ok'
                         }`}
                       >
-                        {out ? 'Agotado' : `Stock ${formatQty(p.stock, p.unit)}`}
+                        <span className={`h-1.5 w-1.5 rounded-full ${out ? 'bg-red-500' : low ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                        {out ? 'Agotado' : `${formatQty(p.stock, p.unit)}`}
                       </span>
                     </button>
                   )
@@ -399,13 +445,15 @@ export default function Pos() {
       {cartCount > 0 && (
         <button
           onClick={() => setCartOpen(true)}
-          className="fixed bottom-16 left-3 right-3 z-30 flex items-center justify-between rounded-xl bg-primary px-4 py-3 text-white shadow-lg md:bottom-4 lg:hidden"
+          className="fixed bottom-16 left-3 right-3 z-30 flex items-center justify-between rounded-2xl bg-gradient-to-r from-primary-600 to-primary px-4 py-3 text-white shadow-xl shadow-primary/30 ring-1 ring-white/10 md:bottom-4 lg:hidden active:scale-98 transition"
         >
-          <span className="flex items-center gap-2 font-medium">
-            <ShoppingCart className="h-5 w-5" />
-            {cartCount} artículo{cartCount === 1 ? '' : 's'}
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+              {cartCount}
+            </span>
+            {cartCount === 1 ? 'artículo en venta' : 'artículos en venta'}
           </span>
-          <span className="font-bold">{formatMoney(cartTotal)}</span>
+          <span className="font-display text-lg font-extrabold tracking-tight tabular-nums">{formatMoney(cartTotal)}</span>
         </button>
       )}
 
@@ -423,14 +471,14 @@ export default function Pos() {
         />
       </Modal>
 
-      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Cobrar">
+      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Cobrar venta">
         <div className="space-y-4">
-          <div className="rounded-xl bg-slate-100 p-4 text-center dark:bg-slate-700">
-            <p className="text-sm text-slate-500 dark:text-slate-400">Total a cobrar</p>
-            <p className="font-display text-3xl font-semibold text-slate-900 dark:text-slate-100">{formatMoney(cartTotal)}</p>
+          <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50 to-white p-4 text-center dark:border-slate-800 dark:from-slate-800/80 dark:to-slate-900 shadow-2xs">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Total a liquidar</p>
+            <p className="font-display text-3xl font-extrabold text-primary dark:text-emerald-400 tabular-nums mt-0.5">{formatMoney(cartTotal)}</p>
           </div>
           <div>
-            <label className="label">Efectivo</label>
+            <label className="label">Efectivo recibido</label>
             <Input
               type="number"
               inputMode="decimal"
@@ -438,10 +486,11 @@ export default function Pos() {
               step="0.01"
               value={cash}
               onChange={(e) => setCash(e.target.value)}
+              placeholder="0.00"
             />
           </div>
           <div>
-            <label className="label">Tarjeta (terminal)</label>
+            <label className="label">Tarjeta / Terminal</label>
             <Input
               type="number"
               inputMode="decimal"
@@ -449,35 +498,36 @@ export default function Pos() {
               step="0.01"
               value={card}
               onChange={(e) => setCard(e.target.value)}
+              placeholder="0.00"
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <button onClick={() => setCash(String(cartTotal.toFixed(2)))} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Exacto</button>
+            <button onClick={() => setCash(String(cartTotal.toFixed(2)))} className="rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Exacto</button>
             {[50, 100, 200, 500].map((n) => (
               <button
                 key={n}
                 onClick={() => setCash(String((Math.ceil(cartTotal / n) * n).toFixed(2)))}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               >
                 ${n}
               </button>
             ))}
           </div>
-          <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-sm dark:bg-emerald-900/30">
-            <span className="text-emerald-700 dark:text-emerald-300">Recibido</span>
-            <span className="font-semibold text-emerald-700 dark:text-emerald-300">{formatMoney(paid)}</span>
+          <div className="flex items-center justify-between rounded-xl bg-emerald-50/80 border border-emerald-200/80 px-3.5 py-2.5 text-sm dark:bg-emerald-950/40 dark:border-emerald-800/40">
+            <span className="font-medium text-emerald-800 dark:text-emerald-300">Total recibido</span>
+            <span className="font-display font-bold text-emerald-800 dark:text-emerald-300 tabular-nums">{formatMoney(paid)}</span>
           </div>
-          <div className="flex items-center justify-between rounded-lg bg-blue-50 px-3 py-2 text-sm dark:bg-blue-900/30">
-            <span className="text-blue-700 dark:text-blue-300">Cambio (efectivo)</span>
-            <span className="font-semibold text-blue-700 dark:text-blue-300">{change > 0 ? formatMoney(change) : '$0.00'}</span>
+          <div className="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/15 px-3.5 py-2.5 text-sm dark:bg-slate-800 dark:border-slate-700">
+            <span className="font-medium text-slate-700 dark:text-slate-300">Cambio (efectivo)</span>
+            <span className="font-display text-lg font-extrabold text-primary dark:text-emerald-400 tabular-nums">{change > 0 ? formatMoney(change) : '$0.00'}</span>
           </div>
           <Button
-            className="w-full"
+            className="w-full py-3 text-base shadow-sm shadow-primary/20"
             disabled={paid < cartTotal}
             onClick={() => void finishSale()}
           >
             <Check className="h-5 w-5" />
-            Registrar venta
+            Completar venta ({formatMoney(cartTotal)})
           </Button>
         </div>
       </Modal>
@@ -532,49 +582,89 @@ function CartPanel({
   onUndo: () => void
 }) {
   const applyPreset = (l: CartLine, b: { unit: Unit; qty: number }) => {
-    if (b.unit === l.saleUnit) {
-      setLineQty(l.productId, l.saleUnit, b.qty)
+    const isSelected = l.saleUnit === b.unit && Math.abs(l.qty - b.qty) < 1e-6
+    if (isSelected) {
+      // Si ya está seleccionada y se vuelve a presionar, se deselecciona:
+      // regresa a la unidad base del producto con cantidad 1
+      if (l.saleUnit !== l.unit) {
+        setLineSale(l.productId, l.unit)
+      }
+      setLineQty(l.productId, l.unit, 1)
     } else {
-      setLineSale(l.productId, b.unit)
-      setLineQty(l.productId, b.unit, b.qty)
+      if (b.unit === l.saleUnit) {
+        setLineQty(l.productId, l.saleUnit, b.qty)
+      } else {
+        setLineSale(l.productId, b.unit)
+        setLineQty(l.productId, b.unit, b.qty)
+      }
     }
   }
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2.5 dark:border-slate-800">
-        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Venta actual</p>
+      <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3 dark:border-slate-800">
+        <div className="flex items-center gap-2">
+          <p className="font-display text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200">Venta en curso</p>
+          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary dark:bg-emerald-950/60 dark:text-emerald-300">
+            {cart.length}
+          </span>
+        </div>
         <button
           onClick={() => {
             if (confirm('¿Deshacer la última venta registrada? Se repondrá el stock.')) onUndo()
           }}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 transition"
         >
-          <Undo2 className="h-4 w-4" />
-          Deshacer última venta
+          <Undo2 className="h-3.5 w-3.5" />
+          Deshacer última
         </button>
       </div>
       {cart.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center">
-          <p className="text-sm text-slate-400 dark:text-slate-500">Venta vacía</p>
+        <div className="flex flex-1 items-center justify-center p-6 text-center">
+          <div>
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800">
+              <ShoppingCart className="h-6 w-6" />
+            </div>
+            <p className="font-display text-sm font-semibold text-slate-500 dark:text-slate-400">Carrito vacío</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Toca o escanea productos para agregarlos</p>
+          </div>
         </div>
       ) : (
         <>
-          <div className="flex-1 overflow-y-auto p-3">
-            {cart.map((l) => {
+          <div className="flex-1 overflow-y-auto p-3 divide-y divide-slate-100 dark:divide-slate-800/80">
+            {cart.map((l, index) => {
               const key = `${l.productId}:${l.saleUnit}`
+              const swatch = getSwatch(l.name)
               return (
-                <div key={key} className="border-b border-slate-100 py-2 last:border-0 dark:border-slate-700">
-                  <div className="flex items-center gap-2">
+                <div key={key} className="py-3 first:pt-1 last:pb-1">
+                  <div className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      {index + 1}
+                    </span>
+
+                    {l.photo ? (
+                      <img
+                        src={l.photo}
+                        alt={l.name}
+                        className="h-11 w-11 shrink-0 rounded-xl border border-slate-200/80 object-cover dark:border-slate-700"
+                      />
+                    ) : (
+                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${swatch.grad} font-display text-xs font-bold uppercase shadow-2xs`}>
+                        {swatch.initials}
+                      </div>
+                    )}
+
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{l.name}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs sm:text-sm font-semibold leading-snug text-slate-900 break-words dark:text-slate-100">
+                        {l.name}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-400">
                         {formatMoney(l.salePrice ?? l.unitPrice)} / {UNIT_LABELS[l.salePrice != null ? l.saleUnit : l.unit]}
                         {!isLiquid(l.unit) && l.presentations.length > 1 && (
                           <select
                             value={l.saleUnit}
                             onChange={(e) => setLineSale(l.productId, e.target.value as Unit)}
-                            className="ml-1 rounded border border-slate-200 bg-white px-1 py-0.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                            className="ml-1 rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-xs font-medium dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
                           >
                             {l.presentations.map((s) => (
                               <option key={s.unit} value={s.unit}>{UNIT_LABELS[s.unit]}</option>
@@ -583,38 +673,42 @@ function CartPanel({
                         )}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1">
-                      {l.saleUnit === 'kg' && l.fractional ? (
-                        <>
-                          <button onClick={() => setLineQty(l.productId, l.saleUnit, Math.max(0, round2(l.qty - 0.1)))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Minus className="h-4 w-4" /></button>
-                          <input
-                            value={Math.round(l.qty * 1000)}
-                            inputMode="numeric"
-                            onChange={(e) =>
-                              setLineQty(l.productId, l.saleUnit, (Math.max(0, Number(e.target.value) || 0)) / 1000)
-                            }
-                            className="w-16 rounded-md border border-slate-200 px-1 py-0.5 text-center text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-                          />
-                          <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">g</span>
-                          <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty + 0.1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Plus className="h-4 w-4" /></button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty - 1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Minus className="h-4 w-4" /></button>
-                          <input
-                            value={l.qty}
-                            inputMode="decimal"
-                            onChange={(e) => setLineQty(l.productId, l.saleUnit, Math.max(0, Number(e.target.value) || 0))}
-                            className="w-14 rounded-md border border-slate-200 px-1 py-0.5 text-center text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-                          />
-                          <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty + 1))} className="rounded-md bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"><Plus className="h-4 w-4" /></button>
-                        </>
-                      )}
+
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-1">
+                        {l.saleUnit === 'kg' && l.fractional ? (
+                          <>
+                            <button onClick={() => setLineQty(l.productId, l.saleUnit, Math.max(0, round2(l.qty - 0.1)))} className="rounded-lg bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"><Minus className="h-3.5 w-3.5" /></button>
+                            <input
+                              value={Math.round(l.qty * 1000)}
+                              inputMode="numeric"
+                              onChange={(e) =>
+                                setLineQty(l.productId, l.saleUnit, (Math.max(0, Number(e.target.value) || 0)) / 1000)
+                              }
+                              className="w-14 rounded-lg border border-slate-200 px-1 py-0.5 text-center text-xs font-semibold tabular-nums dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            />
+                            <span className="text-[10px] font-semibold text-slate-400">g</span>
+                            <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty + 0.1))} className="rounded-lg bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"><Plus className="h-3.5 w-3.5" /></button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty - 1))} className="rounded-lg bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"><Minus className="h-3.5 w-3.5" /></button>
+                            <input
+                              value={l.qty}
+                              inputMode="decimal"
+                              onChange={(e) => setLineQty(l.productId, l.saleUnit, Math.max(0, Number(e.target.value) || 0))}
+                              className="w-12 rounded-lg border border-slate-200 px-1 py-0.5 text-center text-xs font-semibold tabular-nums dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            />
+                            <button onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty + 1))} className="rounded-lg bg-slate-100 p-1 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"><Plus className="h-3.5 w-3.5" /></button>
+                          </>
+                        )}
+                        <button onClick={() => removeLine(l.productId, l.saleUnit)} className="ml-0.5 rounded-lg p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40" title="Eliminar"><Trash2 className="h-3.5 w-3.5" /></button>
+                      </div>
+                      <span className="font-display text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{formatMoney(lineTotal(l))}</span>
                     </div>
-                    <span className="w-20 text-right text-sm font-semibold dark:text-slate-100">{formatMoney(lineTotal(l))}</span>
-                    <button onClick={() => removeLine(l.productId, l.saleUnit)} className="rounded-md p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"><Trash2 className="h-4 w-4" /></button>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-400">
+
+                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-400 pl-7">
                     {l.saleUnit === 'kg' || l.saleUnit !== l.unit ? (
                       <span>≡ {formatQty(l.baseQty, l.unit)}</span>
                     ) : null}
@@ -624,35 +718,47 @@ function CartPanel({
                       const avail = fromBaseQty(l.stock, factor)
                       return (
                         <span>
-                          Disponible: {formatQty(avail, l.saleUnit)}
+                          Disp: {formatQty(avail, l.saleUnit)}
                           {l.saleUnit !== l.unit && ` (${formatQty(l.stock, l.unit)})`}
                         </span>
                       )
                     })()}
                   </div>
-                  {quickButtons(l).map((b) => (
-                    <button
-                      key={b.label}
-                      onClick={() => applyPreset(l, b)}
-                      className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
-                        l.saleUnit === b.unit && Math.abs(l.qty - b.qty) < 1e-6
-                          ? 'border-primary bg-primary text-white'
-                          : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                      }`}
-                    >
-                      {b.label}
-                    </button>
-                  ))}
+
+                  {quickButtons(l).length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5 pl-7">
+                      {quickButtons(l).map((b) => {
+                        const isSelected = l.saleUnit === b.unit && Math.abs(l.qty - b.qty) < 1e-6
+                        return (
+                          <button
+                            key={b.label}
+                            onClick={() => applyPreset(l, b)}
+                            title={isSelected ? 'Toca para deseleccionar' : `Seleccionar ${b.label}`}
+                            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-bold transition active:scale-95 ${
+                              isSelected
+                                ? 'border-primary bg-primary text-white shadow-2xs'
+                                : 'border-amber-200/90 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300'
+                            }`}
+                          >
+                            {isSelected && <span className="text-[10px]">✓</span>}
+                            {b.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
-          <div className="border-t border-slate-200 p-3 dark:border-slate-800">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="font-medium text-slate-600 dark:text-slate-300">Total</span>
-              <span className="font-display text-xl font-semibold text-slate-900 dark:text-slate-100">{formatMoney(cartTotal)}</span>
+          <div className="border-t border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+            <div className="mb-3 flex items-baseline justify-between">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Total a liquidar</span>
+              <span className="font-display text-2xl font-extrabold text-primary dark:text-emerald-400 tabular-nums">{formatMoney(cartTotal)}</span>
             </div>
-            <Button className="w-full" onClick={onPay}>Cobrar</Button>
+            <Button className="w-full py-3 text-base shadow-sm shadow-primary/25" onClick={onPay}>
+              Cobrar {formatMoney(cartTotal)}
+            </Button>
           </div>
         </>
       )}
