@@ -1,6 +1,7 @@
 import { db } from '../db/db'
 import type {
   CashEntry,
+  CashShift,
   Category,
   Container,
   Product,
@@ -12,7 +13,7 @@ import type {
   Tombstone,
 } from '../types'
 
-const EDITABLE_TABLES = ['products', 'categories', 'suppliers', 'containers'] as const
+const EDITABLE_TABLES = ['products', 'categories', 'suppliers', 'containers', 'cashShifts'] as const
 const APPEND_TABLES = ['sales', 'purchases', 'purchaseOrders', 'stockMovements', 'cashEntries'] as const
 
 type EditableTable = (typeof EDITABLE_TABLES)[number]
@@ -24,6 +25,7 @@ export interface SyncPayload {
   categories: Category[]
   suppliers: Supplier[]
   containers: Container[]
+  cashShifts: CashShift[]
   sales: Sale[]
   purchases: Purchase[]
   purchaseOrders: PurchaseOrder[]
@@ -78,12 +80,13 @@ export function touch<T extends { updatedAt?: number }>(rec: T): T {
 }
 
 export async function localPayload(since = 0): Promise<SyncPayload> {
-  const [products, categories, suppliers, containers, sales, purchases, purchaseOrders, stockMovements, cashEntries, tombstones] =
+  const [products, categories, suppliers, containers, cashShifts, sales, purchases, purchaseOrders, stockMovements, cashEntries, tombstones] =
     await Promise.all([
       db.products.toArray(),
       db.categories.toArray(),
       db.suppliers.toArray(),
       db.containers.toArray(),
+      db.cashShifts.toArray(),
       db.sales.toArray(),
       db.purchases.toArray(),
       db.purchaseOrders.toArray(),
@@ -96,6 +99,7 @@ export async function localPayload(since = 0): Promise<SyncPayload> {
     categories: categories.filter((c) => (c.updatedAt ?? 0) > since),
     suppliers: suppliers.filter((s) => (s.updatedAt ?? 0) > since),
     containers: containers.filter((c) => (c.updatedAt ?? 0) > since),
+    cashShifts: cashShifts.filter((s) => (s.updatedAt ?? s.openedAt ?? 0) > since),
     sales: sales.filter((s) => s.date > since),
     purchases: purchases.filter((p) => p.date > since),
     purchaseOrders: purchaseOrders.filter((p) => p.date > since),
@@ -117,13 +121,14 @@ export async function applyPayload(payload: SyncPayload): Promise<void> {
   const { tombstones, ...rest } = payload
   await db.transaction(
     'rw',
-    [db.products, db.categories, db.suppliers, db.containers, db.sales, db.purchases, db.purchaseOrders, db.stockMovements, db.cashEntries, db.tombstones],
+    [db.products, db.categories, db.suppliers, db.containers, db.cashShifts, db.sales, db.purchases, db.purchaseOrders, db.stockMovements, db.cashEntries, db.tombstones],
     async () => {
       await Promise.all([
         rest.products.length ? db.products.bulkPut(rest.products) : Promise.resolve(),
         rest.categories.length ? db.categories.bulkPut(rest.categories) : Promise.resolve(),
         rest.suppliers.length ? db.suppliers.bulkPut(rest.suppliers) : Promise.resolve(),
         rest.containers?.length ? db.containers.bulkPut(rest.containers) : Promise.resolve(),
+        rest.cashShifts?.length ? db.cashShifts.bulkPut(rest.cashShifts) : Promise.resolve(),
         rest.sales.length ? db.sales.bulkPut(rest.sales) : Promise.resolve(),
         rest.purchases.length ? db.purchases.bulkPut(rest.purchases) : Promise.resolve(),
         rest.purchaseOrders.length ? db.purchaseOrders.bulkPut(rest.purchaseOrders) : Promise.resolve(),

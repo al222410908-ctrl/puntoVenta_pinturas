@@ -10,6 +10,9 @@ import {
   Search,
   Check,
   Undo2,
+  Banknote,
+  CreditCard,
+  Smartphone,
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
@@ -63,6 +66,7 @@ export default function Pos() {
   const [payOpen, setPayOpen] = useState(false)
   const [cash, setCash] = useState('')
   const [card, setCard] = useState('')
+  const [transfer, setTransfer] = useState('')
   const [noteSale, setNoteSale] = useState<Sale | null>(null)
   const [scanner] = useState<{ enabled: boolean; suffix: 'Enter' | 'Tab' }>(() => {
     const s = loadScannerSettings()
@@ -254,26 +258,38 @@ export default function Pos() {
   const openPayment = () => {
     setCash(String(cartTotal.toFixed(2)))
     setCard('')
+    setTransfer('')
     setPayOpen(true)
   }
 
   const cashNum = Math.max(0, Number(cash) || 0)
   const cardNum = Math.max(0, Number(card) || 0)
-  const paid = round2(cashNum + cardNum)
+  const transferNum = Math.max(0, Number(transfer) || 0)
+  const paid = round2(cashNum + cardNum + transferNum)
   const change = round2(paid - cartTotal)
 
   const finishSale = async () => {
     let cashNumEff = cashNum
     let cardNumEff = cardNum
+    let transferNumEff = transferNum
     let rest = change
+
     const fromCash = Math.min(rest, cashNumEff)
     cashNumEff -= fromCash
     rest -= fromCash
+
+    const fromTransfer = Math.min(rest, transferNumEff)
+    transferNumEff -= fromTransfer
+    rest -= fromTransfer
+
     cardNumEff -= Math.min(rest, cardNumEff)
+
     const payments: Payment[] = []
     if (cashNumEff > 0) payments.push({ type: 'efectivo', amount: round2(cashNumEff) })
     if (cardNumEff > 0) payments.push({ type: 'tarjeta', amount: round2(cardNumEff) })
-    if (round2(cashNumEff + cardNumEff) < cartTotal) {
+    if (transferNumEff > 0) payments.push({ type: 'transferencia', amount: round2(transferNumEff) })
+
+    if (round2(cashNumEff + cardNumEff + transferNumEff) < cartTotal) {
       toast.error('Registra al menos un pago')
       return
     }
@@ -477,50 +493,125 @@ export default function Pos() {
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Total a liquidar</p>
             <p className="font-display text-3xl font-extrabold text-primary dark:text-emerald-400 tabular-nums mt-0.5">{formatMoney(cartTotal)}</p>
           </div>
-          <div>
-            <label className="label">Efectivo recibido</label>
-            <Input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.01"
-              value={cash}
-              onChange={(e) => setCash(e.target.value)}
-              placeholder="0.00"
-            />
+
+          <div className="space-y-3">
+            <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  Efectivo recibido
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCash(String(cartTotal.toFixed(2)))
+                    setCard('')
+                    setTransfer('')
+                  }}
+                  className="text-[11px] font-bold text-primary hover:underline dark:text-emerald-400"
+                >
+                  Exacto ({formatMoney(cartTotal)})
+                </button>
+              </div>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={cash}
+                onChange={(e) => setCash(e.target.value)}
+                placeholder="0.00"
+              />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {[50, 100, 200, 500].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setCash(String((Math.ceil(cartTotal / n) * n).toFixed(2)))}
+                    className="rounded-lg border border-slate-200/90 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    ${n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <CreditCard className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                  Tarjeta / Terminal
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCard(String(cartTotal.toFixed(2)))
+                    setCash('')
+                    setTransfer('')
+                  }}
+                  className="text-[11px] font-bold text-sky-600 hover:underline dark:text-sky-400"
+                >
+                  Todo con tarjeta
+                </button>
+              </div>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={card}
+                onChange={(e) => setCard(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <Smartphone className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                  Transferencia / SPEI
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTransfer(String(cartTotal.toFixed(2)))
+                    setCash('')
+                    setCard('')
+                  }}
+                  className="text-[11px] font-bold text-violet-600 hover:underline dark:text-violet-400"
+                >
+                  Todo con transferencia
+                </button>
+              </div>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={transfer}
+                onChange={(e) => setTransfer(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
           </div>
-          <div>
-            <label className="label">Tarjeta / Terminal</label>
-            <Input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.01"
-              value={card}
-              onChange={(e) => setCard(e.target.value)}
-              placeholder="0.00"
-            />
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <button onClick={() => setCash(String(cartTotal.toFixed(2)))} className="rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Exacto</button>
-            {[50, 100, 200, 500].map((n) => (
-              <button
-                key={n}
-                onClick={() => setCash(String((Math.ceil(cartTotal / n) * n).toFixed(2)))}
-                className="rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-              >
-                ${n}
-              </button>
-            ))}
-          </div>
+
           <div className="flex items-center justify-between rounded-xl bg-emerald-50/80 border border-emerald-200/80 px-3.5 py-2.5 text-sm dark:bg-emerald-950/40 dark:border-emerald-800/40">
             <span className="font-medium text-emerald-800 dark:text-emerald-300">Total recibido</span>
             <span className="font-display font-bold text-emerald-800 dark:text-emerald-300 tabular-nums">{formatMoney(paid)}</span>
           </div>
-          <div className="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/15 px-3.5 py-2.5 text-sm dark:bg-slate-800 dark:border-slate-700">
-            <span className="font-medium text-slate-700 dark:text-slate-300">Cambio (efectivo)</span>
-            <span className="font-display text-lg font-extrabold text-primary dark:text-emerald-400 tabular-nums">{change > 0 ? formatMoney(change) : '$0.00'}</span>
-          </div>
+
+          {paid < cartTotal ? (
+            <div className="flex items-center justify-between rounded-xl bg-amber-50/80 border border-amber-200/80 px-3.5 py-2.5 text-sm dark:bg-amber-950/40 dark:border-amber-800/40">
+              <span className="font-medium text-amber-800 dark:text-amber-300">Resta por cubrir</span>
+              <span className="font-display font-bold text-amber-700 dark:text-amber-400 tabular-nums">{formatMoney(round2(cartTotal - paid))}</span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/15 px-3.5 py-2.5 text-sm dark:bg-slate-800 dark:border-slate-700">
+              <span className="font-medium text-slate-700 dark:text-slate-300">Cambio (efectivo)</span>
+              <span className="font-display text-lg font-extrabold text-primary dark:text-emerald-400 tabular-nums">{change > 0 ? formatMoney(change) : '$0.00'}</span>
+            </div>
+          )}
+
           <Button
             className="w-full py-3 text-base shadow-sm shadow-primary/20"
             disabled={paid < cartTotal}

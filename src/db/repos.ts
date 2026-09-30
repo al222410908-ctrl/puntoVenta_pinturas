@@ -2,6 +2,7 @@ import { db } from './db'
 import type {
   Backup,
   CashEntry,
+  CashShift,
   Container,
   Payment,
   Product,
@@ -12,6 +13,7 @@ import type {
   Sale,
   SaleItem,
   SalePresentation,
+  ShiftSalesSummary,
   Tombstone,
 } from '../types'
 import { round2, uid } from '../lib/utils'
@@ -409,8 +411,190 @@ export async function cashSummary() {
   }
 }
 
+export async function getCurrentShift(): Promise<CashShift | null> {
+  const openShifts = await db.cashShifts.where('status').equals('abierto').toArray()
+  if (openShifts.length === 0) return null
+  return openShifts.sort((a, b) => b.openedAt - a.openedAt)[0]
+}
+
+export async function openCashShift({
+  initialCash,
+  cashierName,
+}: {
+  initialCash: number
+  cashierName?: string
+}): Promise<CashShift> {
+  const current = await getCurrentShift()
+  if (current) {
+    throw new Error('Ya existe un turno de caja abierto')
+  }
+  const now = Date.now()
+  const shift: CashShift = {
+    id: uid(),
+    openedAt: now,
+    initialCash: round2(initialCash),
+    status: 'abierto',
+    openedBy: cashierName?.trim() || undefined,
+    updatedAt: now,
+  }
+  await db.transaction('rw', [db.cashShifts, db.cashEntries], async () => {
+    await db.cashShifts.add(shift)
+    await db.cashEntries.add({
+      id: uid(),
+      date: now,
+      type: 'ingreso',
+      concept: 'Fondo inicial de caja',
+      subCategory: 'fondo_inicial',
+      amount: round2(initialCash),
+      shiftId: shift.id,
+      updatedAt: now,
+    })
+  })
+  notifyLocalChange()
+  return shift
+}
+
+export interface ShiftMetrics {
+  shift: CashShift
+  cashSales: number
+  cardSales: number
+  transferSales: number
+  totalSales: number
+  salesCount: number
+  incomesCash: number
+  expensesCash: number
+  expensesOperativos: number
+  expensesProveedores: number
+  expensesRetiroSeguro: number
+  expectedCash: number
+  entries: CashEntry[]
+}
+
+export async function getShiftMetrics(shift: CashShift): Promise<ShiftMetrics> {
+  const from = shift.openedAt
+  const to = shift.closedAt ?? Date.now()
+
+  const [allSales, allEntries] = await Promise.all([
+    db.sales.where('date').between(from, to, true, true).toArray(),
+    db.cashEntries.where('date').between(from, to, true, true).toArray(),
+  ])
+
+  let cashSales = 0
+  let cardSales = 0
+  let transferSales = 0
+
+  for (const s of allSales) {
+    for (const p of s.payments) {
+      if (p.type === 'efectivo') cashSales += p.amount
+      else if (p.type === 'tarjeta') cardSales += p.amount
+      else if (p.type === 'transferencia') transferSales += p.amount
+    }
+  }
+
+  cashSales = round2(cashSales)
+  cardSales = round2(cardSales)
+  transferSales = round2(transferSales)
+  const totalSales = round2(cashSales + cardSales + transferSales)
+
+  const incomesCash = round2(
+    allEntries
+      .filter((e) => e.type === 'ingreso' && e.subCategory !== 'fondo_inicial')
+      .reduce((s, e) => s + e.amount, 0),
+  )
+
+  let expensesOperativos = 0
+  let expensesProveedores = 0
+  let expensesRetiroSeguro = 0
+  let expensesOtros = 0
+
+  for (const e of allEntries) {
+    if (e.type === 'egreso') {
+      if (e.subCategory === 'operativo') expensesOperativos += e.amount
+      else if (e.subCategory === 'proveedor') expensesProveedores += e.amount
+      else if (e.subCategory === 'retiro_seguro') expensesRetiroSeguro += e.amount
+      else expensesOtros += e.amount
+    }
+  }
+
+  expensesOperativos = round2(expensesOperativos)
+  expensesProveedores = round2(expensesProveedores)
+  expensesRetiroSeguro = round2(expensesRetiroSeguro)
+  expensesOtros = round2(expensesOtros)
+  const expensesCash = round2(expensesOperativos + expensesProveedores + expensesRetiroSeguro + expensesOtros)
+
+  const expectedCash = round2(shift.initialCash + cashSales + incomesCash - expensesCash)
+
+  return {
+    shift,
+    cashSales,
+    cardSales,
+    transferSales,
+    totalSales,
+    salesCount: allSales.length,
+    incomesCash,
+    expensesCash,
+    expensesOperativos,
+    expensesProveedores,
+    expensesRetiroSeguro,
+    expectedCash,
+    entries: allEntries,
+  }
+}
+
+export async function closeCashShift(
+  shiftId: string,
+  {
+    actualCash,
+    notes,
+    cashierName,
+  }: {
+    actualCash: number
+    notes?: string
+    cashierName?: string
+  },
+): Promise<CashShift> {
+  const shift = await db.cashShifts.get(shiftId)
+  if (!shift) throw new Error('Turno no encontrado')
+  if (shift.status === 'cerrado') throw new Error('El turno ya está cerrado')
+
+  const now = Date.now()
+  const metrics = await getShiftMetrics(shift)
+  const actual = round2(actualCash)
+  const diff = round2(actual - metrics.expectedCash)
+
+  const summary: ShiftSalesSummary = {
+    cashSales: metrics.cashSales,
+    cardSales: metrics.cardSales,
+    transferSales: metrics.transferSales,
+    totalSales: metrics.totalSales,
+    salesCount: metrics.salesCount,
+    expensesCash: metrics.expensesCash,
+    expensesOperativos: metrics.expensesOperativos,
+    expensesProveedores: metrics.expensesProveedores,
+    expensesRetiroSeguro: metrics.expensesRetiroSeguro,
+    incomesCash: metrics.incomesCash,
+  }
+
+  const updated: CashShift = {
+    ...shift,
+    closedAt: now,
+    status: 'cerrado',
+    closedBy: cashierName?.trim() || undefined,
+    expectedCash: metrics.expectedCash,
+    actualCash: actual,
+    difference: diff,
+    notes: notes?.trim() || undefined,
+    summary,
+    updatedAt: now,
+  }
+
+  await db.cashShifts.put(updated)
+  notifyLocalChange()
+  return updated
+}
+
 export async function exportBackup(): Promise<Backup> {
-  const [categories, suppliers, containers, products, sales, purchases, purchaseOrders, stockMovements, cashEntries] =
+  const [categories, suppliers, containers, products, sales, purchases, purchaseOrders, stockMovements, cashEntries, cashShifts] =
     await Promise.all([
       db.categories.toArray(),
       db.suppliers.toArray(),
@@ -421,6 +605,7 @@ export async function exportBackup(): Promise<Backup> {
       db.purchaseOrders.toArray(),
       db.stockMovements.toArray(),
       db.cashEntries.toArray(),
+      db.cashShifts.toArray(),
     ])
   return {
     version: 2,
@@ -434,6 +619,7 @@ export async function exportBackup(): Promise<Backup> {
     purchaseOrders,
     stockMovements,
     cashEntries,
+    cashShifts,
   }
 }
 
@@ -450,6 +636,7 @@ export async function restoreBackup(data: Backup): Promise<void> {
       db.purchaseOrders,
       db.stockMovements,
       db.cashEntries,
+      db.cashShifts,
     ],
     async () => {
       await Promise.all([
@@ -462,6 +649,7 @@ export async function restoreBackup(data: Backup): Promise<void> {
         db.purchaseOrders.clear(),
         db.stockMovements.clear(),
         db.cashEntries.clear(),
+        db.cashShifts.clear(),
       ])
       await Promise.all([
         db.categories.bulkAdd(data.categories),
@@ -473,6 +661,7 @@ export async function restoreBackup(data: Backup): Promise<void> {
         db.purchaseOrders.bulkAdd(data.purchaseOrders),
         db.stockMovements.bulkAdd(data.stockMovements),
         data.cashEntries ? db.cashEntries.bulkAdd(data.cashEntries) : Promise.resolve(),
+        data.cashShifts ? db.cashShifts.bulkAdd(data.cashShifts) : Promise.resolve(),
       ])
     },
   )

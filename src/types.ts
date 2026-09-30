@@ -68,7 +68,7 @@ export interface Product {
   updatedAt?: number
 }
 
-export type PaymentType = 'efectivo' | 'tarjeta'
+export type PaymentType = 'efectivo' | 'tarjeta' | 'transferencia'
 
 export interface Payment {
   type: PaymentType
@@ -159,6 +159,8 @@ export interface StockMovement {
 }
 
 export type CashType = 'ingreso' | 'egreso'
+export type CashExpenseCategory = 'operativo' | 'proveedor' | 'retiro_seguro' | 'otro'
+export type CashIncomeCategory = 'venta' | 'fondo_inicial' | 'aportacion' | 'otro'
 
 export interface CashEntry {
   id: string
@@ -166,8 +168,40 @@ export interface CashEntry {
   type: CashType
   concept: string
   category?: string
+  subCategory?: CashExpenseCategory | CashIncomeCategory
   amount: number
   note?: string
+  shiftId?: string
+  updatedAt?: number
+}
+
+export interface ShiftSalesSummary {
+  cashSales: number
+  cardSales: number
+  transferSales: number
+  totalSales: number
+  salesCount: number
+  expensesCash: number
+  expensesOperativos: number
+  expensesProveedores: number
+  expensesRetiroSeguro: number
+  incomesCash: number
+}
+
+export interface CashShift {
+  id: string
+  openedAt: number
+  closedAt?: number
+  initialCash: number           // Fondo inicial en caja (para cambio)
+  status: 'abierto' | 'cerrado'
+  openedBy?: string
+  closedBy?: string
+  expectedCash?: number         // Calculado por sistema al cerrar
+  actualCash?: number           // Contado ciego ingresado por el cajero
+  difference?: number           // actualCash - expectedCash (positivo=sobrante, negativo=faltante)
+  notes?: string
+  summary?: ShiftSalesSummary
+  updatedAt?: number
 }
 
 export interface Tombstone {
@@ -182,6 +216,7 @@ export interface Tombstone {
     | 'purchaseOrders'
     | 'stockMovements'
     | 'cashEntries'
+    | 'cashShifts'
   recordId: string
   at: number
 }
@@ -198,4 +233,5 @@ export interface Backup {
   purchaseOrders: PurchaseOrder[]
   stockMovements: StockMovement[]
   cashEntries: CashEntry[]
+  cashShifts?: CashShift[]
 }

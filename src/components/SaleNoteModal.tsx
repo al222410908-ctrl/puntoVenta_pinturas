@@ -94,7 +94,7 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
           </div>
           {sale.payments.map((p, i) => (
             <div key={i} className="flex justify-between">
-              <span>{p.type === 'efectivo' ? 'Efectivo' : 'Tarjeta'}</span>
+              <span>{p.type === 'efectivo' ? 'Efectivo' : p.type === 'tarjeta' ? 'Tarjeta' : 'Transferencia'}</span>
               <span>{formatMoney(p.amount)}</span>
             </div>
           ))}

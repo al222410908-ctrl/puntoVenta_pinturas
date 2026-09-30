@@ -75,7 +75,8 @@ export function whatsappText(sale: Sale, business: BusinessInfo): string {
   lines.push('')
   lines.push(`*Total: ${formatMoney(sale.total)}*`)
   for (const p of sale.payments) {
-    lines.push(`${p.type === 'efectivo' ? 'Efectivo' : 'Tarjeta'}: ${formatMoney(p.amount)}`)
+    const label = p.type === 'efectivo' ? 'Efectivo' : p.type === 'tarjeta' ? 'Tarjeta' : 'Transferencia'
+    lines.push(`${label}: ${formatMoney(p.amount)}`)
   }
   if (business.footer) {
     lines.push('')
@@ -224,7 +225,8 @@ export async function buildTicketPdf(
 
   for (const p of sale.payments) {
     style(11, false, GRAY)
-    doc.text(p.type === 'efectivo' ? 'Efectivo' : 'Tarjeta', M, yb)
+    const label = p.type === 'efectivo' ? 'Efectivo' : p.type === 'tarjeta' ? 'Tarjeta' : 'Transferencia'
+    doc.text(label, M, yb)
     doc.text(formatMoney(p.amount), RIGHT, yb, { align: 'right' })
     yb += lineH(11) + 3
   }
