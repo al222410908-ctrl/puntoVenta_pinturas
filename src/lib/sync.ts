@@ -107,8 +107,69 @@ export async function localPayload(since = 0): Promise<SyncPayload> {
     purchaseOrders: since === 0 ? purchaseOrders : purchaseOrders.filter((p) => p.date > since),
     stockMovements: since === 0 ? stockMovements : stockMovements.filter((m) => m.date > since),
     cashEntries: since === 0 ? cashEntries : cashEntries.filter((c) => c.date > since),
-    tombstones,
+    tombstones: since === 0 ? tombstones : tombstones.filter((t) => t.at > since),
   }
+}
+
+export function emptyPayload(): SyncPayload {
+  return {
+    products: [],
+    categories: [],
+    suppliers: [],
+    containers: [],
+    cashShifts: [],
+    sales: [],
+    purchases: [],
+    purchaseOrders: [],
+    stockMovements: [],
+    cashEntries: [],
+    tombstones: [],
+  }
+}
+
+/**
+ * Divide un payload en fragmentos seguros (< 1.5 MB) para no superar jamás el límite
+ * estricto de 4.5 MB de Vercel Serverless Functions (HTTP 413 FUNCTION_PAYLOAD_TOO_LARGE).
+ */
+function splitPayload(payload: SyncPayload, maxBytes = 1_500_000): SyncPayload[] {
+  const json = JSON.stringify(payload)
+  if (json.length <= maxBytes) return [payload]
+
+  const chunks: SyncPayload[] = []
+  const prods = [...payload.products]
+  const cats = payload.categories
+  const sups = payload.suppliers
+  const conts = payload.containers ?? []
+  const shifts = payload.cashShifts ?? []
+  const sales = payload.sales
+  const purs = payload.purchases
+  const orders = payload.purchaseOrders
+  const moves = payload.stockMovements
+  const entries = payload.cashEntries ?? []
+  const tombs = payload.tombstones
+
+  const BATCH_SIZE = 5
+  let isFirst = true
+
+  while (prods.length > 0 || isFirst) {
+    const prodBatch = prods.splice(0, BATCH_SIZE)
+    chunks.push({
+      products: prodBatch,
+      categories: isFirst ? cats : [],
+      suppliers: isFirst ? sups : [],
+      containers: isFirst ? conts : [],
+      cashShifts: isFirst ? shifts : [],
+      sales: isFirst ? sales : [],
+      purchases: isFirst ? purs : [],
+      purchaseOrders: isFirst ? orders : [],
+      stockMovements: isFirst ? moves : [],
+      cashEntries: isFirst ? entries : [],
+      tombstones: isFirst ? tombs : [],
+    })
+    isFirst = false
+  }
+
+  return chunks.length ? chunks : [emptyPayload()]
 }
 
 async function deleteByTombstones(tombstones: Tombstone[]): Promise<void> {
@@ -152,60 +213,83 @@ export interface SyncResult {
 export async function syncNow(options?: { full?: boolean }): Promise<SyncResult> {
   const isFull = options?.full === true
   const pullSince = isFull ? 0 : lastPullSince()
-  const pushSince = isFull ? 0 : lastPushAt()
 
-  const payload = await localPayload(pushSince)
-  const up = countRecords(payload)
+  // NUNCA forzar pushSince a 0 en una descarga completa.
+  // Solo se envían al servidor los cambios locales ocurridos después de lastPushAt().
+  // Si es la primera sincronización en este dispositivo (lastPush === 0),
+  // se envía emptyPayload() para sólo descargar el catálogo completo sin provocar HTTP 413.
+  const lastPush = lastPushAt()
+  const rawPayload = lastPush > 0 ? await localPayload(lastPush) : emptyPayload()
+  const payloadChunks = splitPayload(rawPayload)
+
+  let totalUp = 0
+  let totalDown = 0
+  let lastChanged = 0
   const thisPushTime = Date.now()
+  const token = getSyncToken()
 
-  let resp: Response
-  try {
-    const token = getSyncToken()
-    resp = await fetch(`${API_BASE}/sync`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ since: pullSince, payload }),
-    })
-  } catch (e) {
-    throw new Error(`No se pudo conectar con el servidor (${e instanceof Error ? e.message : String(e)})`)
-  }
-  if (!resp.ok) {
-    if (resp.status === 401) {
-      sessionStorage.removeItem('pos_session')
-      localStorage.removeItem('pos_session')
-      localStorage.removeItem('pos_pin')
-      setTimeout(() => window.location.reload(), 1000)
-      throw new Error('PIN no autorizado o sesión expirada. Reingresando...')
-    }
-    let detail = ''
+  for (let i = 0; i < payloadChunks.length; i++) {
+    const chunk = payloadChunks[i]
+    const up = countRecords(chunk)
+    // El pullSince solo se solicita en el primer chunk para no re-descargar en cada lote
+    const chunkSince = i === 0 ? pullSince : Date.now()
+
+    let resp: Response
     try {
-      detail = (await resp.text()).slice(0, 300)
-    } catch {
-      /* ignore */
+      resp = await fetch(`${API_BASE}/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ since: chunkSince, payload: chunk }),
+      })
+    } catch (e) {
+      throw new Error(`No se pudo conectar con el servidor (${e instanceof Error ? e.message : String(e)})`)
     }
-    throw new Error(`Servidor respondió HTTP ${resp.status}${detail ? `: ${detail}` : ''}`)
-  }
-  const data = (await resp.json()) as {
-    changedCount?: number
-    since?: number
-    serverTime?: number
-    payload: SyncPayload
-  }
-  const down = countRecords(data.payload)
-  await applyPayload(data.payload)
 
-  // Guardar cursores separados: pull desde el servidor, push desde el reloj local
-  if (typeof data.since === 'number') {
-    localStorage.setItem(LAST_PULL_KEY, String(data.since))
+    if (!resp.ok) {
+      if (resp.status === 401) {
+        sessionStorage.removeItem('pos_session')
+        localStorage.removeItem('pos_session')
+        localStorage.removeItem('pos_pin')
+        setTimeout(() => window.location.reload(), 1000)
+        throw new Error('PIN no autorizado o sesión expirada. Reingresando...')
+      }
+      let detail = ''
+      try {
+        detail = (await resp.text()).slice(0, 300)
+      } catch {
+        /* ignore */
+      }
+      throw new Error(`Servidor respondió HTTP ${resp.status}${detail ? `: ${detail}` : ''}`)
+    }
+
+    const data = (await resp.json()) as {
+      changedCount?: number
+      since?: number
+      serverTime?: number
+      payload: SyncPayload
+    }
+
+    totalUp += up
+    if (data.payload) {
+      totalDown += countRecords(data.payload)
+      await applyPayload(data.payload)
+    }
+    lastChanged = data.changedCount ?? totalUp
+
+    // Guardar cursor del servidor si viene presente
+    if (typeof data.since === 'number') {
+      localStorage.setItem(LAST_PULL_KEY, String(data.since))
+    }
   }
+
   // Buffer de 2 segundos en el push para no perder nada si se guardó durante el fetch
   localStorage.setItem(LAST_PUSH_KEY, String(Math.max(0, thisPushTime - 2000)))
   localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
 
-  return { up, down, changed: data.changedCount ?? up }
+  return { up: totalUp, down: totalDown, changed: lastChanged }
 }
 
 export function lastSyncAt(): number {
