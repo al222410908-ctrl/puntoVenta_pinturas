@@ -1,9 +1,9 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { toast } from 'sonner'
-import { Calculator, Check, ImagePlus, Image as ImageIcon, ScanLine, Trash2 } from 'lucide-react'
+import { Calculator, Check, ImagePlus, Image as ImageIcon, ScanLine, Trash2, RefreshCw } from 'lucide-react'
 import { db } from '../db/db'
-import { notifyLocalChange } from '../lib/sync'
+import { notifyLocalChange, syncNow } from '../lib/sync'
 import type { Category, Product, Supplier, Unit } from '../types'
 import {
   UNITS,
@@ -78,6 +78,10 @@ export function ProductForm({
         )
       : '',
   })
+
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
   const [calc, setCalc] = useState({ value: '', margin: '16', factor: '2' })
   const [res, setRes] = useState<{ cost: string; price: string }>({ cost: '', price: '' })
@@ -187,17 +191,26 @@ export function ProductForm({
   const onPhoto = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 12_000_000) {
-      toast.error('Imagen demasiado grande (máx. 12 MB)')
+    if (file.size > 15_000_000) {
+      toast.error('Imagen demasiado grande (máx. 15 MB)')
       return
     }
-    const loadingToast = toast.loading('Subiendo imagen…')
+
+    // Previsualización instantánea local en el móvil
+    const localUrl = URL.createObjectURL(file)
+    setPhotoPreview(localUrl)
+    setPhotoUploading(true)
+    const loadingToast = toast.loading('Procesando foto…')
+
     try {
       const url = await uploadImage(file)
       set('photo', url)
-      toast.success('Imagen lista', { id: loadingToast })
+      setPhotoPreview(null)
+      toast.success('Foto optimizada y lista', { id: loadingToast })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo subir la imagen', { id: loadingToast })
+    } finally {
+      setPhotoUploading(false)
     }
   }
 
@@ -262,58 +275,91 @@ if (!(unit > 0) || !(price > 0)) {
       pkgUnits,
       pkgQty,
     }
-    if (product) {
-      const now = Date.now()
-      const stockDelta = round2(data.stock - (product.stock ?? 0))
-      await db.transaction(
-        'rw',
-        [db.products, db.stockMovements],
-        async () => {
-          await db.products.update(product.id, { ...data, updatedAt: now })
-          if (stockDelta !== 0) {
-            await db.stockMovements.add({
-              id: uid(),
-              date: now,
-              type: 'ajuste',
-              productId: product.id,
-              productName: data.name,
-              unit: data.unit,
-              qty: stockDelta,
-              note: 'Ajuste desde edición de producto',
-            })
-          }
-        },
-      )
-      notifyLocalChange()
-      toast.success('Producto actualizado')
-    } else {
-      await db.products.add({ ...data, id: uid(), updatedAt: Date.now() })
-      notifyLocalChange()
-      toast.success('Producto agregado')
+    if (photoUploading) {
+      toast.info('Espera un segundo a que termine de procesar la foto')
+      return
     }
-    onClose()
+
+    setSaving(true)
+    try {
+      if (product) {
+        const now = Date.now()
+        const stockDelta = round2(data.stock - (product.stock ?? 0))
+        await db.transaction(
+          'rw',
+          [db.products, db.stockMovements],
+          async () => {
+            await db.products.update(product.id, { ...data, updatedAt: now })
+            if (stockDelta !== 0) {
+              await db.stockMovements.add({
+                id: uid(),
+                date: now,
+                type: 'ajuste',
+                productId: product.id,
+                productName: data.name,
+                unit: data.unit,
+                qty: stockDelta,
+                note: 'Ajuste desde edición de producto',
+              })
+            }
+          },
+        )
+        notifyLocalChange()
+        void syncNow().catch(() => {})
+        toast.success('Producto actualizado')
+      } else {
+        await db.products.add({ ...data, id: uid(), updatedAt: Date.now() })
+        notifyLocalChange()
+        void syncNow().catch(() => {})
+        toast.success('Producto agregado')
+      }
+      onClose()
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <Modal open onClose={onClose} title={product ? 'Editar producto' : 'Nuevo producto'} wide>
       <div className="space-y-3">
         <div className="flex items-center gap-3">
-          {form.photo ? (
-            <img src={form.photo} alt="Vista previa" className="h-20 w-20 rounded-lg object-cover" />
+          {(photoPreview || form.photo) ? (
+            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+              <img
+                src={photoPreview || form.photo}
+                alt="Vista previa"
+                className={`h-full w-full object-cover transition duration-200 ${photoUploading ? 'opacity-50 blur-[1px]' : ''}`}
+              />
+              {photoUploading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 text-white">
+                  <RefreshCw className="h-6 w-6 animate-spin text-white" />
+                </div>
+              )}
+            </div>
           ) : (
-            <span className="flex h-20 w-20 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
+            <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-700">
               <ImageIcon className="h-8 w-8 text-slate-400 dark:text-slate-500" />
             </span>
           )}
           <div className="flex flex-col gap-2">
-            <label className="btn btn-secondary cursor-pointer">
+            <label className={`btn btn-secondary cursor-pointer ${photoUploading ? 'pointer-events-none opacity-60' : ''}`}>
               <ImagePlus className="h-4 w-4" />
-              {form.photo ? 'Cambiar foto' : 'Subir foto'}
-              <input type="file" accept="image/*" className="hidden" onChange={onPhoto} />
+              {photoUploading ? 'Procesando…' : (form.photo || photoPreview) ? 'Cambiar foto' : 'Subir foto'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={photoUploading}
+                onChange={onPhoto}
+              />
             </label>
-            {form.photo && (
+            {(form.photo || photoPreview) && !photoUploading && (
               <button
-                onClick={() => set('photo', '')}
+                type="button"
+                onClick={() => {
+                  set('photo', '')
+                  setPhotoPreview(null)
+                }}
                 className="self-start text-xs font-medium text-red-600 hover:underline dark:text-red-400"
               >
                 Quitar foto
@@ -662,9 +708,24 @@ if (!(unit > 0) || !(price > 0)) {
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button className="btn-secondary" onClick={onClose}>Cancelar</Button>
-          <Button onClick={() => void save()}>Guardar</Button>
+        {/* Barra de botones siempre visible y protegida en móvil */}
+        <div className="sticky bottom-0 -mx-4 -mb-4 mt-6 flex items-center justify-end gap-3 border-t border-slate-200 bg-white/95 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-lg backdrop-blur md:rounded-b-2xl dark:border-slate-700 dark:bg-slate-800/95">
+          <Button
+            type="button"
+            className="btn-secondary min-h-[42px] px-4 font-medium"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            className="min-h-[42px] px-6 font-semibold"
+            onClick={() => void save()}
+            disabled={photoUploading || saving}
+          >
+            {saving ? 'Guardando…' : photoUploading ? 'Subiendo foto…' : product ? 'Guardar cambios' : 'Crear producto'}
+          </Button>
         </div>
       </div>
 

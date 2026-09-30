@@ -1,5 +1,5 @@
-import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { X, Image as ImageIcon } from 'lucide-react'
 
 export function Button({
   className = '',
@@ -29,6 +29,43 @@ export function Field({ label, children }: { label: ReactNode; children: ReactNo
   )
 }
 
+export function SafeImage({
+  src,
+  alt,
+  className = '',
+  fallbackIcon,
+}: {
+  src?: string | null
+  alt: string
+  className?: string
+  fallbackIcon?: ReactNode
+}) {
+  const [error, setError] = useState(false)
+
+  // Reset error when src changes
+  useEffect(() => {
+    setError(false)
+  }, [src])
+
+  if (!src || error) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500 ${className}`}>
+        {fallbackIcon || <ImageIcon className="h-5 w-5" />}
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={`object-cover ${className}`}
+      loading="lazy"
+      onError={() => setError(true)}
+    />
+  )
+}
+
 export function Modal({
   open,
   onClose,
@@ -42,21 +79,30 @@ export function Modal({
   children: ReactNode
   wide?: boolean
 }) {
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open])
+
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 md:items-center md:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-0 md:items-center md:p-4">
       <div
-        className={`flex max-h-[92vh] w-full flex-col rounded-t-2xl bg-white shadow-xl md:rounded-2xl dark:bg-slate-800 dark:shadow-black/40 ${
+        className={`flex max-h-[90dvh] md:max-h-[90vh] w-full flex-col rounded-t-2xl bg-white shadow-2xl md:rounded-2xl dark:bg-slate-800 dark:shadow-black/50 ${
           wide ? 'md:max-w-2xl' : 'md:max-w-md'
         }`}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
           <h2 className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">{title}</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700" aria-label="Cerrar">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="overflow-y-auto px-4 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{children}</div>
       </div>
     </div>
   )

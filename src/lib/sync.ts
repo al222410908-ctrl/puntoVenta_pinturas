@@ -35,6 +35,8 @@ export interface SyncPayload {
 }
 
 const LAST_SYNC_KEY = 'pos_last_sync'
+const LAST_PULL_KEY = 'pos_last_pull'
+const LAST_PUSH_KEY = 'pos_last_push'
 /** Clave donde AccessGate guarda el hash SHA-256 del PIN */
 const PIN_STORAGE = 'pos_pin'
 
@@ -95,16 +97,16 @@ export async function localPayload(since = 0): Promise<SyncPayload> {
       db.tombstones.toArray(),
     ])
   return {
-    products: products.filter((p) => (p.updatedAt ?? 0) > since),
-    categories: categories.filter((c) => (c.updatedAt ?? 0) > since),
-    suppliers: suppliers.filter((s) => (s.updatedAt ?? 0) > since),
-    containers: containers.filter((c) => (c.updatedAt ?? 0) > since),
-    cashShifts: cashShifts.filter((s) => (s.updatedAt ?? s.openedAt ?? 0) > since),
-    sales: sales.filter((s) => s.date > since),
-    purchases: purchases.filter((p) => p.date > since),
-    purchaseOrders: purchaseOrders.filter((p) => p.date > since),
-    stockMovements: stockMovements.filter((m) => m.date > since),
-    cashEntries: cashEntries.filter((c) => c.date > since),
+    products: since === 0 ? products : products.filter((p) => (p.updatedAt ?? 0) > since),
+    categories: since === 0 ? categories : categories.filter((c) => (c.updatedAt ?? 0) > since),
+    suppliers: since === 0 ? suppliers : suppliers.filter((s) => (s.updatedAt ?? 0) > since),
+    containers: since === 0 ? containers : containers.filter((c) => (c.updatedAt ?? 0) > since),
+    cashShifts: since === 0 ? cashShifts : cashShifts.filter((s) => (s.updatedAt ?? s.openedAt ?? 0) > since),
+    sales: since === 0 ? sales : sales.filter((s) => s.date > since),
+    purchases: since === 0 ? purchases : purchases.filter((p) => p.date > since),
+    purchaseOrders: since === 0 ? purchaseOrders : purchaseOrders.filter((p) => p.date > since),
+    stockMovements: since === 0 ? stockMovements : stockMovements.filter((m) => m.date > since),
+    cashEntries: since === 0 ? cashEntries : cashEntries.filter((c) => c.date > since),
     tombstones,
   }
 }
@@ -147,10 +149,15 @@ export interface SyncResult {
   changed: number
 }
 
-export async function syncNow(): Promise<SyncResult> {
-  const since = lastSyncAt()
-  const payload = await localPayload(since)
+export async function syncNow(options?: { full?: boolean }): Promise<SyncResult> {
+  const isFull = options?.full === true
+  const pullSince = isFull ? 0 : lastPullSince()
+  const pushSince = isFull ? 0 : lastPushAt()
+
+  const payload = await localPayload(pushSince)
   const up = countRecords(payload)
+  const thisPushTime = Date.now()
+
   let resp: Response
   try {
     const token = getSyncToken()
@@ -160,7 +167,7 @@ export async function syncNow(): Promise<SyncResult> {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ since, payload }),
+      body: JSON.stringify({ since: pullSince, payload }),
     })
   } catch (e) {
     throw new Error(`No se pudo conectar con el servidor (${e instanceof Error ? e.message : String(e)})`)
@@ -181,16 +188,36 @@ export async function syncNow(): Promise<SyncResult> {
     }
     throw new Error(`Servidor respondió HTTP ${resp.status}${detail ? `: ${detail}` : ''}`)
   }
-  const data = (await resp.json()) as { changedCount?: number; since?: number; payload: SyncPayload }
+  const data = (await resp.json()) as {
+    changedCount?: number
+    since?: number
+    serverTime?: number
+    payload: SyncPayload
+  }
   const down = countRecords(data.payload)
   await applyPayload(data.payload)
-  const newSince = Math.max(data.since ?? 0, Date.now())
-  localStorage.setItem(LAST_SYNC_KEY, String(newSince))
+
+  // Guardar cursores separados: pull desde el servidor, push desde el reloj local
+  if (typeof data.since === 'number') {
+    localStorage.setItem(LAST_PULL_KEY, String(data.since))
+  }
+  // Buffer de 2 segundos en el push para no perder nada si se guardó durante el fetch
+  localStorage.setItem(LAST_PUSH_KEY, String(Math.max(0, thisPushTime - 2000)))
+  localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
+
   return { up, down, changed: data.changedCount ?? up }
 }
 
 export function lastSyncAt(): number {
   return Number(localStorage.getItem(LAST_SYNC_KEY) || '0')
+}
+
+export function lastPullSince(): number {
+  return Number(localStorage.getItem(LAST_PULL_KEY) || '0')
+}
+
+export function lastPushAt(): number {
+  return Number(localStorage.getItem(LAST_PUSH_KEY) || '0')
 }
 
 function countRecords(p: SyncPayload) {

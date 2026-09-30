@@ -106,9 +106,9 @@ export default function Reports() {
     if (syncing) return
     setSyncing(true)
     try {
-      const r = await syncNow()
-      setLast(r.down)
-      toast.success(r.changed > 0 ? `Sincronizado (${r.changed} cambios)` : 'Todo sincronizado')
+      const r = await syncNow({ full: true })
+      setLast(Date.now())
+      toast.success(r.down > 0 || r.up > 0 ? `Sincronizado (${r.down} recibidos, ${r.up} enviados)` : 'Todo al día y sincronizado')
     } catch (e) {
       toast.error(e instanceof Error && e.message === 'Failed to fetch' ? 'Sin conexión con el servidor de sincronización' : 'Error al sincronizar')
     } finally {

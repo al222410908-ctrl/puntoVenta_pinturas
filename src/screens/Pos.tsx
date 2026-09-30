@@ -31,7 +31,7 @@ import {
 } from '../lib/units'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { SaleNoteModal } from '../components/SaleNoteModal'
-import { Button, EmptyState, Input, Modal } from '../components/ui'
+import { Button, EmptyState, Input, Modal, SafeImage } from '../components/ui'
 import { loadScannerSettings, useBarcodeScanner } from '../lib/scanner'
 
 
@@ -380,17 +380,12 @@ export default function Pos() {
                       onClick={() => addToCart(p)}
                       className="card flex min-w-0 flex-col gap-1 p-2 text-left transition hover:border-primary-600 dark:hover:border-primary-600"
                     >
-                      {p.photo ? (
-                        <img
-                          src={p.photo}
-                          alt={p.name}
-                          className="mb-1 h-20 w-full min-w-0 rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="mb-1 flex h-20 w-full min-w-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500">
-                          <ImageIcon className="h-6 w-6" />
-                        </div>
-                      )}
+                      <SafeImage
+                        src={p.photo}
+                        alt={p.name}
+                        className="mb-1 h-20 w-full min-w-0 rounded-lg"
+                        fallbackIcon={<ImageIcon className="h-6 w-6" />}
+                      />
                       <span className="line-clamp-2 text-xs font-semibold leading-tight text-slate-800 dark:text-slate-100">
                         {p.name}
                       </span>

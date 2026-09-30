@@ -38,13 +38,14 @@ export function ensureStore(data, key) {
 export function applyMerge(data, clientPayload) {
   let changed = 0
   const client = clientPayload || {}
+  const now = Date.now()
 
   const clientTombstones = Array.isArray(client.tombstones) ? client.tombstones : []
   for (const t of clientTombstones) {
     if (!t || !t.id || !t.table || !t.recordId) continue
     const cur = data.tombstones[t.id]
     if (!cur || t.at >= (cur.at ?? 0)) {
-      data.tombstones[t.id] = t
+      data.tombstones[t.id] = { ...t, _serverAt: now }
       changed++
     }
     const store = data[t.table]
@@ -70,18 +71,19 @@ export function applyMerge(data, clientPayload) {
         const merged = { ...cur, ...rec }
         merged._baseStock = base
         delete merged.stock
-        if (incomingAt >= recordAt(cur)) {
+        merged._serverAt = now
+        if (!cur || incomingAt >= recordAt(cur)) {
           store[rec.id] = merged
           changed++
         }
       } else if (APPEND.includes(key)) {
         if (!cur) {
-          store[rec.id] = rec
+          store[rec.id] = { ...rec, _serverAt: now }
           changed++
         }
       } else {
-        if (!cur || incomingAt > recordAt(cur)) {
-          store[rec.id] = { ...cur, ...rec }
+        if (!cur || incomingAt >= recordAt(cur)) {
+          store[rec.id] = { ...cur, ...rec, _serverAt: now }
           changed++
         }
       }
@@ -106,18 +108,26 @@ export function snapshot(data, since = 0) {
   }
   for (const key of TABLES) {
     for (const rec of Object.values(data[key] || {})) {
-      const at = recordAt(rec)
-      if (at > since) {
-        out[key].push(JSON.parse(JSON.stringify(rec)))
-      } else if (since === 0 && at === 0) {
-        out[key].push(JSON.parse(JSON.stringify(rec)))
+      const at = rec._serverAt ?? recordAt(rec)
+      if (since === 0 || at > since) {
+        const copy = JSON.parse(JSON.stringify(rec))
+        delete copy._serverAt
+        out[key].push(copy)
       }
     }
   }
   for (const rec of out.products) {
     rec.stock = stockFor(data, rec)
     delete rec._baseStock
+    delete rec._serverAt
   }
-  out.tombstones = Object.values(data.tombstones || {})
+  for (const tomb of Object.values(data.tombstones || {})) {
+    const at = tomb._serverAt ?? tomb.at ?? 0
+    if (since === 0 || at > since) {
+      const copy = JSON.parse(JSON.stringify(tomb))
+      delete copy._serverAt
+      out.tombstones.push(copy)
+    }
+  }
   return out
 }

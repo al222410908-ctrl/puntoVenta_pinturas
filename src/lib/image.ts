@@ -9,7 +9,7 @@ export async function uploadImage(file: File): Promise<string> {
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined
 
-  // Primero comprimimos para reducir el tamaño de subida
+  // Primero comprimimos para reducir el tamaño de subida y corregir orientación
   const dataUrl = await compressImageFile(file)
 
   if (!cloudName || !uploadPreset) {
@@ -17,22 +17,27 @@ export async function uploadImage(file: File): Promise<string> {
     return dataUrl
   }
 
-  const formData = new FormData()
-  formData.append('file', dataUrl)
-  formData.append('upload_preset', uploadPreset)
+  try {
+    const formData = new FormData()
+    formData.append('file', dataUrl)
+    formData.append('upload_preset', uploadPreset)
 
-  const resp = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-    method: 'POST',
-    body: formData,
-  })
+    const resp = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    })
 
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => '')
-    throw new Error(`Error al subir imagen a Cloudinary (${resp.status}): ${detail}`)
+    if (resp.ok) {
+      const result = (await resp.json()) as { secure_url: string }
+      if (result.secure_url) return result.secure_url
+    }
+    console.warn(`[Cloudinary] Subida falló con status ${resp.status}, usando respaldo local`)
+  } catch (err) {
+    console.warn('[Cloudinary] Error de red al subir imagen, usando respaldo local:', err)
   }
 
-  const result = (await resp.json()) as { secure_url: string }
-  return result.secure_url
+  // Respaldo seguro: si la red falla o Cloudinary no responde, se guarda localmente en Base64
+  return dataUrl
 }
 
 /**
@@ -155,28 +160,58 @@ export async function migratePhotosToCloudinary(
 export async function compressImageFile(
   file: File,
   maxDim = 640,
-  quality = 0.7,
-  maxBytes = 160_000,
+  quality = 0.75,
+  maxBytes = 180_000,
 ): Promise<string> {
-  const source = await createImageBitmap(file)
+  let imgWidth = 0
+  let imgHeight = 0
+  let drawable: CanvasImageSource
+
   try {
-    const scale = Math.min(1, maxDim / Math.max(source.width, source.height))
-    const w = Math.max(1, Math.round(source.width * scale))
-    const h = Math.max(1, Math.round(source.height * scale))
+    if (typeof createImageBitmap !== 'undefined') {
+      drawable = await createImageBitmap(file, { imageOrientation: 'from-image' })
+      imgWidth = (drawable as ImageBitmap).width
+      imgHeight = (drawable as ImageBitmap).height
+    } else {
+      throw new Error('createImageBitmap no disponible')
+    }
+  } catch {
+    // Fallback universal para navegadores o dispositivos donde createImageBitmap falle
+    const url = URL.createObjectURL(file)
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image()
+        image.onload = () => resolve(image)
+        image.onerror = (e) => reject(e)
+        image.src = url
+      })
+      drawable = img
+      imgWidth = img.naturalWidth || img.width
+      imgHeight = img.naturalHeight || img.height
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  }
+
+  try {
+    const scale = Math.min(1, maxDim / Math.max(imgWidth, imgHeight))
+    const w = Math.max(1, Math.round(imgWidth * scale))
+    const h = Math.max(1, Math.round(imgHeight * scale))
     const canvas = document.createElement('canvas')
     canvas.width = w
     canvas.height = h
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('canvas no disponible')
-    ctx.drawImage(source, 0, 0, w, h)
-    canvas.toBlob?.(() => {})
+    ctx.drawImage(drawable, 0, 0, w, h)
     const dataUrl = canvas.toDataURL('image/jpeg', quality)
     const bytes = Math.round((dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75)
-    if (bytes > maxBytes && quality > 0.4) {
+    if (bytes > maxBytes && quality > 0.45) {
       return compressImageFile(file, maxDim, quality - 0.12, maxBytes)
     }
     return dataUrl
   } finally {
-    source.close()
+    if ('close' in drawable && typeof (drawable as ImageBitmap).close === 'function') {
+      ;(drawable as ImageBitmap).close()
+    }
   }
 }

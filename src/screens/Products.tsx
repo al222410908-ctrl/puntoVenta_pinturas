@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Package, Tag, Truck, Search, Sparkles, Image as ImageIcon, Download, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Package, Tag, Truck, Search, Sparkles, Download, Upload } from 'lucide-react'
 import { db } from '../db/db'
 import { markDeleted } from '../db/repos'
 import { notifyLocalChange } from '../lib/sync'
@@ -9,7 +9,7 @@ import type { Category, Product, Supplier, Unit } from '../types'
 import { UNITS } from '../lib/units'
 import { formatMoney, round2, uid } from '../lib/utils'
 import { ProductForm } from '../components/ProductForm'
-import { Button, EmptyState, Field, Input, Modal, Segmented, Select, TextArea } from '../components/ui'
+import { Button, EmptyState, Field, Input, Modal, SafeImage, Segmented, Select, TextArea } from '../components/ui'
 
 type Tab = 'productos' | 'categorias' | 'proveedores'
 
@@ -337,13 +337,11 @@ const data = {
         <div className="space-y-2">
           {filtered.map((p) => (
             <div key={p.id} className="card flex items-center gap-3 p-3">
-              {p.photo ? (
-                <img src={p.photo} alt={p.name} className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-              ) : (
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
-                  <ImageIcon className="h-5 w-5 text-slate-400 dark:text-slate-500" />
-                </span>
-              )}
+              <SafeImage
+                src={p.photo}
+                alt={p.name}
+                className="h-12 w-12 shrink-0 rounded-lg"
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-slate-800 dark:text-slate-100">{p.name}</p>
                 <p className="text-xs text-slate-400">

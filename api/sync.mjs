@@ -138,15 +138,13 @@ export default async function handler(req, res) {
         return applyMerge(doc, payload)
       })
 
-      // Restamos 60 s al since para compensar desfase de reloj entre
-      // dispositivos (phone clock skew) y latencia de red. Así el siguiente
-      // sync del cliente siempre pide datos desde 60 s atrás, sin perder
-      // cambios de dispositivos con el reloj ligeramente retrasado.
-      const CLOCK_SKEW_BUFFER_MS = 60_000
+      const serverNow = Date.now()
+      const CLOCK_SKEW_BUFFER_MS = 5_000
       return jsonResponse(res, {
         ok: true,
         changedCount: changed,
-        since: Math.max(0, Date.now() - CLOCK_SKEW_BUFFER_MS),
+        since: Math.max(0, serverNow - CLOCK_SKEW_BUFFER_MS),
+        serverTime: serverNow,
         payload: snapshot(data, since),
       })
     }

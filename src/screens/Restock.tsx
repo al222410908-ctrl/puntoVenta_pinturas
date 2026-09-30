@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { toast } from 'sonner'
-import { AlertTriangle, ShoppingBasket, ClipboardList, Plus, Trash2, Truck, PackageCheck, Check, Search, Image as ImageIcon } from 'lucide-react'
+import { AlertTriangle, ShoppingBasket, ClipboardList, Plus, Trash2, Truck, PackageCheck, Check, Search } from 'lucide-react'
 import { db } from '../db/db'
 import {
   cancelOrder,
@@ -16,7 +16,7 @@ import {
 import type { Container, Product, PurchaseItem, PurchaseOrderItem, Supplier } from '../types'
 import { formatMoney, round2, uid } from '../lib/utils'
 import { formatQty, isLiquid, unitFactor } from '../lib/units'
-import { Button, EmptyState, Field, Input, Modal, Segmented, Select } from '../components/ui'
+import { Button, EmptyState, Field, Input, Modal, SafeImage, Segmented, Select } from '../components/ui'
 
 type Tab = 'sugerencia' | 'ordenes' | 'compras'
 
@@ -330,13 +330,11 @@ function Orders() {
                   const p = productMap.get(it.productId)
                   return (
                     <div key={it.productId} className="flex items-center gap-2 py-1.5">
-                      {p?.photo ? (
-                        <img src={p.photo} alt={it.name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
-                      ) : (
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
-                          <ImageIcon className="h-5 w-5 text-slate-400 dark:text-slate-500" />
-                        </span>
-                      )}
+                      <SafeImage
+                        src={p?.photo}
+                        alt={it.name}
+                        className="h-10 w-10 shrink-0 rounded-lg"
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm text-slate-700 dark:text-slate-200">{it.name}</p>
                         <p className="text-xs text-slate-400">

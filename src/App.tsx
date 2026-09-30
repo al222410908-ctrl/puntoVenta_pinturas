@@ -3,7 +3,7 @@ import { ShoppingCart, Package, Truck, Boxes, BarChart3, Wallet, Settings, Moon,
 import AccessGate from './components/AccessGate'
 import { syncNow, lastSyncAt, onLocalChange } from './lib/sync'
 import { BarcodeScanner } from './components/BarcodeScanner'
-import { Modal, Button } from './components/ui'
+import { Modal, Button, SafeImage } from './components/ui'
 import { db } from './db/db'
 import type { Product } from './types'
 import { formatMoney } from './lib/utils'
@@ -68,13 +68,13 @@ export default function App() {
   const [last, setLast] = useState(lastSyncAt)
   const busyRef = useRef(false)
 
-  const doSync = async () => {
+  const doSync = async (full = false) => {
     if (busyRef.current) return
     busyRef.current = true
     setSyncState('syncing')
     setSyncError(null)
     try {
-      await syncNow()
+      await syncNow({ full })
       setSyncState('ok')
       setLast(lastSyncAt())
     } catch (e) {
@@ -89,28 +89,26 @@ export default function App() {
 
   useEffect(() => {
     if (!unlocked) return
-    const run = () => void doSyncRef.current()
-    run()
+    // Sincronización completa inicial al abrir la app o desbloquear
+    void doSyncRef.current(true)
 
     let debounce: ReturnType<typeof setTimeout> | undefined
     const offLocalChange = onLocalChange(() => {
       if (debounce) clearTimeout(debounce)
       debounce = setTimeout(() => {
         debounce = undefined
-        run()
-      }, 1500)
+        void doSyncRef.current(false)
+      }, 1000)
     })
 
     const onVisible = () => {
-      if (document.visibilityState === 'visible') run()
+      if (document.visibilityState === 'visible') void doSyncRef.current(true)
     }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)
 
-    // Sincronización periódica cada 5 segundos para reflejar cambios de otros
-    // dispositivos rápidamente. Con el buffer de 60 s del servidor es seguro
-    // porque la mayoría de syncs devuelven 0 registros (muy barato).
-    const interval = setInterval(run, 5_000)
+    // Sincronización periódica cada 5 segundos para reflejar cambios de otros dispositivos
+    const interval = setInterval(() => void doSyncRef.current(false), 5_000)
 
     return () => {
       offLocalChange()
@@ -191,7 +189,7 @@ export default function App() {
           </span>
         </button>
         <button
-          onClick={() => void doSyncRef.current()}
+          onClick={() => void doSyncRef.current(true)}
           className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition ${
             syncState === 'syncing' ? 'cursor-default text-slate-400' : 'text-primary hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
@@ -294,17 +292,12 @@ export default function App() {
         >
           <div className="space-y-4">
             <div className="flex items-start gap-3">
-              {scannedProduct.photo ? (
-                <img
-                  src={scannedProduct.photo}
-                  alt={scannedProduct.name}
-                  className="h-16 w-16 shrink-0 rounded-xl border border-slate-200 object-cover dark:border-slate-700"
-                />
-              ) : (
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
-                  <Package className="h-8 w-8" />
-                </div>
-              )}
+              <SafeImage
+                src={scannedProduct.photo}
+                alt={scannedProduct.name}
+                className="h-16 w-16 shrink-0 rounded-xl border border-slate-200 dark:border-slate-700"
+                fallbackIcon={<Package className="h-8 w-8 text-slate-400 dark:text-slate-500" />}
+              />
               <div className="min-w-0 flex-1">
                 <h3 className="text-base font-bold text-slate-900 break-words dark:text-slate-100">
                   {scannedProduct.name}
