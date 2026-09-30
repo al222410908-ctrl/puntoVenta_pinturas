@@ -209,7 +209,7 @@ export default function Money() {
               </div>
               <div>
                 <Button
-                  className="btn btn-primary px-6 py-2.5 text-sm font-bold shadow-md shadow-primary/20"
+                  className="btn-primary"
                   onClick={() => {
                     setOpenInitialCash('500')
                     setOpenShiftModal(true)
@@ -222,9 +222,9 @@ export default function Money() {
             </div>
           ) : (
             /* --- ESTADO: TURNO ACTIVO --- */
-            <div className="space-y-4 animate-fade-in">
+            <div className="space-y-4">
               {/* Header del Turno */}
-              <div className="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-emerald-50/70 via-white to-white dark:from-emerald-950/30 dark:via-slate-900 dark:to-slate-900 border-emerald-200/80 dark:border-emerald-800/40">
+              <div className="card flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3">
                   <span className="relative flex h-3 w-3">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -232,12 +232,12 @@ export default function Money() {
                   </span>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
+                      <span className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">
                         Turno de Caja Activo
                       </span>
-                      <span className="chip chip-ok text-[11px] py-0.5">En curso</span>
+                      <span className="chip chip-ok text-xs">En curso</span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                       <Clock className="h-3.5 w-3.5 text-slate-400" />
                       Abierto:{' '}
                       <span className="font-medium text-slate-700 dark:text-slate-300">
@@ -253,14 +253,14 @@ export default function Money() {
 
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    className="btn btn-secondary text-xs font-bold"
+                    className="btn-secondary"
                     onClick={() => setCorteXModal(true)}
                   >
-                    <Printer className="h-3.5 w-3.5 text-primary dark:text-emerald-400" />
+                    <Printer className="h-4 w-4" />
                     Corte X (Parcial)
                   </Button>
                   <Button
-                    className="btn btn-danger text-xs font-bold"
+                    className="btn-danger"
                     onClick={() => {
                       setCountedCash('')
                       setCorteZNotes('')
@@ -268,7 +268,7 @@ export default function Money() {
                       setCorteZModal(true)
                     }}
                   >
-                    <FileCheck2 className="h-3.5 w-3.5" />
+                    <FileCheck2 className="h-4 w-4" />
                     Corte Z (Cierre)
                   </Button>
                 </div>
@@ -277,64 +277,58 @@ export default function Money() {
               {/* 1.2 Separación estricta por Método de Pago */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {/* 💵 Efectivo en Cajón */}
-                <div className="card p-4 border-l-4 border-l-emerald-600 flex flex-col justify-between bg-gradient-to-b from-white to-emerald-50/20 dark:from-slate-900 dark:to-emerald-950/20">
+                <div className="card p-4 flex flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
                       <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                       Efectivo en Cajón
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded-full">
-                      Dinero Físico
-                    </span>
+                    <span className="chip chip-ok">Dinero Físico</span>
                   </div>
                   <div className="mt-3">
-                    <p className="font-display text-2xl sm:text-3xl font-extrabold text-emerald-800 dark:text-emerald-300 tabular-nums">
+                    <p className="font-display text-2xl font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                       {formatMoney(shiftMetrics?.expectedCash ?? currentShift.initialCash)}
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="mt-1 text-xs text-slate-400">
                       Fondo ({formatMoney(currentShift.initialCash)}) + Ventas ({formatMoney(shiftMetrics?.cashSales ?? 0)}) − Salidas ({formatMoney(shiftMetrics?.expensesCash ?? 0)})
                     </p>
                   </div>
                 </div>
 
                 {/* 💳 Tarjeta / Terminal */}
-                <div className="card p-4 border-l-4 border-l-sky-600 flex flex-col justify-between bg-gradient-to-b from-white to-sky-50/20 dark:from-slate-900 dark:to-sky-950/20">
+                <div className="card p-4 flex flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
                       <CreditCard className="h-4 w-4 text-sky-600 dark:text-sky-400" />
                       Tarjeta / Terminal
                     </span>
-                    <span className="text-[10px] font-semibold text-sky-700 bg-sky-100 dark:bg-sky-950 dark:text-sky-300 px-2 py-0.5 rounded-full">
-                      Banco
-                    </span>
+                    <span className="chip chip-info">Banco</span>
                   </div>
                   <div className="mt-3">
-                    <p className="font-display text-2xl sm:text-3xl font-extrabold text-sky-800 dark:text-sky-300 tabular-nums">
+                    <p className="font-display text-2xl font-bold text-sky-700 dark:text-sky-400 tabular-nums">
                       {formatMoney(shiftMetrics?.cardSales ?? 0)}
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Ingresos bancarios directos por terminal punto de venta
+                    <p className="mt-1 text-xs text-slate-400">
+                      Ingresos bancarios directos por terminal
                     </p>
                   </div>
                 </div>
 
                 {/* 📱 Transferencia / SPEI */}
-                <div className="card p-4 border-l-4 border-l-violet-600 flex flex-col justify-between bg-gradient-to-b from-white to-violet-50/20 dark:from-slate-900 dark:to-violet-950/20">
+                <div className="card p-4 flex flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
                       <Smartphone className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                       Transferencia / SPEI
                     </span>
-                    <span className="text-[10px] font-semibold text-violet-700 bg-violet-100 dark:bg-violet-950 dark:text-violet-300 px-2 py-0.5 rounded-full">
-                      Confirmación
-                    </span>
+                    <span className="chip chip-devol">Confirmación</span>
                   </div>
                   <div className="mt-3">
-                    <p className="font-display text-2xl sm:text-3xl font-extrabold text-violet-800 dark:text-violet-300 tabular-nums">
+                    <p className="font-display text-2xl font-bold text-violet-700 dark:text-violet-400 tabular-nums">
                       {formatMoney(shiftMetrics?.transferSales ?? 0)}
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Transferencias electrónicas verificadas en app bancaria
+                    <p className="mt-1 text-xs text-slate-400">
+                      Transferencias electrónicas verificadas
                     </p>
                   </div>
                 </div>
@@ -371,7 +365,7 @@ export default function Money() {
 
                   <div className="space-y-2">
                     <Button
-                      className="btn btn-primary w-full py-2.5 text-xs font-bold justify-center"
+                      className="btn-primary w-full"
                       onClick={() => {
                         setMovType('egreso')
                         setMovementModal(true)
@@ -381,7 +375,7 @@ export default function Money() {
                       Registrar Retiro o Gasto
                     </Button>
                     <Button
-                      className="btn btn-secondary w-full py-2 text-xs font-semibold justify-center"
+                      className="btn-secondary w-full"
                       onClick={() => {
                         setMovType('ingreso')
                         setMovementModal(true)
@@ -426,16 +420,16 @@ export default function Money() {
               return (
                 <div
                   key={s.id}
-                  className="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition"
+                  className="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
+                      <span className="font-display text-sm font-semibold text-slate-800 dark:text-slate-100">
                         Corte Z — {new Date(s.closedAt ?? s.openedAt).toLocaleDateString('es-MX', { weekday: 'short', day: '2-digit', month: 'short' })}
                       </span>
-                      <span className="chip chip-ok text-[10px] py-0.2">Cerrado</span>
+                      <span className="chip chip-ok">Cerrado</span>
                     </div>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-400">
                       Abierto: {new Date(s.openedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} · Cierre:{' '}
                       {s.closedAt ? new Date(s.closedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                       {s.openedBy ? ` · Cajero: ${s.openedBy}` : ''}
@@ -445,7 +439,7 @@ export default function Money() {
                       <span>Vendido: <strong>{formatMoney(s.summary?.totalSales ?? 0)}</strong></span>
                       <span>Esperado: <strong>{formatMoney(s.expectedCash ?? 0)}</strong></span>
                       <span>Físico contado: <strong>{formatMoney(s.actualCash ?? 0)}</strong></span>
-                      <span className={`font-bold ${diffColor}`}>Auditoría: {diffText}</span>
+                      <span className={`font-semibold ${diffColor}`}>Auditoría: {diffText}</span>
                     </div>
                     {s.notes && (
                       <p className="text-xs text-slate-400 italic pt-0.5">Notas: &quot;{s.notes}&quot;</p>
@@ -453,7 +447,7 @@ export default function Money() {
                   </div>
 
                   <Button
-                    className="btn btn-secondary text-xs font-semibold shrink-0"
+                    className="btn-secondary shrink-0"
                     onClick={async () => {
                       try {
                         const m = await getShiftMetrics(s)
@@ -464,7 +458,7 @@ export default function Money() {
                       }
                     }}
                   >
-                    <Printer className="h-3.5 w-3.5 text-primary dark:text-emerald-400" />
+                    <Printer className="h-4 w-4" />
                     Reimprimir Corte Z
                   </Button>
                 </div>
@@ -482,15 +476,16 @@ export default function Money() {
       )}
 
       {/* ======================================================== */}
+      {/* ======================================================== */}
       {/* MODAL 1: APERTURA DE TURNO DE CAJA                      */}
       {/* ======================================================== */}
       <Modal open={openShiftModal} onClose={() => setOpenShiftModal(false)} title="Abrir Turno de Caja">
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-b from-emerald-50/60 to-white p-4 text-center dark:border-slate-800 dark:from-emerald-950/30 dark:to-slate-900 shadow-2xs">
-            <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-center dark:border-emerald-800 dark:bg-emerald-950/20">
+            <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
               Fondo inicial para cambio
             </p>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Cantidad en monedas y billetes físicos con la que arranca el cajón hoy.
             </p>
           </div>
@@ -513,7 +508,7 @@ export default function Money() {
                 key={n}
                 type="button"
                 onClick={() => setOpenInitialCash(String(n))}
-                className="rounded-lg border border-slate-200/90 bg-white px-3 py-1 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
               >
                 ${n} MXN
               </button>
@@ -529,11 +524,11 @@ export default function Money() {
           </Field>
 
           <Button
-            className="btn btn-primary w-full py-3 text-base shadow-sm shadow-primary/20"
+            className="btn-primary w-full"
             disabled={busyOpen}
             onClick={() => void handleOpenShift()}
           >
-            <Unlock className="h-5 w-5" />
+            <Unlock className="h-4 w-4" />
             Iniciar Turno de Caja
           </Button>
         </div>
@@ -545,20 +540,20 @@ export default function Money() {
       {currentShift && shiftMetrics && (
         <Modal open={corteXModal} onClose={() => setCorteXModal(false)} title="Corte X (Parcial de Turno)">
           <div className="space-y-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-slate-800 dark:bg-slate-900/60">
-              <p className="text-slate-500">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs dark:border-slate-700 dark:bg-slate-900/60">
+              <p className="text-slate-500 dark:text-slate-400">
                 Visualización instantánea a mitad del día sin cerrar el turno. Puedes generar el ticket impreso en cualquier momento.
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200/90 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-              <RowDetalle label="Fondo inicial de apertura" value={formatMoney(currentShift.initialCash)} accent="font-bold" />
-              <RowDetalle label="💵 Ventas en Efectivo" value={formatMoney(shiftMetrics.cashSales)} accent="text-emerald-700 dark:text-emerald-400 font-bold" />
-              <RowDetalle label="💳 Ventas en Tarjeta" value={formatMoney(shiftMetrics.cardSales)} accent="text-sky-700 dark:text-sky-400 font-bold" />
-              <RowDetalle label="📱 Ventas en Transferencia" value={formatMoney(shiftMetrics.transferSales)} accent="text-violet-700 dark:text-violet-400 font-bold" />
-              <RowDetalle label="Total ventas cobradas" value={formatMoney(shiftMetrics.totalSales)} accent="font-extrabold text-sm text-primary dark:text-emerald-400" />
-              <RowDetalle label="Total salidas de efectivo" value={`−${formatMoney(shiftMetrics.expensesCash)}`} accent="text-red-600 font-bold" />
-              <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 flex items-center justify-between font-bold text-sm">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700 text-xs">
+              <RowDetalle label="Fondo inicial de apertura" value={formatMoney(currentShift.initialCash)} accent="font-semibold text-slate-800 dark:text-slate-100" />
+              <RowDetalle label="💵 Ventas en Efectivo" value={formatMoney(shiftMetrics.cashSales)} accent="text-emerald-700 dark:text-emerald-400 font-semibold" />
+              <RowDetalle label="💳 Ventas en Tarjeta" value={formatMoney(shiftMetrics.cardSales)} accent="text-sky-700 dark:text-sky-400 font-semibold" />
+              <RowDetalle label="📱 Ventas en Transferencia" value={formatMoney(shiftMetrics.transferSales)} accent="text-violet-700 dark:text-violet-400 font-semibold" />
+              <RowDetalle label="Total ventas cobradas" value={formatMoney(shiftMetrics.totalSales)} accent="font-bold text-sm text-primary dark:text-emerald-400" />
+              <RowDetalle label="Total salidas de efectivo" value={`−${formatMoney(shiftMetrics.expensesCash)}`} accent="text-red-600 font-semibold" />
+              <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 flex items-center justify-between font-semibold text-sm">
                 <span className="text-emerald-900 dark:text-emerald-200">Efectivo actual en cajón</span>
                 <span className="font-display text-emerald-800 dark:text-emerald-300 text-base">{formatMoney(shiftMetrics.expectedCash)}</span>
               </div>
@@ -566,14 +561,14 @@ export default function Money() {
 
             <div className="flex gap-2">
               <Button
-                className="btn btn-primary flex-1 justify-center py-2.5 text-xs font-bold"
+                className="btn-primary flex-1"
                 onClick={() => void handleDownloadCorteX()}
               >
                 <Printer className="h-4 w-4" />
                 Descargar Ticket Corte X (PDF)
               </Button>
               <Button
-                className="btn btn-secondary py-2.5 text-xs font-semibold"
+                className="btn-secondary"
                 onClick={() => setCorteXModal(false)}
               >
                 Cerrar vista
@@ -596,12 +591,12 @@ export default function Money() {
             {corteZStep === 'conteo' ? (
               /* PASO 1: CONTEO FÍSICO CIEGO */
               <div className="space-y-4">
-                <div className="rounded-2xl border border-amber-200/80 bg-amber-50/70 p-4 dark:border-amber-800/40 dark:bg-amber-950/30">
-                  <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-bold text-xs">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/30">
+                  <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-semibold text-xs">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
                     Arqueo Ciego de Seguridad
                   </div>
-                  <p className="text-xs text-amber-900/80 dark:text-amber-200/80 mt-1">
+                  <p className="text-xs text-amber-800/90 dark:text-amber-200/90 mt-1">
                     Cuenta todo el dinero físico en billetes y monedas que hay en el cajón e ingresa el total exacto. El sistema no muestra el cálculo previo para evitar sesgos o alteraciones.
                   </p>
                 </div>
@@ -629,7 +624,7 @@ export default function Money() {
                 </Field>
 
                 <Button
-                  className="btn btn-primary w-full py-3 text-sm font-bold justify-center"
+                  className="btn-primary w-full"
                   onClick={handleCalculateBlindAudit}
                 >
                   Comparar y Auditar Caja
@@ -647,7 +642,7 @@ export default function Money() {
                   return (
                     <>
                       <div
-                        className={`rounded-2xl border p-4 text-center ${
+                        className={`rounded-xl border p-4 text-center ${
                           isExact
                             ? 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/40 dark:border-emerald-800'
                             : isOver
@@ -655,11 +650,11 @@ export default function Money() {
                               : 'bg-red-50 border-red-300 dark:bg-red-950/40 dark:border-red-800'
                         }`}
                       >
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                           Auditoría de Cierre
                         </span>
                         <p
-                          className={`font-display text-3xl font-extrabold mt-1 ${
+                          className={`font-display text-2xl font-bold mt-1 ${
                             isExact
                               ? 'text-emerald-700 dark:text-emerald-300'
                               : isOver
@@ -671,25 +666,25 @@ export default function Money() {
                         </p>
                       </div>
 
-                      <div className="rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                        <RowDetalle label="Dinero físico contado por cajero" value={formatMoney(counted)} accent="font-bold text-slate-900 dark:text-slate-100" />
-                        <RowDetalle label="Efectivo calculado por el sistema" value={formatMoney(shiftMetrics.expectedCash)} accent="font-bold text-slate-600 dark:text-slate-300" />
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700 text-xs">
+                        <RowDetalle label="Dinero físico contado por cajero" value={formatMoney(counted)} accent="font-semibold text-slate-900 dark:text-slate-100" />
+                        <RowDetalle label="Efectivo calculado por el sistema" value={formatMoney(shiftMetrics.expectedCash)} accent="font-semibold text-slate-600 dark:text-slate-300" />
                         <RowDetalle
                           label="Diferencia final"
                           value={isExact ? '$0.00' : isOver ? `+${formatMoney(diff)}` : `−${formatMoney(Math.abs(diff))}`}
-                          accent={`font-extrabold text-sm ${isExact || isOver ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+                          accent={`font-bold text-sm ${isExact || isOver ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
                         />
                       </div>
 
                       <div className="flex gap-2">
                         <Button
-                          className="btn btn-secondary flex-1 justify-center py-2.5 text-xs font-semibold"
+                          className="btn-secondary flex-1"
                           onClick={() => setCorteZStep('conteo')}
                         >
                           Volver a contar
                         </Button>
                         <Button
-                          className="btn btn-danger flex-2 justify-center py-2.5 text-xs font-bold"
+                          className="btn-danger flex-1"
                           disabled={corteZBusy}
                           onClick={() => void handleConfirmCloseShift()}
                         >
@@ -711,12 +706,12 @@ export default function Money() {
       {/* ======================================================== */}
       <Modal open={movementModal} onClose={() => setMovementModal(false)} title="Movimiento de Caja Chica">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-200/80 p-1 border border-slate-300/40 dark:bg-slate-800/90 dark:border-slate-700/60">
+          <div className="flex gap-1 rounded-lg bg-slate-200 p-1 dark:bg-slate-700">
             <button
               type="button"
               onClick={() => setMovType('egreso')}
-              className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold tracking-tight transition ${
-                movType === 'egreso' ? 'bg-white text-red-700 shadow-xs dark:bg-slate-900 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                movType === 'egreso' ? 'bg-white text-red-700 shadow-sm dark:bg-slate-900 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'
               }`}
             >
               <ArrowDownCircle className="h-4 w-4" />
@@ -725,8 +720,8 @@ export default function Money() {
             <button
               type="button"
               onClick={() => setMovType('ingreso')}
-              className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold tracking-tight transition ${
-                movType === 'ingreso' ? 'bg-white text-emerald-800 shadow-xs dark:bg-slate-900 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400'
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                movType === 'ingreso' ? 'bg-white text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'
               }`}
             >
               <ArrowUpCircle className="h-4 w-4" />
@@ -778,15 +773,11 @@ export default function Money() {
           </Field>
 
           <Button
-            className={
-              movType === 'ingreso'
-                ? 'btn btn-primary w-full py-3 text-base shadow-sm shadow-primary/20'
-                : 'btn btn-danger w-full py-3 text-base shadow-sm shadow-red-600/20'
-            }
+            className={movType === 'ingreso' ? 'btn-primary w-full' : 'btn-danger w-full'}
             disabled={movBusy}
             onClick={() => void handleSaveMovement()}
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4" />
             Guardar {movType === 'ingreso' ? 'Entrada' : 'Salida'}
           </Button>
         </div>
@@ -797,7 +788,7 @@ export default function Money() {
 
 function RowDetalle({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 text-xs sm:text-sm">
+    <div className="flex items-center justify-between px-3 py-2.5 text-xs sm:text-sm">
       <span className="font-medium text-slate-600 dark:text-slate-300">{label}</span>
       <span className={`font-display tabular-nums ${accent}`}>{value}</span>
     </div>
@@ -813,7 +804,7 @@ function MovementsListView({ onRemove }: { onRemove: (id: string) => void }) {
 
   return (
     <div className="card overflow-hidden">
-      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+      <div className="divide-y divide-slate-100 dark:divide-slate-700">
         {entries.map((e) => {
           const isInitialFund = e.subCategory === 'fondo_inicial'
           const catLabel =
@@ -828,26 +819,26 @@ function MovementsListView({ onRemove }: { onRemove: (id: string) => void }) {
                     : e.category || 'General'
 
           return (
-            <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+            <div key={e.id} className="flex items-center gap-3 px-3 py-2.5">
               <span
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
                   e.type === 'ingreso'
                     ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                     : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
                 }`}
               >
-                {e.type === 'ingreso' ? <ArrowUpCircle className="h-4.5 w-4.5" /> : <ArrowDownCircle className="h-4.5 w-4.5" />}
+                {e.type === 'ingreso' ? <ArrowUpCircle className="h-4 w-4" /> : <ArrowDownCircle className="h-4 w-4" />}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100">{e.concept}</p>
-                <p className="text-[11px] text-slate-400">
+                <p className="truncate text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100">{e.concept}</p>
+                <p className="text-xs text-slate-400">
                   {new Date(e.date).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   {' · '}
-                  <span className="font-medium text-slate-600 dark:text-slate-400">{catLabel}</span>
+                  <span className="font-medium text-slate-500 dark:text-slate-400">{catLabel}</span>
                 </p>
               </div>
               <span
-                className={`font-display text-sm font-bold tabular-nums ${
+                className={`font-display text-sm font-semibold tabular-nums ${
                   e.type === 'ingreso' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                 }`}
               >
@@ -856,7 +847,7 @@ function MovementsListView({ onRemove }: { onRemove: (id: string) => void }) {
               {!isInitialFund && (
                 <button
                   onClick={() => onRemove(e.id)}
-                  className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600 dark:hover:bg-slate-800 transition"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600 dark:hover:bg-slate-700 transition"
                   aria-label="Eliminar"
                 >
                   <Trash2 className="h-4 w-4" />

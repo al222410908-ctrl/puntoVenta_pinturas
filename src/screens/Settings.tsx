@@ -51,18 +51,16 @@ export default function Settings() {
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-4 p-3 pb-8">
-      <div className="card space-y-4 p-5">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
-          <Store className="h-5 w-5 text-primary dark:text-emerald-400" />
-          <div>
-            <h1 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
-              Datos del negocio
-            </h1>
-            <p className="text-xs text-slate-400">
-              Aparecen en la nota de venta impresa o enviada por WhatsApp.
-            </p>
-          </div>
+      <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20">
+        <div className="flex items-center gap-2">
+          <Store className="h-5 w-5 text-primary" />
+          <h1 className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">
+            Datos del negocio
+          </h1>
         </div>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Aparecen en la nota de venta impresa o enviada por WhatsApp.
+        </p>
 
         <Field label="Nombre del negocio *">
           <Input
@@ -105,10 +103,10 @@ export default function Settings() {
               <img
                 src={form.logo}
                 alt="Logo"
-                className="h-16 w-16 rounded-xl border border-slate-200 object-contain p-1 dark:border-slate-700 bg-white"
+                className="h-16 w-16 rounded-lg border border-slate-200 object-contain p-1 dark:border-slate-700 bg-white"
               />
             ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-slate-300 text-slate-400 dark:border-slate-700">
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-slate-300 text-slate-400 dark:border-slate-700">
                 <Store className="h-6 w-6" />
               </div>
             )}
@@ -139,34 +137,30 @@ export default function Settings() {
           </div>
         </div>
 
-        <Button className="btn-primary w-full py-2.5 shadow-sm shadow-primary/20" onClick={handleSave}>
+        <Button className="btn-primary w-full" onClick={handleSave}>
           <Save className="mr-2 inline h-4 w-4" />
           Guardar cambios
         </Button>
       </div>
 
-      <div className="card space-y-4 p-5">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
-          <ScanLine className="h-5 w-5 text-primary dark:text-emerald-400" />
-          <div>
-            <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
-              Lector de código de barras (PC)
-            </h2>
-            <p className="text-xs text-slate-400">
-              Para lector físico USB/Bluetooth alámbrico o inalámbrico.
-            </p>
-          </div>
+      <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20">
+        <div className="flex items-center gap-2">
+          <ScanLine className="h-5 w-5 text-primary" />
+          <h2 className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">
+            Lector de código de barras (PC)
+          </h2>
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-          El lector "escribe" el código como teclado; activa esto para añadir productos directamente al carrito sin abrir la cámara.
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Para computadora con lector USB (ej. Volteck 2D alámbrico). El lector "escribe" el código como
+          teclado; activa esto y escanea directo para agregar productos sin tocar la cámara.
         </p>
-        <label className="flex items-center justify-between rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60 cursor-pointer">
-          <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Activar lector en PC</span>
+        <label className="flex items-center justify-between">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Activar lector en PC</span>
           <input
             type="checkbox"
             checked={scanner.enabled}
             onChange={(e) => setScannerPatch({ enabled: e.target.checked })}
-            className="h-5 w-5 accent-primary cursor-pointer"
+            className="h-5 w-5 accent-primary"
           />
         </label>
         <Field label="Terminador del lector">
@@ -225,10 +219,10 @@ function MigratePhotosCard() {
   const pct = progress ? Math.round((progress.current / progress.total) * 100) : 0
 
   return (
-    <div className="card space-y-4 p-5">
-      <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
-        <CloudUpload className="h-5 w-5 text-primary dark:text-emerald-400" />
-        <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
+    <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20">
+      <div className="flex items-center gap-2">
+        <CloudUpload className="h-5 w-5 text-primary" />
+        <h2 className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">
           Migrar fotos a Cloudinary
         </h2>
       </div>

@@ -129,10 +129,8 @@ function HistoryView() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition shadow-2xs ${
-              filter === f
-                ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-primary/20'
-                : 'bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+            className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
+              filter === f ? 'bg-primary text-white' : 'bg-white border border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
             }`}
           >
             {f === '' ? 'Todos' : MOVEMENT_LABELS[f]}
@@ -149,15 +147,15 @@ function HistoryView() {
                 {MOVEMENT_LABELS[m.type]}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{m.productName}</p>
-                <p className="text-[11px] text-slate-400">{new Date(m.date).toLocaleString('es-MX')}</p>
+                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{m.productName}</p>
+                <p className="text-xs text-slate-400">{new Date(m.date).toLocaleString('es-MX')}</p>
               </div>
-              <span className={`font-display text-sm font-bold tabular-nums ${m.qty >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+              <span className={`text-sm font-bold ${m.qty >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                 {m.qty >= 0 ? '+' : ''}{formatQty(m.qty, m.unit)}
               </span>
               <button
                 onClick={() => setDetail({ id: m.id, label: m.note ?? '', date: m.date })}
-                className="rounded-xl px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10 dark:text-emerald-400 dark:hover:bg-primary/20 transition"
+                className="rounded-lg px-2 py-1 text-xs text-primary hover:bg-blue-50 dark:hover:bg-blue-900/30"
               >
                 Detalle
               </button>
