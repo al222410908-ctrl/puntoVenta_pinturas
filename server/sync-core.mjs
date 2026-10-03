@@ -108,7 +108,7 @@ export function snapshot(data, since = 0) {
   }
   for (const key of TABLES) {
     for (const rec of Object.values(data[key] || {})) {
-      const at = rec._serverAt ?? recordAt(rec)
+      const at = recordAt(rec)
       if (since === 0 || at > since) {
         const copy = JSON.parse(JSON.stringify(rec))
         delete copy._serverAt

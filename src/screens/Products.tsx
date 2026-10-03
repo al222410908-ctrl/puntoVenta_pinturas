@@ -502,7 +502,14 @@ function SupplierList() {
           {suppliers.map((s) => (
             <div key={s.id} className="card flex items-center justify-between p-3">
               <div className="mr-2 min-w-0">
-                <p className="font-medium text-slate-800 dark:text-slate-100">{s.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-slate-800 dark:text-slate-100">{s.name}</p>
+                  {s.leadTimeDays ? (
+                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                      Entrega: {s.leadTimeDays}d
+                    </span>
+                  ) : null}
+                </div>
                 <p className="truncate text-xs text-slate-400">{s.contact ?? ''}{s.phone ? ` · ${s.phone}` : ''}</p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
@@ -548,6 +555,7 @@ function SupplierForm({ supplier, onClose }: { supplier: Supplier | null; onClos
     contact: supplier?.contact ?? '',
     phone: supplier?.phone ?? '',
     notes: supplier?.notes ?? '',
+    leadTimeDays: supplier?.leadTimeDays != null ? String(supplier.leadTimeDays) : '3',
   })
 
   const save = async () => {
@@ -555,11 +563,13 @@ function SupplierForm({ supplier, onClose }: { supplier: Supplier | null; onClos
       toast.error('El nombre es obligatorio')
       return
     }
+    const days = Math.max(1, parseInt(form.leadTimeDays) || 3)
     const data = {
       name: form.name.trim(),
       contact: form.contact.trim() || undefined,
       phone: form.phone.trim() || undefined,
       notes: form.notes.trim() || undefined,
+      leadTimeDays: days,
     }
     if (supplier) {
       await db.suppliers.update(supplier.id, { ...data, updatedAt: Date.now() })
@@ -578,6 +588,16 @@ function SupplierForm({ supplier, onClose }: { supplier: Supplier | null; onClos
       <div className="space-y-3">
         <Field label="Nombre *">
           <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+        </Field>
+        <Field label="Tiempo de entrega en días (Lead Time)">
+          <Input
+            type="number"
+            min="1"
+            max="90"
+            value={form.leadTimeDays}
+            onChange={(e) => setForm((f) => ({ ...f, leadTimeDays: e.target.value }))}
+            placeholder="Ej. 3 (Comex=4, Truper=3...)"
+          />
         </Field>
         <Field label="Contacto">
           <Input value={form.contact} onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))} />

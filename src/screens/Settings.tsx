@@ -78,7 +78,7 @@ export default function Settings() {
             maxLength={120}
           />
         </Field>
-        <Field label="Teléfono (opcional)">
+        <Field label="Teléfono de la tienda (opcional)">
           <Input
             value={form.phone ?? ''}
             onChange={(e) => set({ phone: e.target.value })}
@@ -86,7 +86,39 @@ export default function Settings() {
             maxLength={30}
           />
         </Field>
-        <Field label="Mensaje al pie (opcional)">
+
+        {/* Sección Dueño / Compras para envío de Hoja de Llamada por WhatsApp */}
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5 space-y-3 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+          <div>
+            <span className="font-semibold text-sm text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+              📱 Contacto del Dueño(a) para Resurtido
+            </span>
+            <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 mt-0.5 leading-relaxed">
+              A este número de WhatsApp se enviará con 1 clic la <strong>Hoja de Llamada</strong> con la lista de botes que faltan, códigos y precios anteriores para realizar los pedidos telefónicos a proveedores.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Field label="Nombre del Dueño(a) / Administrador">
+              <Input
+                value={form.ownerName ?? ''}
+                onChange={(e) => set({ ownerName: e.target.value })}
+                placeholder="Ej: Don Roberto / Lina"
+                maxLength={50}
+              />
+            </Field>
+            <Field label="WhatsApp del Dueño(a) (10 dígitos)">
+              <Input
+                value={form.ownerPhone ?? ''}
+                onChange={(e) => set({ ownerPhone: e.target.value })}
+                placeholder="Ej: 5512345678"
+                type="tel"
+                maxLength={20}
+              />
+            </Field>
+          </div>
+        </div>
+
+        <Field label="Mensaje al pie del ticket (opcional)">
           <TextArea
             rows={2}
             value={form.footer ?? ''}

@@ -22,6 +22,8 @@ export interface Supplier {
   contact?: string
   phone?: string
   notes?: string
+  /** Tiempo estimado de entrega en días (Lead time) */
+  leadTimeDays?: number
   updatedAt?: number
 }
 
@@ -102,6 +104,8 @@ export interface BusinessInfo {
   phone?: string
   footer?: string
   logo?: string
+  ownerName?: string
+  ownerPhone?: string
 }
 
 export interface PurchaseItem {
@@ -130,21 +134,33 @@ export interface PurchaseOrderItem {
   qty: number
   unitCost: number
   lineTotal: number
+  receivedQty?: number
 }
 
-export type OrderStatus = 'pendiente' | 'comprada' | 'cancelada'
+export type OrderStatus = 'pendiente' | 'parcial' | 'comprada' | 'cancelada'
 
 export interface PurchaseOrder {
   id: string
+  folio?: number
   date: number
   supplierId?: string
   supplierName?: string
   items: PurchaseOrderItem[]
   total: number
   status: OrderStatus
+  receivedAt?: number
+  notes?: string
+  updatedAt?: number
 }
 
-export type MovementType = 'venta' | 'compra' | 'ajuste' | 'devolucion'
+export type MovementType = 'venta' | 'compra' | 'ajuste' | 'devolucion' | 'merma'
+
+export type MermaReason =
+  | 'muestra_color'
+  | 'danado_derrame'
+  | 'caducado_secado'
+  | 'uso_interno'
+  | 'otro'
 
 export interface StockMovement {
   id: string
@@ -154,8 +170,31 @@ export interface StockMovement {
   productName: string
   unit: Unit
   qty: number
+  cost?: number
+  totalCost?: number
+  mermaReason?: MermaReason
   note?: string
   refId?: string
+}
+
+export interface InventoryAuditItem {
+  productId: string
+  productName: string
+  unit: Unit
+  systemStock: number
+  countedStock: number
+  difference: number
+  unitCost: number
+  costDifference: number
+}
+
+export interface InventoryAudit {
+  id: string
+  date: number
+  itemsCounted: number
+  discrepanciesCount: number
+  netDifferenceCost: number
+  notes?: string
 }
 
 export type CashType = 'ingreso' | 'egreso'

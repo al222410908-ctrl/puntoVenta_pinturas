@@ -4,16 +4,19 @@ import type {
   CashEntry,
   CashShift,
   Container,
+  MermaReason,
   Payment,
   Product,
   Purchase,
   PurchaseItem,
   PurchaseOrder,
   PurchaseOrderItem,
+  OrderStatus,
   Sale,
   SaleItem,
   SalePresentation,
   ShiftSalesSummary,
+  Supplier,
   Tombstone,
 } from '../types'
 import { round2, uid } from '../lib/utils'
@@ -257,6 +260,8 @@ export async function adjustStock(
   note?: string,
 ): Promise<void> {
   if (!qty) return
+  const unitCost = product.cost || 0
+  const totalCost = round2(qty * unitCost)
   await db.transaction(
     'rw',
     [db.products, db.stockMovements],
@@ -273,11 +278,95 @@ export async function adjustStock(
         productName: product.name,
         unit: product.unit,
         qty,
+        cost: unitCost,
+        totalCost,
         note,
       })
     },
   )
   notifyLocalChange()
+}
+
+export async function registerMerma(
+  product: Product,
+  qty: number,
+  reason: MermaReason,
+  note?: string,
+): Promise<void> {
+  if (qty <= 0) throw new Error('La cantidad debe ser mayor a cero')
+  if (product.stock < qty) {
+    throw new Error(`Stock insuficiente: solo hay ${product.stock} ${product.unit}(s)`)
+  }
+  const unitCost = product.cost || 0
+  const totalCost = round2(qty * unitCost)
+  await db.transaction('rw', [db.products, db.stockMovements], async () => {
+    await db.products.update(product.id, {
+      stock: round2(product.stock - qty),
+      updatedAt: Date.now(),
+    })
+    await db.stockMovements.add({
+      id: uid(),
+      date: Date.now(),
+      type: 'merma',
+      productId: product.id,
+      productName: product.name,
+      unit: product.unit,
+      qty: -qty,
+      cost: unitCost,
+      totalCost,
+      mermaReason: reason,
+      note,
+    })
+  })
+  notifyLocalChange()
+}
+
+export interface AuditItemAdjustment {
+  product: Product
+  countedStock: number
+  note?: string
+}
+
+export async function applyInventoryAudit(
+  items: AuditItemAdjustment[],
+  generalNote?: string,
+): Promise<{ adjustedCount: number; netCostDiff: number }> {
+  const now = Date.now()
+  let adjustedCount = 0
+  let netCostDiff = 0
+
+  await db.transaction('rw', [db.products, db.stockMovements], async () => {
+    for (const item of items) {
+      const diff = round2(item.countedStock - item.product.stock)
+      if (Math.abs(diff) > 0.0001) {
+        adjustedCount++
+        const unitCost = item.product.cost || 0
+        const costDiff = round2(diff * unitCost)
+        netCostDiff = round2(netCostDiff + costDiff)
+
+        await db.products.update(item.product.id, {
+          stock: item.countedStock,
+          updatedAt: now,
+        })
+
+        await db.stockMovements.add({
+          id: uid(),
+          date: now,
+          type: 'ajuste',
+          productId: item.product.id,
+          productName: item.product.name,
+          unit: item.product.unit,
+          qty: diff,
+          cost: unitCost,
+          totalCost: costDiff,
+          note: item.note || generalNote || 'Ajuste por toma de inventario físico',
+        })
+      }
+    }
+  })
+
+  notifyLocalChange()
+  return { adjustedCount, netCostDiff }
 }
 
 export async function createOrder(
@@ -344,14 +433,35 @@ export async function cancelOrder(orderId: string): Promise<void> {
   notifyLocalChange()
 }
 
+export type RestockUrgency = 'critico' | 'urgente' | 'preventivo'
+
 export interface RestockSuggestion {
   product: Product
   suggestedQty: number
   lineTotal: number
+  dailyVelocity: number
+  leadTimeDays: number
+  daysRemaining: number | null
+  urgency: RestockUrgency
+  supplierName?: string
+  supplierPhone?: string
+  supplierContact?: string
+  soldIn30Days: number
+  isTopSeller: boolean
+  isOutOfStock: boolean
+  isBelowMin: boolean
 }
 
-export function suggestedQty(product: Product): number {
-  const target = product.minStock * 2 - product.stock
+export function suggestedQty(
+  product: Product,
+  leadTimeDays: number = 3,
+  dailyVelocity: number = 0,
+): number {
+  const leadTimeDemand = round2(dailyVelocity * leadTimeDays)
+  // Reorder point: stock mínimo + demanda durante el lead time
+  const reorderPoint = round2(product.minStock + leadTimeDemand)
+  // Objetivo: cubrir reorder point + margen de seguridad (1.5x)
+  const target = Math.max(product.minStock * 2, reorderPoint * 1.5) - product.stock
   if (target <= 0) return 0
   return product.fractional
     ? Math.round(target * 10) / 10
@@ -359,15 +469,214 @@ export function suggestedQty(product: Product): number {
 }
 
 export async function restockSuggestions(): Promise<RestockSuggestion[]> {
-  const products = await db.products.toArray()
-  return products
-    .filter((p) => p.stock <= p.minStock)
-    .map((p) => ({
-      product: p,
-      suggestedQty: suggestedQty(p),
-      lineTotal: 0,
-    }))
-    .filter((s) => s.suggestedQty > 0)
+  const [products, suppliers, sales] = await Promise.all([
+    db.products.toArray(),
+    db.suppliers.toArray(),
+    db.sales.where('date').aboveOrEqual(Date.now() - 30 * 86400000).toArray(),
+  ])
+
+  const supplierMap = new Map<string, Supplier>()
+  for (const s of suppliers) {
+    supplierMap.set(s.id, s)
+  }
+
+  const salesMap = new Map<string, number>()
+  for (const sale of sales) {
+    for (const item of sale.items) {
+      const prev = salesMap.get(item.productId) ?? 0
+      salesMap.set(item.productId, prev + item.qty)
+    }
+  }
+
+  // Identificar el umbral para ser "Top Seller" (productos en el 25% superior de volumen vendido)
+  const allSoldValues = [...salesMap.values()].filter((v) => v > 0).sort((a, b) => b - a)
+  const topSellerThreshold = allSoldValues.length > 0
+    ? allSoldValues[Math.min(allSoldValues.length - 1, Math.floor(allSoldValues.length * 0.25))]
+    : 1
+
+  const suggestions: RestockSuggestion[] = []
+
+  for (const product of products) {
+    const supplier = product.supplierId ? supplierMap.get(product.supplierId) : undefined
+    const leadTimeDays = supplier?.leadTimeDays && supplier.leadTimeDays > 0 ? supplier.leadTimeDays : 3
+    const soldIn30Days = salesMap.get(product.id) ?? 0
+    const dailyVelocity = round2(soldIn30Days / 30)
+    const leadTimeDemand = round2(dailyVelocity * leadTimeDays)
+    const reorderPoint = round2(product.minStock + leadTimeDemand)
+
+    const daysRemaining = dailyVelocity > 0 ? round2(product.stock / dailyVelocity) : null
+    const isOutOfStock = product.stock <= 0
+    const isBelowMin = product.stock <= product.minStock
+    const isTopSeller = soldIn30Days >= topSellerThreshold && soldIn30Days > 0
+    const needsRestock = isOutOfStock || isBelowMin || product.stock <= reorderPoint
+
+    if (needsRestock) {
+      const qty = suggestedQty(product, leadTimeDays, dailyVelocity)
+      if (qty > 0) {
+        let urgency: RestockUrgency = 'preventivo'
+        if (isOutOfStock || (daysRemaining !== null && daysRemaining <= leadTimeDays)) {
+          urgency = 'critico'
+        } else if (isBelowMin || (daysRemaining !== null && daysRemaining <= leadTimeDays * 1.8)) {
+          urgency = 'urgente'
+        }
+
+        // Si es Top Seller y tiene urgencia crítica o urgente, priorizar aún más
+        suggestions.push({
+          product,
+          suggestedQty: qty,
+          lineTotal: round2(qty * (product.cost || 0)),
+          dailyVelocity,
+          leadTimeDays,
+          daysRemaining,
+          urgency,
+          supplierName: supplier?.name,
+          supplierPhone: supplier?.phone,
+          supplierContact: supplier?.contact,
+          soldIn30Days,
+          isTopSeller,
+          isOutOfStock,
+          isBelowMin,
+        })
+      }
+    }
+  }
+
+  // Ordenar: primero los críticos y más vendidos, luego por días restantes
+  const urgencyWeight: Record<RestockUrgency, number> = { critico: 0, urgente: 1, preventivo: 2 }
+  return suggestions.sort((a, b) => {
+    // Si uno es Top Seller y el otro no con misma urgencia, priorizar Top Seller
+    const diff = urgencyWeight[a.urgency] - urgencyWeight[b.urgency]
+    if (diff !== 0) return diff
+    if (a.isTopSeller !== b.isTopSeller) return a.isTopSeller ? -1 : 1
+    return (a.daysRemaining ?? 999) - (b.daysRemaining ?? 999)
+  })
+}
+
+export interface ReceivedItemInput {
+  productId: string
+  receivedQty: number
+  unitCost?: number
+}
+
+export async function receiveOrderWithScan(
+  orderId: string,
+  receivedItems: ReceivedItemInput[],
+  options?: {
+    closeRemaining?: boolean
+    notes?: string
+  },
+): Promise<{ purchase: Purchase | null; order: PurchaseOrder; fullyCompleted: boolean }> {
+  const order = await db.purchaseOrders.get(orderId)
+  if (!order) throw new Error('Orden de compra no encontrada')
+  if (order.status === 'cancelada' || order.status === 'comprada') {
+    throw new Error('Esta orden ya fue cerrada o cancelada')
+  }
+
+  const itemsWithQty = receivedItems.filter((i) => i.receivedQty > 0)
+  if (itemsWithQty.length === 0) {
+    throw new Error('No se ha recibido ninguna cantidad de producto')
+  }
+
+  const now = Date.now()
+  let createdPurchase: Purchase | null = null
+  let updatedOrder!: PurchaseOrder
+
+  await db.transaction(
+    'rw',
+    [db.purchaseOrders, db.purchases, db.products, db.stockMovements],
+    async () => {
+      const purchaseLines: PurchaseItem[] = []
+
+      // Actualizar cada producto recibido
+      for (const rec of itemsWithQty) {
+        const prod = await db.products.get(rec.productId)
+        if (!prod) continue
+
+        const effectiveCost = rec.unitCost && rec.unitCost > 0 ? rec.unitCost : prod.cost || 0
+        const lineTotal = round2(rec.receivedQty * effectiveCost)
+
+        // 1. Agregar a la línea de compra
+        purchaseLines.push({
+          productId: prod.id,
+          name: prod.name,
+          unit: prod.unit,
+          qty: rec.receivedQty,
+          unitCost: effectiveCost,
+          lineTotal,
+        })
+
+        // 2. Incrementar stock del producto y actualizar costo si cambió
+        const nextStock = round2(prod.stock + rec.receivedQty)
+        const patch: Partial<Product> = { stock: nextStock, updatedAt: now }
+        if (rec.unitCost && rec.unitCost > 0 && Math.abs(rec.unitCost - prod.cost) > 0.001) {
+          patch.cost = round2(rec.unitCost)
+        }
+        await db.products.update(prod.id, patch)
+
+        // 3. Registrar StockMovement tipo compra
+        await db.stockMovements.add({
+          id: uid(),
+          date: now,
+          type: 'compra',
+          productId: prod.id,
+          productName: prod.name,
+          unit: prod.unit,
+          qty: rec.receivedQty,
+          cost: effectiveCost,
+          totalCost: lineTotal,
+          note: `Recepción escáner orden ${order.folio ? `OC-${order.folio}` : order.id.slice(0, 8)}`,
+          refId: order.id,
+        })
+      }
+
+      // Crear el registro de compra formal si hubo productos recibidos
+      if (purchaseLines.length > 0) {
+        const totalPurchase = round2(purchaseLines.reduce((s, i) => s + i.lineTotal, 0))
+        createdPurchase = {
+          id: uid(),
+          date: now,
+          supplierId: order.supplierId,
+          supplierName: order.supplierName,
+          items: purchaseLines,
+          total: totalPurchase,
+          notes: options?.notes || `Recepción de orden ${order.folio ? `OC-${order.folio}` : order.id.slice(0, 8)}`,
+        }
+        await db.purchases.add(createdPurchase)
+      }
+
+      // Actualizar las cantidades recibidas en la orden
+      const updatedItems = order.items.map((it) => {
+        const matching = itemsWithQty.find((r) => r.productId === it.productId)
+        const addQty = matching ? matching.receivedQty : 0
+        const prevReceived = it.receivedQty || 0
+        return {
+          ...it,
+          receivedQty: round2(prevReceived + addQty),
+          unitCost: matching?.unitCost && matching.unitCost > 0 ? matching.unitCost : it.unitCost,
+        }
+      })
+
+      // Determinar si la orden quedó completa
+      const isComplete = updatedItems.every((it) => (it.receivedQty || 0) >= it.qty)
+      const nextStatus: OrderStatus = isComplete || options?.closeRemaining ? 'comprada' : 'parcial'
+
+      updatedOrder = {
+        ...order,
+        items: updatedItems,
+        status: nextStatus,
+        receivedAt: now,
+        updatedAt: now,
+      }
+      await db.purchaseOrders.put(updatedOrder)
+    },
+  )
+
+  notifyLocalChange()
+  return {
+    purchase: createdPurchase,
+    order: updatedOrder,
+    fullyCompleted: updatedOrder.status === 'comprada',
+  }
 }
 
 export async function addCashEntry(entry: Omit<CashEntry, 'id'>): Promise<CashEntry> {
