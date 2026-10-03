@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Manual de Usuario — Pinturas POS</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    @page {
+      size: A4;
+      margin: 14mm 14mm 16mm 14mm;
+      @bottom-right {
+        content: counter(page);
+        font-family: 'Inter', sans-serif;
+        font-size: 9pt;
+        color: #64748b;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1e293b;
+      background: #ffffff;
+      line-height: 1.55;
+      font-size: 10pt;
+    }
+
+    /* Portada */
+    .cover {
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 90vh;
+      padding: 40px 20px;
+    }
+
+    .cover-top {
+      border-top: 6px solid #2563eb;
+      padding-top: 30px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      font-size: 8.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-radius: 9999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      margin-bottom: 16px;
+    }
+
+    .cover-title {
+      font-size: 32pt;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.15;
+      margin-bottom: 12px;
+    }
+
+    .cover-subtitle {
+      font-size: 13pt;
+      color: #475569;
+      font-weight: 500;
+      max-width: 600px;
+      line-height: 1.4;
+    }
+
+    .cover-meta {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      font-size: 9pt;
+      color: #64748b;
+    }
+
+    .cover-meta strong {
+      display: block;
+      color: #0f172a;
+      font-size: 10pt;
+      margin-top: 2px;
+    }
+
+    /* Contenido general */
+    h1, h2, h3, h4 {
+      color: #0f172a;
+      font-weight: 700;
+      page-break-after: avoid;
+    }
+
+    h2 {
+      font-size: 16pt;
+      margin-top: 26px;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h3 {
+      font-size: 12pt;
+      margin-top: 18px;
+      margin-bottom: 8px;
+      color: #1e293b;
+    }
+
+    p {
+      margin-bottom: 10px;
+      color: #334155;
+    }
+
+    ul, ol {
+      margin-left: 20px;
+      margin-bottom: 12px;
+      color: #334155;
+    }
+
+    li {
+      margin-bottom: 4px;
+    }
+
+    /* Capturas de pantalla */
+    .figure-card {
+      margin: 14px 0 18px 0;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px;
+      page-break-inside: avoid;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .figure-card img {
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      display: block;
+    }
+
+    .figure-caption {
+      margin-top: 8px;
+      font-size: 8.5pt;
+      color: #64748b;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    /* Callout y Tips */
+    .callout {
+      border-left: 4px solid #2563eb;
+      background: #eff6ff;
+      padding: 10px 14px;
+      border-radius: 0 8px 8px 0;
+      margin: 12px 0;
+      font-size: 9.5pt;
+      page-break-inside: avoid;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 3px;
+    }
+
+    .callout.tip {
+      border-left-color: #10b981;
+      background: #ecfdf5;
+    }
+
+    .callout.tip .callout-title {
+      color: #065f46;
+    }
+
+    /* Tablas */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px 0;
+      font-size: 9pt;
+      page-break-inside: avoid;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: #0f172a;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid #cbd5e1;
+      font-weight: 700;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+    }
+
+    tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PORTADA -->
+  <div class="cover">
+    <div class="cover-top">
+      <span class="badge">Manual de Operación Oficial</span>
+      <h1 class="cover-title">Pinturas POS</h1>
+      <p class="cover-subtitle">Guía de usuario paso a paso: Punto de Venta, Arqueo de Caja, Inventario con Escáner, Smart Restock y Reportes Financieros para Tiendas de Pintura y Ferretería.</p>
+    </div>
+
+    <div class="figure-card" style="margin: 20px 0;">
+      <img src="capturas/01_vender.png" alt="Pantalla de Venta">
+      <div class="figure-caption">Interfaz Ágil de Mostrador y Punto de Venta</div>
+    </div>
+
+    <div class="cover-meta">
+      <div>
+        <span>Plataforma:</span>
+        <strong>Pinturas POS (Local-First)</strong>
+      </div>
+      <div>
+        <span>Versión del Sistema:</span>
+        <strong>Edición Pro / Comercial</strong>
+      </div>
+      <div>
+        <span>Fecha de Actualización:</span>
+        <strong>Octubre 2026</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 1: INTRODUCCIÓN Y SEGURIDAD -->
+  <h2>🔐 1. Acceso y Seguridad de la Tienda (PIN)</h2>
+  <p>Pinturas POS utiliza un sistema de arquitectura <strong>Local-First</strong>. Esto garantiza que <strong>la tienda nunca se detenga aunque se caiga el internet</strong>: todas las ventas, cobros, arqueos y consultas de inventario funcionan de inmediato en la computadora o celular del negocio.</p>
+  <p>Para proteger la información financiera y evitar que personas no autorizadas modifiquen precios o accedan al dinero de la caja, el sistema cuenta con un teclado numérico táctil de seguridad:</p>
+  <ul>
+    <li><strong>Primer uso:</strong> El sistema solicitará crear y confirmar un <strong>PIN de 4 dígitos</strong> (por ejemplo: <code>1234</code>).</li>
+    <li><strong>Desbloqueo diario:</strong> Al abrir el navegador o reactivar la pantalla, ingresa tu PIN de 4 dígitos para acceder al mostrador.</li>
+    <li>El PIN resguarda el acceso directo a caja, arqueos y reportes contables.</li>
+  </ul>
+
+  <!-- SECCIÓN 2: PUNTO DE VENTA -->
+  <div class="page-break"></div>
+  <h2>🛒 2. Módulo de Venta en Mostrador (Punto de Venta)</h2>
+  <p>El módulo <strong>Vender</strong> está optimizado para despachar clientes rápidamente mediante pistola lectora de código de barras, buscador rápido o pantalla táctil.</p>
+
+  <div class="figure-card">
+    <img src="capturas/01_vender.png" alt="Punto de Venta">
+    <div class="figure-caption">Figura 1: Módulo Vender — Catálogo visual, lector de barras y carrito interactivo.</div>
+  </div>
+
+  <h3>📋 Pasos para Despachar una Venta:</h3>
+  <ol>
+    <li><strong>Buscar o Escanear el Producto:</strong>
+      <ul>
+        <li><strong>Lector de código de barras:</strong> Apunta la pistola USB o Bluetooth al envase; el sistema agrega automáticamente la pieza con un sonido <em>beep</em> de confirmación.</li>
+        <li><strong>Buscador de texto:</strong> Teclea parte del nombre o código (ej. <em>"Blanco 4L"</em>, <em>"Thinner"</em>).</li>
+        <li><strong>Cámara de celular:</strong> Presiona el botón <strong>Cámara</strong> para escanear con la cámara del dispositivo móvil.</li>
+        <li><strong>Filtros por categoría:</strong> Pulsa sobre las etiquetas rápidas (<em>Esmaltes, Vinílicas, Impermeabilizantes, Solventes, Accesorios</em>).</li>
+      </ul>
+    </li>
+    <li><strong>Ajustar Cantidades y Presentaciones:</strong>
+      <ul>
+        <li>Usa los botones <code>+</code> y <code>-</code> en el carrito para cambiar piezas.</li>
+        <li>Si el producto tiene presentaciones configuradas (litro, medio, galón o cubeta de 19L), selecciona la presentación deseada; el sistema calcula el precio y descuenta la fracción exacta del inventario.</li>
+      </ul>
+    </li>
+    <li><strong>Cobro y Comprobante:</strong>
+      <ul>
+        <li>Presiona el botón verde <strong>Cobrar</strong>.</li>
+        <li>Elige la forma de pago: <strong>💵 Efectivo</strong> (calcula el cambio), <strong>💳 Tarjeta</strong> o <strong>📱 Transferencia / SPEI</strong>.</li>
+        <li>Presiona <strong>Confirmar Venta</strong>. Puedes imprimir el ticket en impresora térmica de 58/80mm o presionar <strong>"Enviar por WhatsApp"</strong> para enviarle el comprobante digital en PDF al cliente.</li>
+      </ul>
+    </li>
+  </ol>
+
+  <div class="callout tip">
+    <div class="callout-title">💡 ¿Te equivocaste en la última venta?</div>
+    En la parte inferior del carrito encontrarás el botón <strong>"Deshacer última venta"</strong> para anular el ticket de inmediato y devolver el stock a su anaquel.
+  </div>
+
+  <!-- SECCIÓN 3: CONTROL DE CAJA Y ARQUEO CIEGO -->
+  <div class="page-break"></div>
+  <h2>💵 3. Control de Caja & Arqueo Ciego (Cortes X y Z)</h2>
+  <p>Elimina descuadres y fugas de dinero con el control estricto de turnos diarios y el sistema de arqueo ciego.</p>
+
+  <div class="figure-card">
+    <img src="capturas/02_caja.png" alt="Control de Caja">
+    <div class="figure-caption">Figura 2: Módulo Caja — Turno activo, fondo inicial, balance por método de pago y registro de salidas.</div>
+  </div>
+
+  <h3>🟢 3.1 Apertura de Turno (Fondo Inicial)</h3>
+  <p>Al iniciar la jornada, presiona <strong>"Abrir Turno de Caja"</strong> e ingresa el efectivo de cambio asignado (ej. <code>$500.00 MXN</code>) y el nombre del cajero.</p>
+
+  <h3>📊 3.2 Separación Estricta por Método de Pago</h3>
+  <p>El sistema separa de forma estricta los ingresos para facilitar el cuadre contable:</p>
+  <ul>
+    <li><strong>💵 Efectivo en Cajón:</strong> Dinero físico que se puede tocar y contar en la gaveta.</li>
+    <li><strong>💳 Tarjeta / Terminal:</strong> Ingresos bancarios cobrados en terminal punto de venta.</li>
+    <li><strong>📱 Transferencia / SPEI:</strong> Dinero recibido directamente por banca móvil.</li>
+  </ul>
+
+  <h3>💸 3.3 Salidas y Gastos de Caja Chica Tipificados</h3>
+  <p>Cada vez que salga dinero del cajón, presiona <strong>"Registrar Retiro o Gasto"</strong> y selecciona el motivo:</p>
+  <ul>
+    <li><strong>Gasto operativo:</strong> Pago de luz, agua, comida del personal, flete o papelería.</li>
+    <li><strong>Pago a proveedores:</strong> Compra de insumos o abonos en efectivo a proveedores de contado.</li>
+    <li><strong>Retiro seguro:</strong> Traslado de dinero físico del cajón a la caja fuerte o banco.</li>
+  </ul>
+
+  <h3>🔒 3.4 Cortes de Caja: Corte X y Corte Z</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Tipo de Corte</th>
+        <th>¿Cuándo se hace?</th>
+        <th>¿Cómo funciona?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Corte X (Parcial)</strong></td>
+        <td>A mitad del turno o cambio de personal</td>
+        <td>Muestra el estado de caja actual <strong>sin cerrar el turno</strong> para revisión rápida o comprobante parcial.</td>
+      </tr>
+      <tr>
+        <td><strong>Corte Z (Arqueo Ciego / Cierre de Día)</strong></td>
+        <td>Al terminar la jornada o cerrar la tienda</td>
+        <td>El cajero cuenta físicamente el dinero del cajón y escribe el monto <strong>sin ver lo que el sistema calcula</strong>. Al confirmar, el sistema compara lo esperado vs lo contado y muestra si hay <strong>Sobrante (+)</strong> o <strong>Faltante (-)</strong>, generando el PDF del corte final.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- SECCIÓN 4: INVENTARIO FÍSICO Y MERMAS -->
+  <div class="page-break"></div>
+  <h2>📦 4. Inventario: Auditoría por Escáner & Mermas</h2>
+  <p>Este módulo garantiza que las existencias del sistema reflejen fielmente lo que hay en los anaqueles.</p>
+
+  <h3>🔫 4.1 Auditoría Física Continua por Escáner</h3>
+  <p>En lugar de pasar horas contando latas con una libreta:</p>
+  <ol>
+    <li>Ve a <strong>Inventario</strong> &rarr; pestaña <strong>Auditoría (Escáner)</strong>.</li>
+    <li>Con la pistola de código de barras o la cámara de tu teléfono, ve pistoleando cada bote en los pasillos: cada escaneo emite un sonido <em>beep</em> y suma <strong>+1</strong> al conteo.</li>
+    <li>El sistema genera la <strong>Matriz de Discrepancias</strong> indicando qué productos tienen faltantes o sobrantes y su impacto en pesos.</li>
+    <li>Presiona <strong>"Aplicar Ajustes"</strong> para sincronizar el stock del sistema con la realidad en un solo clic.</li>
+  </ol>
+
+  <div class="figure-card">
+    <img src="capturas/03_inventario_auditoria.png" alt="Auditoría Física">
+    <div class="figure-caption">Figura 3: Pestaña Auditoría — Escaneo continuo y matriz de discrepancias en tiempo real.</div>
+  </div>
+
+  <h3>🎨 4.2 Registro de Mermas Específicas de Pintura</h3>
+  <p>Permite registrar pérdidas operativas justificadas para efectos contables y administrativos:</p>
+
+  <div class="figure-card">
+    <img src="capturas/04_inventario_mermas.png" alt="Registro de Mermas">
+    <div class="figure-caption">Figura 4: Pestaña Mermas — Descuento justificado de stock con cálculo de pérdida económica.</div>
+  </div>
+
+  <ul>
+    <li>🎨 <strong>Muestra a cliente:</strong> Litros o cuartos usados para demostración o igualación de color en mostrador.</li>
+    <li>💥 <strong>Daño o derrame:</strong> Latas abolladas en descarga, botes perforados o fugas de solvente.</li>
+    <li>⏳ <strong>Caducidad / secado:</strong> Catalizadores, aerosoles o selladores secos en el estante.</li>
+    <li>🔧 <strong>Uso interno:</strong> Pintura o brochas usadas para el mantenimiento del propio local comercial.</li>
+  </ul>
+
+  <!-- SECCIÓN 5: SMART RESTOCK Y RECEPCIÓN POR ESCÁNER -->
+  <div class="page-break"></div>
+  <h2>🚚 5. Smart Restock & Pedidos para el Dueño</h2>
+  <p>Evita desabastos y permite que el dueño de la tienda realice los pedidos a proveedores por llamada telefónica de forma exacta y con los precios anteriores en mano.</p>
+
+  <h3>🧠 5.1 Sugerencia Inteligente por Proveedor</h3>
+  <p>El sistema cruza tus productos <strong>más vendidos (Top ventas de 30 días)</strong> contra el tiempo de entrega de cada proveedor (<em>Lead Time</em>):</p>
+
+  <div class="figure-card">
+    <img src="capturas/05_resurtir_sugerencia.png" alt="Sugerencias de Resurtido">
+    <div class="figure-caption">Figura 5: Sugerencia Inteligente — Agrupado por marca con fotos, badges de agotados y cálculo automático.</div>
+  </div>
+
+  <ul>
+    <li>Muestra tarjetas de producto con <strong>foto nítida</strong>, stock actual vs mínimo y badges: <code>🔥 Top Vendido</code> y <code>🚨 AGOTADO</code>.</li>
+    <li>Permite ajustar fácilmente la cantidad sugerida con los botones <code>+</code> y <code>-</code>.</li>
+  </ul>
+
+  <h3>📞 5.2 Hoja de Llamada para el Dueño (WhatsApp & PDF)</h3>
+  <p>Dado que el dueño realiza los pedidos por llamada telefónica con los agentes de ventas de marcas como Comex, Sayer, Berel o Truper:</p>
+  <ul>
+    <li>Presiona <strong>"Enviar al Dueño (WhatsApp)"</strong>: El dueño recibe en su celular un mensaje estructurado con qué botes pedir, cuántos quedan en bodega, códigos de compra y <strong>el último costo pagado</strong> para defenderse si el vendedor intenta subirle el precio.</li>
+    <li>Presiona <strong>"PDF Llamada"</strong> si prefiere tener una hoja impresa durante la llamada.</li>
+  </ul>
+
+  <div class="page-break"></div>
+  <h3>📥 5.3 Órdenes en Camino y Recepción por Escáner en Descarga</h3>
+  <p>Al confirmar el pedido con el proveedor, la orden pasa a la pestaña <strong>Órdenes / En Camino</strong>:</p>
+
+  <div class="figure-card">
+    <img src="capturas/06_resurtir_ordenes.png" alt="Órdenes de Compra">
+    <div class="figure-caption">Figura 6: Pestaña Órdenes — Seguimiento de pedidos en camino y botón para recepción por escáner.</div>
+  </div>
+
+  <p><strong>El día que llega el camión del proveedor a la tienda:</strong></p>
+  <ol>
+    <li>Abre la orden y presiona <strong>"Escanear para Recibir Mercancía"</strong>.</li>
+    <li>Conforme descargan los botes del camión, ve pistoleando:
+      <ul>
+        <li>Si el bote pertenece a la orden: emite un sonido agudo y avanza el checklist (ej. <em>8 de 10 cubetas recibidas</em>).</li>
+        <li>Si escaneas un producto que no pediste: emite una alarma sonora advirtiendo el error.</li>
+      </ul>
+    </li>
+    <li>Al presionar <strong>"Finalizar Recepción"</strong>, el sistema <strong>suma automáticamente todas las piezas recibidas al stock</strong> de la tienda y genera la compra contable.</li>
+  </ol>
+
+  <!-- SECCIÓN 6: REPORTES EJECUTIVOS Y EXCEL -->
+  <div class="page-break"></div>
+  <h2>📊 6. Analítica de Negocio & Reportes para el Contador</h2>
+  <p>Toma decisiones comerciales basadas en números reales para asegurar que cada venta genere la máxima utilidad posible.</p>
+
+  <h3>📈 6.1 Ventas y Gráfica de Tendencia</h3>
+  <p>Visualiza en tiempo real ingresos brutos, utilidad neta, formas de cobro y la gráfica de tendencia de los últimos 7 días con los 5 productos más vendidos.</p>
+
+  <div class="figure-card">
+    <img src="capturas/07_reportes_ventas.png" alt="Reporte de Ventas">
+    <div class="figure-caption">Figura 7: Pestaña Ventas — Ingresos, utilidades, margen global y gráfica semanal.</div>
+  </div>
+
+  <h3>🎨 6.2 Rentabilidad y Margen Real por Categoría</h3>
+  <p>En el negocio de la pintura, los accesorios (brochas, rodillos, masking, lijas) dejan entre <strong>40% y 60%</strong> de margen, mientras que la pintura base deja entre <strong>20% y 30%</strong>.</p>
+
+  <div class="figure-card">
+    <img src="capturas/08_reportes_margen.png" alt="Rentabilidad por Categoría">
+    <div class="figure-caption">Figura 8: Pestaña Margen x Categoría — Porcentaje de margen y aporte a la ganancia de la tienda.</div>
+  </div>
+
+  <ul>
+    <li>Muestra el porcentaje de margen bruto por cada familia de productos.</li>
+    <li>Una barra de progreso indica cuánto aporta cada categoría a la ganancia total de la tienda.</li>
+  </ul>
+
+  <h3>⏳ 6.3 Alerta de Stock Muerto (Capital Inmovilizado)</h3>
+  <p>Filtro que detecta productos con existencias en anaquel que no registran ventas en más de <strong>45, 60 o 90 días</strong>. Calcula en pesos el dinero congelado a costo y sugiere promociones 2x1 o combos para recuperar liquidez.</p>
+
+  <h3>📑 6.4 Centro de Exportaciones para Microsoft Excel (.csv UTF-8)</h3>
+  <p>En la pestaña <strong>Exportar Excel</strong> puedes descargar 3 archivos listos para abrir en Excel o enviar al contador:</p>
+  <ul>
+    <li><strong>Ventas Detalladas:</strong> Folios, productos, costos, utilidades y formas de pago.</li>
+    <li><strong>Compras y Gastos de Caja Chica:</strong> Salidas operativas y pagos a proveedores.</li>
+    <li><strong>Valuación Contable de Inventario Total:</strong> Auditoría de todo el catálogo con existencias, valor a costo y valor a precio de venta con la suma general de activos.</li>
+  </ul>
+
+  <!-- SECCIÓN 7: AJUSTES -->
+  <div class="page-break"></div>
+  <h2>⚙️ 7. Configuración del Negocio & Contacto del Dueño</h2>
+  <p>Personaliza los datos impresos en las notas y el número al que se enviarán las sugerencias de resurtido.</p>
+
+  <div class="figure-card">
+    <img src="capturas/09_ajustes.png" alt="Ajustes del Sistema">
+    <div class="figure-caption">Figura 9: Pestaña Ajustes — Datos de la tienda y configuración del WhatsApp del dueño.</div>
+  </div>
+
+  <ul>
+    <li><strong>Nombre del negocio, dirección y teléfono:</strong> Aparecen en el encabezado de los tickets.</li>
+    <li><strong>Contacto del Dueño(a) para Resurtido:</strong> Registra el nombre y el número de WhatsApp a 10 dígitos del dueño para recibir las hojas de llamada de compras con 1 clic.</li>
+    <li><strong>Mensaje al pie y Logotipo:</strong> Personaliza notas impresas y comprobantes digitales.</li>
+  </ul>
+
+  <hr style="margin: 30px 0 20px 0; border: none; border-top: 1px solid #cbd5e1;">
+
+  <div class="callout tip">
+    <div class="callout-title">📋 Resumen de Operación Diaria para el Personal</div>
+    <ol style="margin-top: 6px; margin-left: 18px;">
+      <li><strong>Al abrir la tienda:</strong> Ir a <em>Caja</em> y abrir turno registrando el fondo inicial para cambio ($500).</li>
+      <li><strong>Durante el día:</strong> Cobrar todas las ventas en <em>Vender</em> y registrar cualquier salida de dinero en <em>Caja Chica</em>.</li>
+      <li><strong>Al recibir mercancía:</strong> Ir a <em>Resurtir &rarr; Órdenes</em> y usar el escáner para verificar que el camión entregó las piezas exactas.</li>
+      <li><strong>Al cerrar la tienda:</strong> Ir a <em>Caja &rarr; Corte Z (Arqueo Ciego)</em>, contar el dinero físico y descargar el ticket final para el dueño.</li>
+    </ol>
+  </div>
+
+</body>
+</html>
