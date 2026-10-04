@@ -177,49 +177,53 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-app flex-col">
-      <header className="flex h-9 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 md:px-4 dark:border-slate-800 dark:bg-slate-900">
+    <div className="flex h-app flex-col bg-surface dark:bg-slate-950">
+      <header className="flex h-10 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white/80 backdrop-blur-md px-3 sm:px-4 dark:border-slate-800 dark:bg-slate-900/80">
         <button
           onClick={() => void doSyncRef.current()}
-          className="inline-flex items-center gap-2 text-xs font-medium"
+          className="inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/90 px-2.5 py-1 text-xs font-medium text-slate-600 shadow-2xs hover:bg-slate-100/80 transition dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300"
           title="Toca para sincronizar ahora"
         >
           <span
             className={`h-2 w-2 shrink-0 rounded-full ${
               syncState === 'ok'
-                ? 'bg-emerald-500'
+                ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50'
                 : syncState === 'syncing'
                   ? 'animate-pulse bg-amber-400'
                   : 'bg-red-500'
             }`}
           />
-          <span className="text-slate-500 dark:text-slate-400">
+          <span className="text-[11px] sm:text-xs">
             {syncState === 'syncing'
               ? 'Sincronizando…'
               : syncState === 'offline'
                 ? `Sin conexión${syncError ? `: ${syncError}` : ''}`
-                : `Sincronizado${last > 0 ? ` ${new Date(last).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}` : ' ahora'}`}
+                : `Sincronizado${last > 0 ? ` · ${new Date(last).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}` : ' ahora'}`}
           </span>
         </button>
         <button
           onClick={() => void doSyncRef.current(true)}
-          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition ${
-            syncState === 'syncing' ? 'cursor-default text-slate-400' : 'text-primary hover:bg-slate-100 dark:hover:bg-slate-800'
+          className={`inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1 text-xs font-semibold transition ${
+            syncState === 'syncing'
+              ? 'cursor-default text-slate-400'
+              : 'text-primary hover:border-slate-200 hover:bg-slate-100/90 dark:text-emerald-400 dark:hover:border-slate-700 dark:hover:bg-slate-800'
           }`}
           disabled={syncState === 'syncing'}
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${syncState === 'syncing' ? 'animate-spin' : ''}`} />
-          Sincronizar
+          <RefreshCw className={`h-3.5 w-3.5 ${syncState === 'syncing' ? 'animate-spin text-amber-500' : ''}`} />
+          <span className="hidden sm:inline">Sincronizar</span>
         </button>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="hidden w-56 shrink-0 flex-col border-r border-slate-200 bg-white md:flex dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-4 dark:border-slate-800">
-            <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-9 w-9 rounded-lg object-cover" />
-            <div>
-              <p className="font-display text-lg font-semibold leading-tight text-slate-900 dark:text-slate-100">Pinturas POS</p>
-              <p className="text-xs text-slate-400">Venta e inventario</p>
+        <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200/90 bg-white/95 backdrop-blur-sm md:flex dark:border-slate-800 dark:bg-slate-900/95">
+          <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800">
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-700 to-primary-600 p-0.5 shadow-sm shadow-primary/30">
+              <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-full w-full rounded-[10px] object-cover" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">Pinturas POS</p>
+              <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">Punto de Venta & Stock</p>
             </div>
           </div>
           <nav className="flex-1 space-y-1 p-3">
@@ -230,32 +234,39 @@ export default function App() {
                 <button
                   key={n.id}
                   onClick={() => setTab(n.id)}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                    active ? 'bg-primary text-white' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                  className={`group flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-150 ${
+                    active
+                      ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-sm shadow-primary/25'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-100'
                   }`}
                 >
-                  <Icon className="h-5 w-5" />
-                  {n.label}
+                  <Icon className={`h-4.5 w-4.5 transition-transform group-hover:scale-105 ${active ? 'text-amber-300' : 'text-slate-400 dark:text-slate-500'}`} />
+                  <span>{n.label}</span>
                 </button>
               )
             })}
           </nav>
-          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 dark:border-slate-800">
-            <p className="text-xs text-slate-400">Sincronización automática</p>
+          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span>Offline-ready</span>
+            </div>
             <ThemeToggle dark={dark} onToggle={() => setDark((d) => !d)} />
           </div>
         </aside>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 md:hidden dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-2">
-              <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-8 w-8 rounded-lg object-cover" />
-              <p className="font-display text-lg font-semibold text-slate-900 dark:text-slate-100">Pinturas POS</p>
+          <header className="flex items-center justify-between gap-2 border-b border-slate-200/90 bg-white/90 backdrop-blur-md px-4 py-2.5 md:hidden dark:border-slate-800 dark:bg-slate-900/90">
+            <div className="flex items-center gap-2.5">
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr from-primary-700 to-primary-600 p-0.5 shadow-2xs">
+                <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-full w-full rounded-md object-cover" />
+              </div>
+              <p className="font-display text-base font-bold text-slate-900 dark:text-slate-100">Pinturas POS</p>
             </div>
             <ThemeToggle dark={dark} onToggle={() => setDark((d) => !d)} />
           </header>
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col pb-[calc(env(safe-area-inset-bottom)+4rem)] md:pb-0">
-            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-400">Cargando…</div>}>
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col pb-[calc(env(safe-area-inset-bottom)+4.25rem)] md:pb-0">
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm font-medium text-slate-400">Cargando…</div>}>
               {tab === 'vender' && <Pos />}
               {tab === 'catalogo' && <Products />}
               {tab === 'resurtir' && <Restock />}
@@ -268,8 +279,8 @@ export default function App() {
         </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden dark:border-slate-800 dark:bg-slate-900">
-        <div className="grid grid-cols-7">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/90 bg-white/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] shadow-lg md:hidden dark:border-slate-800 dark:bg-slate-900/95">
+        <div className="grid grid-cols-7 py-1">
           {NAV.map((n) => {
             const Icon = n.icon
             const active = tab === n.id
@@ -277,12 +288,16 @@ export default function App() {
               <button
                 key={n.id}
                 onClick={() => setTab(n.id)}
-                className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
-                  active ? 'text-primary dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'
+                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 transition-all ${
+                  active
+                    ? 'text-primary font-bold dark:text-emerald-400'
+                    : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'
                 }`}
               >
-                <Icon className="h-5 w-5" />
-                {n.label}
+                <div className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${active ? 'bg-primary/10 dark:bg-emerald-950/60' : ''}`}>
+                  <Icon className="h-4 w-4" />
+                </div>
+                <span className="text-[10px] leading-tight tracking-tight">{n.label}</span>
               </button>
             )
           })}

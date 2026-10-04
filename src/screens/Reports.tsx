@@ -19,6 +19,7 @@ import {
   Archive,
   ArrowUpRight,
   ShieldAlert,
+  Smartphone,
 } from 'lucide-react'
 import { db } from '../db/db'
 import { exportBackup, restoreBackup } from '../db/repos'
@@ -602,21 +603,25 @@ export default function Reports() {
               <EmptyState icon={<BarChart3 className="h-10 w-10" />} title="Sin ventas en este periodo" />
             ) : (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <StatCard icon={<Wallet className="h-5 w-5" />} label="Ventas totales" value={formatMoney(totals.total)} accent="text-primary" />
-                  <StatCard icon={<TrendingUp className="h-5 w-5" />} label="Utilidad neta" value={formatMoney(totals.profit)} accent="text-emerald-600" />
-                  <StatCard icon={<PieChart className="h-5 w-5" />} label="Margen global" value={`${totals.marginPct}%`} accent="text-indigo-600" />
-                  <StatCard icon={<Coins className="h-5 w-5" />} label="Efectivo en caja" value={formatMoney(totals.cash)} accent="text-amber-600" />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                  <StatCard icon={<Wallet className="h-4 w-4" />} label="Ventas totales" value={formatMoney(totals.total)} accent="text-primary dark:text-emerald-400" />
+                  <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Utilidad neta" value={formatMoney(totals.profit)} accent="text-emerald-600 dark:text-emerald-400" />
+                  <StatCard icon={<PieChart className="h-4 w-4" />} label="Margen global" value={`${totals.marginPct}%`} accent="text-indigo-600 dark:text-indigo-400" />
+                  <StatCard icon={<Coins className="h-4 w-4" />} label="Efectivo recibido" value={formatMoney(totals.cash)} accent="text-amber-600 dark:text-amber-400" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="card p-2.5 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-slate-500"><CreditCard className="h-4 w-4" /> Tarjeta / Terminal</span>
-                    <strong className="text-slate-800 dark:text-slate-100">{formatMoney(totals.card)}</strong>
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3 text-xs">
+                  <div className="card p-3 flex items-center justify-between border-slate-200/90 shadow-2xs">
+                    <span className="flex items-center gap-2 font-medium text-slate-600 dark:text-slate-300">
+                      <CreditCard className="h-4 w-4 text-sky-500" /> Tarjeta / Terminal
+                    </span>
+                    <strong className="font-display text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums">{formatMoney(totals.card)}</strong>
                   </div>
-                  <div className="card p-2.5 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-slate-500"><Coins className="h-4 w-4" /> Transferencia / SPEI</span>
-                    <strong className="text-slate-800 dark:text-slate-100">{formatMoney(totals.transfer)}</strong>
+                  <div className="card p-3 flex items-center justify-between border-slate-200/90 shadow-2xs">
+                    <span className="flex items-center gap-2 font-medium text-slate-600 dark:text-slate-300">
+                      <Smartphone className="h-4 w-4 text-violet-500" /> Transferencia / SPEI
+                    </span>
+                    <strong className="font-display text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums">{formatMoney(totals.transfer)}</strong>
                   </div>
                 </div>
               </>
@@ -1025,12 +1030,14 @@ export default function Reports() {
 
 function StatCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent: string }) {
   return (
-    <div className="card p-3">
-      <p className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-        <span className={accent}>{icon}</span>
-        {label}
-      </p>
-      <p className={`font-display mt-1 text-lg font-semibold ${accent}`}>{value}</p>
+    <div className="card p-3.5 shadow-2xs relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs border-slate-200/90 dark:border-slate-800">
+      <div className="flex items-center gap-2">
+        <div className={`flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800/80 ${accent} shadow-2xs`}>
+          {icon}
+        </div>
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">{label}</p>
+      </div>
+      <p className={`font-display mt-2.5 text-xl font-extrabold tracking-tight tabular-nums ${accent}`}>{value}</p>
     </div>
   )
 }

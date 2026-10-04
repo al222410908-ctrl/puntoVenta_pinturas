@@ -277,57 +277,63 @@ export default function Money() {
               {/* 1.2 Separación estricta por Método de Pago */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {/* 💵 Efectivo en Cajón */}
-                <div className="card p-4 flex flex-col justify-between">
+                <div className="card relative overflow-hidden p-4 flex flex-col justify-between border-emerald-200/90 bg-gradient-to-br from-emerald-500/10 via-white to-emerald-50/40 dark:border-emerald-800/40 dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-900 shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-                      <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <span className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 shadow-2xs">
+                        <Banknote className="h-4 w-4" />
+                      </div>
                       Efectivo en Cajón
                     </span>
                     <span className="chip chip-ok">Dinero Físico</span>
                   </div>
-                  <div className="mt-3">
-                    <p className="font-display text-2xl font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
+                  <div className="mt-3.5">
+                    <p className="font-display text-3xl font-extrabold text-emerald-700 dark:text-emerald-400 tabular-nums">
                       {formatMoney(shiftMetrics?.expectedCash ?? currentShift.initialCash)}
                     </p>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Fondo ({formatMoney(currentShift.initialCash)}) + Ventas ({formatMoney(shiftMetrics?.cashSales ?? 0)}) − Salidas ({formatMoney(shiftMetrics?.expensesCash ?? 0)})
                     </p>
                   </div>
                 </div>
 
                 {/* 💳 Tarjeta / Terminal */}
-                <div className="card p-4 flex flex-col justify-between">
+                <div className="card relative overflow-hidden p-4 flex flex-col justify-between border-sky-200/90 bg-gradient-to-br from-sky-500/10 via-white to-sky-50/40 dark:border-sky-800/40 dark:from-sky-950/40 dark:via-slate-900 dark:to-slate-900 shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-                      <CreditCard className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                    <span className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 shadow-2xs">
+                        <CreditCard className="h-4 w-4" />
+                      </div>
                       Tarjeta / Terminal
                     </span>
                     <span className="chip chip-info">Banco</span>
                   </div>
-                  <div className="mt-3">
-                    <p className="font-display text-2xl font-bold text-sky-700 dark:text-sky-400 tabular-nums">
+                  <div className="mt-3.5">
+                    <p className="font-display text-3xl font-extrabold text-sky-700 dark:text-sky-400 tabular-nums">
                       {formatMoney(shiftMetrics?.cardSales ?? 0)}
                     </p>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Ingresos bancarios directos por terminal
                     </p>
                   </div>
                 </div>
 
                 {/* 📱 Transferencia / SPEI */}
-                <div className="card p-4 flex flex-col justify-between">
+                <div className="card relative overflow-hidden p-4 flex flex-col justify-between border-violet-200/90 bg-gradient-to-br from-violet-500/10 via-white to-violet-50/40 dark:border-violet-800/40 dark:from-violet-950/40 dark:via-slate-900 dark:to-slate-900 shadow-2xs">
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-                      <Smartphone className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                    <span className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-300 shadow-2xs">
+                        <Smartphone className="h-4 w-4" />
+                      </div>
                       Transferencia / SPEI
                     </span>
                     <span className="chip chip-devol">Confirmación</span>
                   </div>
-                  <div className="mt-3">
-                    <p className="font-display text-2xl font-bold text-violet-700 dark:text-violet-400 tabular-nums">
+                  <div className="mt-3.5">
+                    <p className="font-display text-3xl font-extrabold text-violet-700 dark:text-violet-400 tabular-nums">
                       {formatMoney(shiftMetrics?.transferSales ?? 0)}
                     </p>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Transferencias electrónicas verificadas
                     </p>
                   </div>

@@ -13,8 +13,9 @@ import {
   Banknote,
   CreditCard,
   Smartphone,
-  ImageIcon,
   Package,
+  X,
+  Sparkles,
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
@@ -307,56 +308,70 @@ export default function Pos() {
   return (
     <div className="flex h-full min-w-0 flex-col lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="p-3 pb-2">
+        <div className="p-3 pb-2 bg-white/70 backdrop-blur-md border-b border-slate-200/80 dark:bg-slate-900/70 dark:border-slate-800">
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <Input
                 id="pos-search"
-                className="pl-9"
-                placeholder="Buscar producto…"
+                className="pl-10 pr-9 bg-white/90 dark:bg-slate-950/80 shadow-2xs"
+                placeholder="Buscar por nombre o código de barras…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  aria-label="Limpiar búsqueda"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
-            <Button onClick={() => setScanOpen(true)} className="shrink-0" title="Escanear con cámara (celular)">
-              <ScanLine className="h-5 w-5" />
+            <Button onClick={() => setScanOpen(true)} className="btn-secondary shrink-0 shadow-2xs" title="Escanear con cámara (celular)">
+              <ScanLine className="h-4.5 w-4.5 text-primary dark:text-emerald-400" />
               <span className="hidden sm:inline">Escanear</span>
             </Button>
           </div>
           {scannerActive && (
-            <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
-              Lector de barras (PC) activo: escanea directo para agregar productos.
-            </p>
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Lector de barras físico activo (escanea directo para agregar)</span>
+            </div>
           )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 lg:pb-3">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 sm:px-4 pb-24 lg:pb-3">
           {topSellers.length > 0 && (
-            <div className="mt-2">
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                ★ Más vendidos
-              </p>
-              <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-3">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Más vendidos
+                </p>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {topSellers.map(({ p }) => (
                   <button
                     key={p.id}
                     onClick={() => addToCart(p)}
-                    className="shrink-0 rounded-full border border-amber-200/90 bg-amber-50/70 px-3 py-1 text-xs font-semibold text-amber-900 shadow-2xs hover:bg-amber-100 hover:border-amber-300 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/60 transition"
+                    className="shrink-0 rounded-full border border-amber-300/80 bg-gradient-to-b from-amber-50 to-amber-100/60 px-3 py-1 text-xs font-bold text-amber-900 shadow-2xs hover:border-amber-400 hover:from-amber-100 hover:to-amber-200/80 transition active:scale-95 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/60"
                   >
-                    {p.name}
+                    ★ {p.name}
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+          <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-1">
             <button
               onClick={() => setCategoryId('')}
-              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition shadow-2xs ${
+              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition-all shadow-2xs ${
                 categoryId === ''
-                  ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-primary/20'
+                  ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-sm shadow-primary/25'
                   : 'bg-white text-slate-700 border border-slate-200/90 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
               }`}
             >
@@ -366,9 +381,9 @@ export default function Pos() {
               <button
                 key={c.id}
                 onClick={() => setCategoryId(c.id)}
-                className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition shadow-2xs ${
+                className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition-all shadow-2xs ${
                   categoryId === c.id
-                    ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-primary/20'
+                    ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-sm shadow-primary/25'
                     : 'bg-white text-slate-700 border border-slate-200/90 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                 }`}
               >
@@ -379,13 +394,13 @@ export default function Pos() {
 
           {filtered.length === 0 ? (
             <EmptyState
-              icon={<ShoppingCart className="h-10 w-10" />}
-              title={search ? 'Sin resultados' : 'Agrega productos en Catálogo'}
-              hint={search ? 'Prueba con otro nombre' : undefined}
+              icon={<ShoppingCart className="h-7 w-7" />}
+              title={search ? 'Sin resultados' : 'Catálogo sin productos'}
+              hint={search ? 'Prueba con otro nombre o código' : 'Agrega productos en la pestaña de Catálogo'}
             />
           ) : (
             <>
-              <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {filtered.map((p) => {
                   const out = p.stock <= 0
                   const low = !out && p.stock <= p.minStock
@@ -393,30 +408,35 @@ export default function Pos() {
                     <button
                       key={p.id}
                       onClick={() => addToCart(p)}
-                      className="card flex min-w-0 flex-col gap-1 p-2 text-left transition hover:border-primary-600 dark:hover:border-primary-600"
+                      disabled={out}
+                      className="group card relative flex min-w-0 flex-col justify-between overflow-hidden p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md active:scale-[0.98] disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                     >
-                      <SafeImage
-                        src={p.photo}
-                        alt={p.name}
-                        className="mb-1 h-20 w-full min-w-0 rounded-lg"
-                        fallbackIcon={<ImageIcon className="h-6 w-6" />}
-                      />
-                      <span className="line-clamp-2 text-xs font-semibold leading-tight text-slate-800 dark:text-slate-100">
-                        {p.name}
-                      </span>
-                      <div className="flex items-baseline justify-between">
-                        <span className="font-semibold text-primary dark:text-emerald-400">
-                          {formatMoney(p.price)}
+                      <div className="relative mb-2 aspect-4/3 w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+                        <SafeImage
+                          src={p.photo}
+                          alt={p.name}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          fallbackIcon={<Package className="h-7 w-7 text-slate-300 dark:text-slate-600" />}
+                        />
+                        <span
+                          className={`chip absolute bottom-1.5 right-1.5 text-[10px] shadow-2xs backdrop-blur-md ${
+                            out ? 'chip-bad' : low ? 'chip-warn' : 'chip-ok'
+                          }`}
+                        >
+                          {out ? 'Agotado' : `${formatQty(p.stock, p.unit)}`}
                         </span>
-                        <span className="text-xs text-slate-400">/{UNIT_LABELS[p.unit]}</span>
                       </div>
-                      <span
-                        className={`chip text-[10px] ${
-                          out ? 'chip-bad' : low ? 'chip-warn' : 'chip-ok'
-                        }`}
-                      >
-                        {out ? 'Agotado' : `${formatQty(p.stock, p.unit)}`}
-                      </span>
+                      <div className="flex flex-1 flex-col justify-between">
+                        <p className="line-clamp-2 text-xs font-bold leading-snug text-slate-800 transition-colors group-hover:text-primary dark:text-slate-100 dark:group-hover:text-emerald-400">
+                          {p.name}
+                        </p>
+                        <div className="mt-2 flex items-baseline justify-between border-t border-slate-100 pt-1.5 dark:border-slate-800/80">
+                          <span className="font-display text-base font-extrabold text-primary tabular-nums dark:text-emerald-400">
+                            {formatMoney(p.price)}
+                          </span>
+                          <span className="text-[11px] font-medium text-slate-400">/{UNIT_LABELS[p.unit]}</span>
+                        </div>
+                      </div>
                     </button>
                   )
                 })}
@@ -424,9 +444,9 @@ export default function Pos() {
               {visible < allFiltered.length && (
                 <button
                   onClick={() => setVisible((v) => v + 80)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white py-2 text-sm font-medium text-primary hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  className="mt-3 w-full rounded-xl border border-slate-200/90 bg-white py-2.5 text-sm font-semibold text-primary shadow-2xs hover:bg-slate-50 transition active:scale-[0.99] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
-                  Ver más ({allFiltered.length - visible} restantes)
+                  Ver más productos ({allFiltered.length - visible} restantes)
                 </button>
               )}
             </>
@@ -449,15 +469,15 @@ export default function Pos() {
       {cartCount > 0 && (
         <button
           onClick={() => setCartOpen(true)}
-          className="fixed bottom-16 left-3 right-3 z-30 flex items-center justify-between rounded-2xl bg-gradient-to-r from-primary-600 to-primary px-4 py-3 text-white shadow-xl shadow-primary/30 ring-1 ring-white/10 md:bottom-4 lg:hidden active:scale-98 transition"
+          className="fixed bottom-16 left-3 right-3 z-30 flex items-center justify-between rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-3.5 text-slate-950 font-bold shadow-xl shadow-amber-500/25 ring-1 ring-amber-300/40 md:bottom-4 lg:hidden active:scale-98 transition-all"
         >
-          <span className="flex items-center gap-2 text-sm font-semibold">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+          <span className="flex items-center gap-2.5 text-sm font-extrabold">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-950 text-amber-400 text-xs font-black">
               {cartCount}
             </span>
-            {cartCount === 1 ? 'artículo en venta' : 'artículos en venta'}
+            <span>{cartCount === 1 ? 'artículo en venta' : 'artículos en venta'}</span>
           </span>
-          <span className="font-display text-lg font-extrabold tracking-tight tabular-nums">{formatMoney(cartTotal)}</span>
+          <span className="font-display text-xl font-black tracking-tight tabular-nums">{formatMoney(cartTotal)}</span>
         </button>
       )}
 
@@ -864,16 +884,20 @@ function CartPanel({
               )
             })}
           </div>
-          <div className="border-t border-slate-200 p-3 dark:border-slate-800">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="font-medium text-slate-600 dark:text-slate-300">Total</span>
-              <span className="font-display text-xl font-bold text-slate-900 tabular-nums dark:text-slate-100">
+          <div className="border-t border-slate-200/90 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/80">
+            <div className="mb-3 flex items-baseline justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total a liquidar</span>
+              <span className="font-display text-2xl font-extrabold text-slate-900 tabular-nums dark:text-slate-100">
                 {formatMoney(cartTotal)}
               </span>
             </div>
-            <Button className="w-full justify-center py-2.5 text-base font-semibold" onClick={onPay}>
-              Cobrar
-            </Button>
+            <button
+              onClick={onPay}
+              className="btn-accent flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-base font-extrabold shadow-md transition-all active:scale-[0.98]"
+            >
+              <Banknote className="h-5 w-5" />
+              <span>Cobrar {formatMoney(cartTotal)}</span>
+            </button>
           </div>
         </>
       )}
