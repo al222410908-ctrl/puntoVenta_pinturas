@@ -101,14 +101,27 @@ export default function App() {
       }, 1000)
     })
 
+    // Al enfocar la ventana o volver a la pestaña, sincronizar solo cambios recientes (delta)
+    // con un cooldown de 20s para no saturar transferencia si el usuario alterna pestañas.
+    let lastFocusSync = 0
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void doSyncRef.current(true)
+      if (document.visibilityState === 'visible') {
+        const now = Date.now()
+        if (now - lastFocusSync > 20_000) {
+          lastFocusSync = now
+          void doSyncRef.current(false)
+        }
+      }
     }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)
 
-    // Sincronización periódica cada 5 segundos para reflejar cambios de otros dispositivos
-    const interval = setInterval(() => void doSyncRef.current(false), 5_000)
+    // Sincronización periódica cada 45 segundos solo si la pestaña está activa y visible
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void doSyncRef.current(false)
+      }
+    }, 45_000)
 
     return () => {
       offLocalChange()
