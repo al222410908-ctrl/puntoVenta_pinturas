@@ -66,11 +66,30 @@ export function unitFactor(unit: Unit): number {
 
 /**
  * Convierte de una unidad líquida a litros exactos sin errores de truncado ni residuos flotantes.
+ * Absorbe residuos de redondeo en cubetas y galones (ej. 0.05 cub * 19 = 0.95 L -> 1 L exacto).
  */
 export function toExactLiters(qty: number, unit: Unit): number {
   if (!isLiquid(unit)) return qty
   const factor = LIQUID_FACTORS[unit] ?? 1
-  return Math.round(qty * factor * 1000) / 1000
+  const rawLiters = qty * factor
+
+  // Para cubetas (19 L), corregir residuos de redondeo (0.05 * 19 = 0.95 -> 1 L, 0.89 * 19 = 16.91 -> 17 L)
+  if (unit === 'cubeta') {
+    const nearestHalf = Math.round(rawLiters * 2) / 2
+    if (Math.abs(rawLiters - nearestHalf) < 0.12) {
+      return nearestHalf
+    }
+  }
+
+  // Para galones (4 L), absorber desviaciones menores
+  if (unit === 'galon') {
+    const nearestQuarter = Math.round(rawLiters * 4) / 4
+    if (Math.abs(rawLiters - nearestQuarter) < 0.08) {
+      return nearestQuarter
+    }
+  }
+
+  return Math.round(rawLiters * 1000) / 1000
 }
 
 /**
@@ -80,7 +99,7 @@ export function fromExactLiters(liters: number, targetUnit: Unit): number {
   if (!isLiquid(targetUnit)) return liters
   const factor = LIQUID_FACTORS[targetUnit] ?? 1
   if (factor <= 0) return 0
-  return Math.round((liters / factor) * 1000) / 1000
+  return Math.round((liters / factor) * 100000) / 100000
 }
 
 /**

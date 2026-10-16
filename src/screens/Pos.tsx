@@ -418,9 +418,9 @@ export default function Pos() {
     return () => window.removeEventListener('pos:add_to_cart', onExternalAdd)
   }, [addToCart])
 
-  // Saneamiento seguro de una sola vez para reparar productos de 19L inflados
+  // Saneamiento seguro de una sola vez para reparar productos de 19L inflados o con residuo de 0.95L
   useEffect(() => {
-    const key = 'pinturas_pos_fixed_liquid_stock_v3'
+    const key = 'pinturas_pos_fixed_liquid_stock_v4'
     if (!localStorage.getItem(key)) {
       void sanitizeLiquidStockDiscrepancies().then(() => {
         localStorage.setItem(key, '1')
