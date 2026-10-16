@@ -153,33 +153,37 @@ export function formatProductStock(
     return compact ? `${stock} ${label}` : `${stock} ${label} (${totalLiters} L)`
   }
 
-  // Fracciones comunes de cubeta (19 L)
+  // Fracciones de cubeta (19 L)
   if (unit === 'cubeta') {
     const whole = Math.floor(stock)
-    const remLiters = round3((stock - whole) * 19)
+    const rawRemLiters = (stock - whole) * 19
+    const cleanRemLiters = Math.round(rawRemLiters * 2) / 2 // Medios litros limpios
+    const remLiters = Math.abs(cleanRemLiters - Math.round(cleanRemLiters)) < 0.1 ? Math.round(cleanRemLiters) : cleanRemLiters
     if (whole === 0) {
-      return compact ? `${remLiters} L` : `${remLiters} Litros (${Number(stock.toFixed(2))} cub.)`
+      return compact ? `${remLiters} L` : `${remLiters} Litros`
     }
-    return compact ? `${whole} cub. + ${remLiters} L` : `${whole} cubeta(s) + ${remLiters} L (${totalLiters} L)`
+    return compact ? `${whole} cub. + ${remLiters} L` : `${whole} cubeta${whole === 1 ? '' : 's'} + ${remLiters} L`
   }
 
-  // Fracciones comunes de galón (4 L)
+  // Fracciones de galón (4 L)
   if (unit === 'galon') {
     const whole = Math.floor(stock)
     const rem = round3(stock - whole)
-    const remLiters = round3(rem * 4)
+    const rawRemLiters = rem * 4
+    const cleanRemLiters = Math.round(rawRemLiters * 4) / 4 // Cuartos de litro
+    const remLiters = Math.abs(cleanRemLiters - Math.round(cleanRemLiters)) < 0.1 ? Math.round(cleanRemLiters) : cleanRemLiters
 
     let fracLabel = ''
-    if (Math.abs(rem - 0.5) < 1e-4) fracLabel = '½'
-    else if (Math.abs(rem - 0.25) < 1e-4) fracLabel = '¼'
-    else if (Math.abs(rem - 0.75) < 1e-4) fracLabel = '¾'
+    if (Math.abs(rem - 0.5) < 0.05) fracLabel = '½'
+    else if (Math.abs(rem - 0.25) < 0.05) fracLabel = '¼'
+    else if (Math.abs(rem - 0.75) < 0.05) fracLabel = '¾'
 
     if (whole === 0) {
       if (fracLabel) return compact ? `${fracLabel} gal. (${remLiters} L)` : `${fracLabel} galón (${remLiters} L)`
-      return compact ? `${remLiters} L` : `${remLiters} Litros (${Number(stock.toFixed(2))} gal.)`
+      return compact ? `${remLiters} L` : `${remLiters} Litros`
     }
-    if (fracLabel) return compact ? `${whole} ${fracLabel} gal.` : `${whole} ${fracLabel} galones (${totalLiters} L)`
-    return compact ? `${whole} gal. + ${remLiters} L` : `${whole} galón(es) + ${remLiters} L (${totalLiters} L)`
+    if (fracLabel) return compact ? `${whole} ${fracLabel} gal.` : `${whole} ${fracLabel} galones`
+    return compact ? `${whole} gal. + ${remLiters} L` : `${whole} galón${whole === 1 ? '' : 'es'} + ${remLiters} L`
   }
 
   // Litros con fracciones comunes

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
-import { registerSale, undoLastSale } from '../db/repos'
+import { registerSale, undoLastSale, migrateLiquidProductsToLiters } from '../db/repos'
 import type { Product, Payment, Unit, SalePresentation, Sale } from '../types'
 import { formatMoney, round2 } from '../lib/utils'
 import {
@@ -118,7 +118,15 @@ export default function Pos() {
 
   const addToCart = (p: Product) => {
     const pres = presentationsOf(p)
-    const saleUnit = pres.some((s) => s.unit === p.unit) ? p.unit : pres[0]?.unit ?? p.unit
+    // Para líquidos fraccionados, si el producto tiene presentación de litro
+    // y su stock no alcanza para una cubeta/galón entero o se vende suelto, vender por litro por defecto:
+    let saleUnit = pres.some((s) => s.unit === p.unit) ? p.unit : pres[0]?.unit ?? p.unit
+    if (isLiquid(p.unit) && p.fractional && pres.some((s) => s.unit === 'litro')) {
+      const uFactor = factorOf(p, saleUnit)
+      if (uFactor > 1 && p.stock < uFactor) {
+        saleUnit = 'litro'
+      }
+    }
     const factor = factorOf(p, saleUnit)
     setCart((prev) => {
       if (p.stock <= 0) {
@@ -132,12 +140,21 @@ export default function Pos() {
       const totalBase = round2(otherBase + nextBase)
       if (totalBase > p.stock) {
         const maxBase = Math.max(0, round2(p.stock - otherBase))
-        const maxQty = fromBaseQty(maxBase, factor)
         if (maxBase <= 0) {
           toast.error(`${p.name} está sin stock`)
           return prev
         }
-        toast.error(`Solo hay ${formatQty(p.stock, p.unit)} de ${p.name}, se agregó lo disponible`)
+        // Si es líquido fraccionario y no cabe 1 cubeta/galón, agregar en litros disponibles
+        if (isLiquid(p.unit) && p.fractional && saleUnit !== 'litro' && pres.some((s) => s.unit === 'litro')) {
+          const lFactor = factorOf(p, 'litro')
+          const availLiters = Math.max(0, Math.floor(fromBaseQty(maxBase, lFactor)))
+          if (availLiters >= 1) {
+            toast.info(`Solo quedan ${formatProductStock(p.stock, p.unit, true)}, se agregó 1 Litro`)
+            return [...prev, makeLine(p, 'litro', 1)]
+          }
+        }
+        const maxQty = fromBaseQty(maxBase, factor)
+        toast.error(`Solo hay ${formatProductStock(p.stock, p.unit, p.fractional)} de ${p.name}, se agregó lo disponible`)
         if (existing) {
           return prev.map((l) =>
             l.productId === p.id && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
@@ -243,6 +260,11 @@ export default function Pos() {
     window.addEventListener('pos:add_to_cart', onExternalAdd)
     return () => window.removeEventListener('pos:add_to_cart', onExternalAdd)
   }, [addToCart])
+
+  // Migración automática suave de productos fraccionados a unidad Litro
+  useEffect(() => {
+    void migrateLiquidProductsToLiters().catch(() => {})
+  }, [])
 
 
   const handleUndo = async () => {
@@ -842,7 +864,7 @@ function CartPanel({
                       return (
                         <span>
                           Disponible: {formatProductStock(l.stock, l.unit, l.fractional)}
-                          {l.saleUnit !== l.unit && ` (${formatQty(avail, l.saleUnit)})`}
+                          {l.saleUnit !== l.unit && !isLiquid(l.unit) && ` (${formatQty(avail, l.saleUnit)})`}
                         </span>
                       )
                     })()}

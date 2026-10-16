@@ -1102,3 +1102,68 @@ export async function applyFractionalAdjustment(
   return count
 }
 
+/**
+ * Migra productos líquidos fraccionados (ej. pinturas sueltas registradas en cubeta o galón)
+ * a unidad base 'litro', preservando las presentaciones de venta de cubeta y galón.
+ * Esto elimina fracciones decimales como '0.89 cubetas' y permite manejar el stock en litros enteros (ej. 17 L).
+ */
+export async function migrateLiquidProductsToLiters(): Promise<number> {
+  const products = await db.products.toArray()
+  let migrated = 0
+  const now = Date.now()
+
+  await db.transaction('rw', [db.products, db.stockMovements], async () => {
+    for (const p of products) {
+      if (p.fractional && (p.unit === 'cubeta' || p.unit === 'galon')) {
+        const factor = p.unit === 'cubeta' ? 19 : 4
+        const totalLitersRaw = p.stock * factor
+        const cleanLiters = Math.round(totalLitersRaw * 2) / 2
+        const finalStock = Math.abs(cleanLiters - Math.round(cleanLiters)) < 0.1 ? Math.round(cleanLiters) : cleanLiters
+
+        const minStockLiters = Math.round((p.minStock || 0) * factor)
+        const pricePerLiter = round2(p.price / factor)
+        const costPerLiter = p.cost ? round2(p.cost / factor) : 0
+
+        const origUnit = p.unit
+        const origPrice = p.price
+        const salePresentations: SalePresentation[] = [
+          { unit: origUnit, factor, price: origPrice },
+          { unit: 'litro', factor: 1, price: pricePerLiter },
+          { unit: 'medio', factor: 0.5, price: round2(pricePerLiter * 0.5) },
+          { unit: 'cuarto', factor: 0.25, price: round2(pricePerLiter * 0.25) },
+        ]
+        if (origUnit === 'cubeta') {
+          salePresentations.splice(1, 0, { unit: 'galon', factor: 4, price: round2(pricePerLiter * 4) })
+        }
+
+        await db.products.update(p.id, {
+          unit: 'litro',
+          stock: finalStock,
+          minStock: minStockLiters,
+          price: pricePerLiter,
+          cost: costPerLiter,
+          salePresentations,
+          updatedAt: now,
+        })
+
+        await db.stockMovements.add({
+          id: uid(),
+          date: now,
+          type: 'ajuste',
+          productId: p.id,
+          productName: p.name,
+          unit: 'litro',
+          qty: finalStock,
+          note: `Conversión a litros (${p.stock} ${origUnit}s -> ${finalStock} L)`,
+        })
+
+        migrated++
+      }
+    }
+  })
+
+  if (migrated > 0) notifyLocalChange()
+  return migrated
+}
+
+
