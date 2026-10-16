@@ -64,65 +64,12 @@ export function unitFactor(unit: Unit): number {
   return LIQUID_FACTORS[unit] ?? 1
 }
 
-/**
- * Convierte de una unidad líquida a litros exactos sin errores de truncado ni residuos flotantes.
- * Absorbe residuos de redondeo en cubetas y galones (ej. 0.05 cub * 19 = 0.95 L -> 1 L exacto).
- */
-export function toExactLiters(qty: number, unit: Unit): number {
-  if (!isLiquid(unit)) return qty
-  const factor = LIQUID_FACTORS[unit] ?? 1
-  const rawLiters = qty * factor
-
-  // Para cubetas (19 L), corregir residuos de redondeo (0.05 * 19 = 0.95 -> 1 L, 0.89 * 19 = 16.91 -> 17 L)
-  if (unit === 'cubeta') {
-    const nearestHalf = Math.round(rawLiters * 2) / 2
-    if (Math.abs(rawLiters - nearestHalf) < 0.12) {
-      return nearestHalf
-    }
-  }
-
-  // Para galones (4 L), absorber desviaciones menores
-  if (unit === 'galon') {
-    const nearestQuarter = Math.round(rawLiters * 4) / 4
-    if (Math.abs(rawLiters - nearestQuarter) < 0.08) {
-      return nearestQuarter
-    }
-  }
-
-  return Math.round(rawLiters * 1000) / 1000
-}
-
-/**
- * Convierte de litros exactos a la presentación destino sin pérdida matemática.
- */
-export function fromExactLiters(liters: number, targetUnit: Unit): number {
-  if (!isLiquid(targetUnit)) return liters
-  const factor = LIQUID_FACTORS[targetUnit] ?? 1
-  if (factor <= 0) return 0
-  return Math.round((liters / factor) * 100000) / 100000
-}
-
-/**
- * Convierte una cantidad entre dos unidades líquidas cualesquiera (ej. cubeta -> litro, galón -> litro).
- */
-export function convertLiquid(qty: number, fromUnit: Unit, toUnit: Unit): number {
-  if (fromUnit === toUnit) return qty
-  if (!isLiquid(fromUnit) || !isLiquid(toUnit)) return qty
-  const liters = toExactLiters(qty, fromUnit)
-  return fromExactLiters(liters, toUnit)
-}
-
 function round3(n: number): number {
   return Math.round(n * 1000) / 1000
 }
 
 function factorFor(unit: Unit, baseUnit: Unit): number {
-  if (isLiquid(baseUnit) && isLiquid(unit)) {
-    const fromL = LIQUID_FACTORS[unit] ?? 1
-    const toL = LIQUID_FACTORS[baseUnit] ?? 1
-    return fromL / toL
-  }
-  return unit === baseUnit ? 1 : 0
+  return isLiquid(baseUnit) ? round3(unitFactor(unit) / unitFactor(baseUnit)) : unit === baseUnit ? 1 : 0
 }
 
 /** Presentaciones por defecto para un producto, relativas a su unidad base. */
@@ -158,29 +105,18 @@ export function presentationFactor(
   p: { unit: Unit; salePresentations?: SalePresentation[] },
   saleUnit: Unit,
 ): number {
-  if (isLiquid(p.unit) && isLiquid(saleUnit)) {
-    const fromL = LIQUID_FACTORS[saleUnit] ?? 1
-    const toL = LIQUID_FACTORS[p.unit] ?? 1
-    return fromL / toL
-  }
   const found = p.salePresentations?.find((s) => s.unit === saleUnit)
   if (found && found.factor > 0) return found.factor
   return factorFor(saleUnit, p.unit) || 1
 }
 
 /** Convierte una cantidad vendida en una presentación a unidades base del producto. */
-export function toBaseQty(qty: number, factor: number, saleUnit?: Unit, baseUnit?: Unit): number {
-  if (saleUnit && baseUnit && isLiquid(saleUnit) && isLiquid(baseUnit)) {
-    return convertLiquid(qty, saleUnit, baseUnit)
-  }
+export function toBaseQty(qty: number, factor: number): number {
   return round3(qty * factor)
 }
 
 /** Convierte unidades base del producto a una presentación. */
-export function fromBaseQty(baseQty: number, factor: number, baseUnit?: Unit, saleUnit?: Unit): number {
-  if (saleUnit && baseUnit && isLiquid(saleUnit) && isLiquid(baseUnit)) {
-    return convertLiquid(baseQty, baseUnit, saleUnit)
-  }
+export function fromBaseQty(baseQty: number, factor: number): number {
   return factor === 0 ? 0 : round3(baseQty / factor)
 }
 
@@ -194,8 +130,8 @@ export function formatQty(qty: number, unit: Unit): string {
 
 /**
  * Formateo comprensible de stock para productos líquidos y fraccionados.
- * Prioriza siempre la cantidad real en LITROS (ej. "19 Litros (1 cubeta)", "17 Litros", "3 Litros").
- * Elimina confusiones como "19 cubetas + 3 L" o "0.89 cubetas".
+ * Si una cubeta de 19L tiene 0.894 (17 L restantes), muestra "17 L (0.89 cub.)" o "17 Litros".
+ * Si un galón de 4L tiene 0.5 (2 L restantes), muestra "½ galón (2 L)".
  */
 export function formatProductStock(
   stock: number,
@@ -207,58 +143,62 @@ export function formatProductStock(
     return formatQty(stock, unit)
   }
 
-  const totalLiters = toExactLiters(stock, unit)
+  const factor = unitFactor(unit) // ej. 19 para cubeta, 4 para galon, 1 para litro
+  const totalLiters = round3(stock * factor)
+  const isWhole = Math.abs(stock - Math.round(stock)) < 1e-4
 
-  // Presentación en Cubeta (19 L)
+  if (isWhole) {
+    if (unit === 'litro') return `${stock} ${stock === 1 ? 'litro' : 'litros'}`
+    const label = stock === 1 ? UNIT_LABELS[unit] : UNIT_LABELS_PLURAL[unit]
+    return compact ? `${stock} ${label}` : `${stock} ${label} (${totalLiters} L)`
+  }
+
+  // Fracciones comunes de cubeta (19 L)
   if (unit === 'cubeta') {
-    if (Math.abs(totalLiters - 19) < 1e-3) {
-      return compact ? '19 L (1 cub.)' : '19 Litros (1 cubeta)'
+    const whole = Math.floor(stock)
+    const remLiters = round3((stock - whole) * 19)
+    if (whole === 0) {
+      return compact ? `${remLiters} L` : `${remLiters} Litros (${Number(stock.toFixed(2))} cub.)`
     }
-    if (totalLiters > 19 && Math.abs(totalLiters % 19) < 1e-3) {
-      const cubetas = Math.round(totalLiters / 19)
-      return compact ? `${totalLiters} L (${cubetas} cub.)` : `${totalLiters} Litros (${cubetas} cubetas)`
-    }
-    // Si quedan litros sueltos (ej. 17 L, 3 L, 1 L):
-    const label = totalLiters === 1 ? 'Litro' : 'Litros'
-    return compact ? `${totalLiters} L` : `${totalLiters} ${label}`
+    return compact ? `${whole} cub. + ${remLiters} L` : `${whole} cubeta(s) + ${remLiters} L (${totalLiters} L)`
   }
 
-  // Presentación en Galón (4 L)
+  // Fracciones comunes de galón (4 L)
   if (unit === 'galon') {
-    if (Math.abs(totalLiters - 4) < 1e-3) {
-      return compact ? '4 L (1 gal.)' : '4 Litros (1 galón)'
+    const whole = Math.floor(stock)
+    const rem = round3(stock - whole)
+    const remLiters = round3(rem * 4)
+
+    let fracLabel = ''
+    if (Math.abs(rem - 0.5) < 1e-4) fracLabel = '½'
+    else if (Math.abs(rem - 0.25) < 1e-4) fracLabel = '¼'
+    else if (Math.abs(rem - 0.75) < 1e-4) fracLabel = '¾'
+
+    if (whole === 0) {
+      if (fracLabel) return compact ? `${fracLabel} gal. (${remLiters} L)` : `${fracLabel} galón (${remLiters} L)`
+      return compact ? `${remLiters} L` : `${remLiters} Litros (${Number(stock.toFixed(2))} gal.)`
     }
-    if (totalLiters > 4 && Math.abs(totalLiters % 4) < 1e-3) {
-      const galones = Math.round(totalLiters / 4)
-      return compact ? `${totalLiters} L (${galones} gal.)` : `${totalLiters} Litros (${galones} galones)`
-    }
-    if (Math.abs(totalLiters - 2) < 1e-3) {
-      return compact ? '2 L (½ gal.)' : '2 Litros (½ galón)'
-    }
-    const label = totalLiters === 1 ? 'Litro' : 'Litros'
-    return compact ? `${totalLiters} L` : `${totalLiters} ${label}`
+    if (fracLabel) return compact ? `${whole} ${fracLabel} gal.` : `${whole} ${fracLabel} galones (${totalLiters} L)`
+    return compact ? `${whole} gal. + ${remLiters} L` : `${whole} galón(es) + ${remLiters} L (${totalLiters} L)`
   }
 
-  // Presentación en Litros directamente
+  // Litros con fracciones comunes
   if (unit === 'litro') {
-    const whole = Math.floor(totalLiters)
-    const rem = round3(totalLiters - whole)
+    const whole = Math.floor(stock)
+    const rem = round3(stock - whole)
     let frac = ''
-    if (Math.abs(rem - 0.5) < 1e-3) frac = '½'
-    else if (Math.abs(rem - 0.25) < 1e-3) frac = '¼'
-    else if (Math.abs(rem - 0.75) < 1e-3) frac = '¾'
+    if (Math.abs(rem - 0.5) < 1e-4) frac = '½'
+    else if (Math.abs(rem - 0.25) < 1e-4) frac = '¼'
+    else if (Math.abs(rem - 0.75) < 1e-4) frac = '¾'
 
     if (frac) {
-      if (whole === 0) return compact ? `${frac} L` : `${frac} Litro`
-      return compact ? `${whole} ${frac} L` : `${whole} ${frac} Litros`
+      if (whole === 0) return `${frac} Litro`
+      return `${whole} ${frac} Litros`
     }
-    const label = totalLiters === 1 ? 'Litro' : 'Litros'
-    return compact ? `${totalLiters} L` : `${totalLiters} ${label}`
+    return `${Number(stock.toFixed(2))} Litros`
   }
 
-  // Cuartos y Medios
-  const label = totalLiters === 1 ? 'Litro' : 'Litros'
-  return compact ? `${totalLiters} L` : `${totalLiters} ${label}`
+  return formatQty(stock, unit)
 }
 
 export function unitPlural(unit: Unit): string {

@@ -20,7 +20,6 @@ import {
   registerMerma,
   detectFractionalDiscrepancies,
   applyFractionalAdjustment,
-  sanitizeLiquidStockDiscrepancies,
   type FractionalStockDiscrepancy,
 } from '../db/repos'
 import type { MermaReason, MovementType, Product } from '../types'
@@ -1099,20 +1098,6 @@ function FractionalStockNotice() {
     }
   }
 
-  const handleConvertToLiters = async () => {
-    setBusy(true)
-    try {
-      const count = await sanitizeLiquidStockDiscrepancies()
-      toast.success(`${count} producto${count === 1 ? '' : 's'} saneados y normalizados a Litros exactos`)
-      setOpen(false)
-      void reload()
-    } catch {
-      toast.error('Error al sanear y normalizar a litros')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <div className="card border-amber-300 bg-amber-50/80 p-3.5 dark:border-amber-800 dark:bg-amber-950/30">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1125,7 +1110,7 @@ function FractionalStockNotice() {
               {items.length} producto{items.length === 1 ? '' : 's'} con fracciones/decimales por ajustar
             </p>
             <p className="text-[11px] text-slate-600 dark:text-slate-300">
-              Se detectaron productos con fracciones decimales (como 0.89 en cubetas o 0.8 en galón). Puedes pasarlos directamente a control en Litros (17 L).
+              Se detectaron productos con decimales residuales (ej. 0.8 en vez de ½ galón o decimales de cubeta). Puedes corregirlos en 1 clic.
             </p>
           </div>
         </div>
@@ -1136,10 +1121,10 @@ function FractionalStockNotice() {
         </div>
       </div>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Manejo de Stock por Litros (Sin decimales raros)" wide>
+      <Modal open={open} onClose={() => setOpen(false)} title="Alineación Inteligente de Stock Fraccionario" wide>
         <div className="space-y-3">
           <p className="text-xs text-slate-600 dark:text-slate-300">
-            Los siguientes productos tienen decimales como 0.89 cubetas o 0.8 galón. Puedes convertirlos para que el stock se cuente y descuente directamente en <b>Litros limpios (ej. 17 Litros)</b>:
+            Los siguientes productos tienen decimales atípicos. El sistema calculó la equivalencia limpia en Litros y fracciones comerciales estándar (ej. ½ galón = 2 L, cuartos o cubetas abiertas):
           </p>
           <div className="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">
             {items.map((it) => (
@@ -1157,7 +1142,7 @@ function FractionalStockNotice() {
                       {it.currentStock} {it.unit}
                     </span>
                     <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                      → {formatProductStock(it.suggestedStock, it.unit, true)}
+                      → {it.suggestedStock} {it.unit} ({formatProductStock(it.suggestedStock, it.unit, true)})
                     </span>
                   </div>
                 </div>
@@ -1165,15 +1150,12 @@ function FractionalStockNotice() {
             ))}
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          <div className="mt-4 flex justify-end gap-2">
             <Button className="btn-secondary" onClick={() => setOpen(false)} disabled={busy}>
               Cancelar
             </Button>
-            <Button className="btn-secondary" onClick={handleApplyAll} disabled={busy}>
-              Alinear fracciones
-            </Button>
-            <Button className="btn-accent" onClick={handleConvertToLiters} disabled={busy}>
-              {busy ? 'Convirtiendo…' : 'Manejar todo en Litros (Recomendado)'}
+            <Button className="btn-accent" onClick={handleApplyAll} disabled={busy}>
+              {busy ? 'Aplicando…' : `Aplicar corrección a todos (${items.length})`}
             </Button>
           </div>
         </div>

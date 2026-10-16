@@ -22,7 +22,7 @@ import type {
 } from '../types'
 import { round2, uid } from '../lib/utils'
 import { notifyLocalChange } from '../lib/sync'
-import { toBaseQty, presentationFactor, unitFactor, isLiquid, toExactLiters, fromExactLiters } from '../lib/units'
+import { toBaseQty, presentationFactor, unitFactor, isLiquid } from '../lib/units'
 
 export interface CartLine {
   productId: string
@@ -50,9 +50,7 @@ export interface CartLine {
 export function cartToItems(lines: CartLine[]): SaleItem[] {
   return lines.map((l) => {
     const factor = presentationFactor({ unit: l.unit, salePresentations: l.presentations }, l.saleUnit)
-    const baseQty = isLiquid(l.unit) && isLiquid(l.saleUnit)
-      ? fromExactLiters(toExactLiters(l.qty, l.saleUnit), l.unit)
-      : round2(l.baseQty ?? toBaseQty(l.qty, factor, l.saleUnit, l.unit))
+    const baseQty = round2(l.baseQty ?? toBaseQty(l.qty, factor))
     const unitPrice = l.salePrice != null ? round2(l.salePrice / (factor || 1)) : l.unitPrice
     return {
       productId: l.productId,
@@ -93,20 +91,9 @@ export async function registerSale(
       for (const item of items) {
         const product = await db.products.get(item.productId)
         if (product) {
-          let next: number
-          if (isLiquid(product.unit)) {
-            const currentLiters = toExactLiters(product.stock, product.unit)
-            const soldLiters = toExactLiters(item.saleQty ?? item.qty, item.saleUnit ?? item.unit)
-            const remainingLiters = Math.max(0, Math.round((currentLiters - soldLiters) * 1000) / 1000)
-            if (soldLiters > currentLiters + 1e-4) {
-              throw new Error(`Stock insuficiente para ${item.name}: solo hay ${currentLiters} Litro(s)`)
-            }
-            next = fromExactLiters(remainingLiters, product.unit)
-          } else {
-            next = round2(product.stock - item.qty)
-            if (next < 0) {
-              throw new Error(`Stock insuficiente para ${item.name}: solo hay ${round2(product.stock)} ${item.unit}(s)`)
-            }
+          const next = round2(product.stock - item.qty)
+          if (next < 0) {
+            throw new Error(`Stock insuficiente para ${item.name}: solo hay ${round2(product.stock)} ${item.unit}(s)`)
           }
           await db.products.update(item.productId, { stock: next, updatedAt: sale.date })
         }
@@ -148,17 +135,8 @@ export async function undoLastSale(): Promise<Sale | null> {
       for (const item of last.items) {
         const product = await db.products.get(item.productId)
         if (product) {
-          let next: number
-          if (isLiquid(product.unit)) {
-            const currentLiters = toExactLiters(product.stock, product.unit)
-            const returnedLiters = toExactLiters(item.saleQty ?? item.qty, item.saleUnit ?? item.unit)
-            const newLiters = Math.round((currentLiters + returnedLiters) * 1000) / 1000
-            next = fromExactLiters(newLiters, product.unit)
-          } else {
-            next = round2(product.stock + item.qty)
-          }
           await db.products.update(item.productId, {
-            stock: next,
+            stock: round2(product.stock + item.qty),
             updatedAt: now,
           })
         }
@@ -1123,96 +1101,4 @@ export async function applyFractionalAdjustment(
   if (count > 0) notifyLocalChange()
   return count
 }
-
-/**
- * Detecta y repara productos líquidos cuyo stock fue inflado accidentalmente por conversiones repetidas
- * (ej. multiplicar 19L * 19 = 361 o 366 cubetas, o registrar 19 cubetas para una pintura de 19LT).
- */
-export async function sanitizeLiquidStockDiscrepancies(): Promise<number> {
-  const products = await db.products.toArray()
-  let corrected = 0
-  const now = Date.now()
-
-  await db.transaction('rw', [db.products, db.stockMovements], async () => {
-    for (const p of products) {
-      if (!isLiquid(p.unit) && !p.fractional) continue
-
-      const nameLower = p.name.toLowerCase()
-      const is19LProduct = nameLower.includes('19') || nameLower.includes('cubeta') || p.unit === 'cubeta'
-
-      // Caso 1: Stock disparado a números mayores a 100 (ej. 361, 366) provenientes de multiplicaciones por 19
-      if (p.stock >= 90 && is19LProduct) {
-        // Restaurar al valor real: 1 cubeta = 19 Litros
-        const targetStock = 19
-        const targetUnit: Unit = 'litro'
-        const pricePerLiter = p.unit === 'litro' ? p.price : round2(p.price / 19)
-
-        await db.products.update(p.id, {
-          unit: targetUnit,
-          stock: targetStock,
-          price: pricePerLiter,
-          updatedAt: now,
-        })
-        await db.stockMovements.add({
-          id: uid(),
-          date: now,
-          type: 'ajuste',
-          productId: p.id,
-          productName: p.name,
-          unit: targetUnit,
-          qty: targetStock,
-          note: `Saneamiento de stock inflado (${p.stock} -> ${targetStock} Litros / 1 cubeta)`,
-        })
-        corrected++
-        continue
-      }
-
-      // Caso 2: Pintura de 19L suelta con unidad 'cubeta' y stock entre 18 y 20
-      // (el usuario tenía 1 cubeta de 19L pero el sistema lo interpretó como 19 cubetas)
-      if (p.unit === 'cubeta' && p.stock >= 18 && p.stock <= 20 && (nameLower.includes('19') || nameLower.includes('suelta'))) {
-        const targetStock = 1 // 1 cubeta de 19L
-        await db.products.update(p.id, {
-          stock: targetStock,
-          updatedAt: now,
-        })
-        await db.stockMovements.add({
-          id: uid(),
-          date: now,
-          type: 'ajuste',
-          productId: p.id,
-          productName: p.name,
-          unit: 'cubeta',
-          qty: targetStock,
-          note: `Ajuste de 1 cubeta de 19L (tenía ${p.stock} cubetas registradas por confusión de unidad)`,
-        })
-        corrected++
-        continue
-      }
-
-      // Caso 3: Cubeta con residuo cercano a 0.05 cubetas (0.95 L) proveniente de vender 18L de 19L
-      if (p.unit === 'cubeta' && Math.abs(toExactLiters(p.stock, 'cubeta') - 1) < 0.15) {
-        const targetStock = fromExactLiters(1, 'cubeta')
-        await db.products.update(p.id, {
-          stock: targetStock,
-          updatedAt: now,
-        })
-        await db.stockMovements.add({
-          id: uid(),
-          date: now,
-          type: 'ajuste',
-          productId: p.id,
-          productName: p.name,
-          unit: 'cubeta',
-          qty: targetStock,
-          note: `Ajuste de 1 Litro exacto restante (tenía ${p.stock} cubetas = 0.95 L por residuo de redondeo)`,
-        })
-        corrected++
-      }
-    }
-  })
-
-  if (corrected > 0) notifyLocalChange()
-  return corrected
-}
-
 
