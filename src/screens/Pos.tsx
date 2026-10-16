@@ -109,7 +109,7 @@ export default function Pos() {
     presentations: presentationsOf(p),
     saleUnit,
     qty,
-    baseQty: toBaseQty(qty, factorOf(p, saleUnit)),
+    baseQty: toBaseQty(qty, factorOf(p, saleUnit), saleUnit, p.unit),
     stock: p.stock,
     unitPrice: p.price,
     salePrice: presentationsOf(p).find((s) => s.unit === saleUnit)?.price,
@@ -136,7 +136,7 @@ export default function Pos() {
       const existing = prev.find((l) => l.productId === p.id && l.saleUnit === saleUnit)
       const otherBase = prev.reduce((s, l) => (l.productId === p.id && l.saleUnit !== saleUnit ? s + l.baseQty : s), 0)
       const nextQty = round2((existing?.qty ?? 0) + 1)
-      const nextBase = toBaseQty(nextQty, factor)
+      const nextBase = toBaseQty(nextQty, factor, saleUnit, p.unit)
       const totalBase = round2(otherBase + nextBase)
       if (totalBase > p.stock) {
         const maxBase = Math.max(0, round2(p.stock - otherBase))
@@ -146,14 +146,13 @@ export default function Pos() {
         }
         // Si es líquido fraccionario y no cabe 1 cubeta/galón, agregar en litros disponibles
         if (isLiquid(p.unit) && p.fractional && saleUnit !== 'litro' && pres.some((s) => s.unit === 'litro')) {
-          const lFactor = factorOf(p, 'litro')
-          const availLiters = Math.max(0, Math.floor(fromBaseQty(maxBase, lFactor)))
+          const availLiters = Math.max(0, Math.floor(fromBaseQty(maxBase, 1, p.unit, 'litro')))
           if (availLiters >= 1) {
             toast.info(`Solo quedan ${formatProductStock(p.stock, p.unit, true)}, se agregó 1 Litro`)
             return [...prev, makeLine(p, 'litro', 1)]
           }
         }
-        const maxQty = fromBaseQty(maxBase, factor)
+        const maxQty = fromBaseQty(maxBase, factor, p.unit, saleUnit)
         toast.error(`Solo hay ${formatProductStock(p.stock, p.unit, p.fractional)} de ${p.name}, se agregó lo disponible`)
         if (existing) {
           return prev.map((l) =>
@@ -174,17 +173,18 @@ export default function Pos() {
   const setLineQty = (productId: string, saleUnit: Unit, qty: number) => {
     if (qty < 0) return
     const product = products.find((p) => p.id === productId)
-    const factor = product ? factorOf(product, saleUnit) : 1
+    if (!product) return
+    const factor = factorOf(product, saleUnit)
     setCart((prev) => {
       const otherBase = prev.reduce(
         (s, l) => (l.productId === productId && l.saleUnit !== saleUnit ? s + l.baseQty : s),
         0,
       )
-      const nextBase = toBaseQty(qty, factor)
-      if (product && round2(otherBase + nextBase) > product.stock) {
-        toast.error(`Solo hay ${formatQty(product.stock, product.unit)}`)
+      const nextBase = toBaseQty(qty, factor, saleUnit, product.unit)
+      if (round2(otherBase + nextBase) > product.stock) {
+        toast.error(`Solo hay ${formatProductStock(product.stock, product.unit, product.fractional)}`)
         const maxBase = Math.max(0, round2(product.stock - otherBase))
-        const maxQty = fromBaseQty(maxBase, factor)
+        const maxQty = fromBaseQty(maxBase, factor, product.unit, saleUnit)
         return prev.map((l) =>
           l.productId === productId && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
         )
@@ -200,7 +200,7 @@ export default function Pos() {
     const product = products.find((p) => p.id === productId)
     if (!product) return
     const factor = factorOf(product, toUnit)
-    const nextBase = toBaseQty(qty, factor)
+    const nextBase = toBaseQty(qty, factor, toUnit, product.unit)
 
     setCart((prev) => {
       const otherBase = prev.reduce(
@@ -854,13 +854,13 @@ function CartPanel({
 
                   {/* Disponibilidad */}
                   <div className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] text-slate-400">
-                    {l.saleUnit === 'kg' || l.saleUnit !== l.unit ? (
+                    {l.saleUnit === 'kg' && l.fractional ? (
                       <span>≡ {formatQty(l.baseQty, l.unit)}</span>
                     ) : null}
                     {(() => {
                       const factor = l.presentations.find((s) => s.unit === l.saleUnit)?.factor ?? 1
                       if (l.stock == null || factor <= 0) return null
-                      const avail = fromBaseQty(l.stock, factor)
+                      const avail = fromBaseQty(l.stock, factor, l.unit, l.saleUnit)
                       return (
                         <span>
                           Disponible: {formatProductStock(l.stock, l.unit, l.fractional)}

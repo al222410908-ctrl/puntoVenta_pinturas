@@ -50,7 +50,7 @@ export interface CartLine {
 export function cartToItems(lines: CartLine[]): SaleItem[] {
   return lines.map((l) => {
     const factor = presentationFactor({ unit: l.unit, salePresentations: l.presentations }, l.saleUnit)
-    const baseQty = round2(l.baseQty ?? toBaseQty(l.qty, factor))
+    const baseQty = round2(l.baseQty ?? toBaseQty(l.qty, factor, l.saleUnit, l.unit))
     const unitPrice = l.salePrice != null ? round2(l.salePrice / (factor || 1)) : l.unitPrice
     return {
       productId: l.productId,

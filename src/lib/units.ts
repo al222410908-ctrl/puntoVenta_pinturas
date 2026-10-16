@@ -64,12 +64,46 @@ export function unitFactor(unit: Unit): number {
   return LIQUID_FACTORS[unit] ?? 1
 }
 
+/**
+ * Convierte de una unidad líquida a litros exactos sin errores de truncado ni residuos flotantes.
+ */
+export function toExactLiters(qty: number, unit: Unit): number {
+  if (!isLiquid(unit)) return qty
+  const factor = LIQUID_FACTORS[unit] ?? 1
+  return Math.round(qty * factor * 1000) / 1000
+}
+
+/**
+ * Convierte de litros exactos a la presentación destino sin pérdida matemática.
+ */
+export function fromExactLiters(liters: number, targetUnit: Unit): number {
+  if (!isLiquid(targetUnit)) return liters
+  const factor = LIQUID_FACTORS[targetUnit] ?? 1
+  if (factor <= 0) return 0
+  return Math.round((liters / factor) * 1000) / 1000
+}
+
+/**
+ * Convierte una cantidad entre dos unidades líquidas cualesquiera (ej. cubeta -> litro, galón -> litro).
+ */
+export function convertLiquid(qty: number, fromUnit: Unit, toUnit: Unit): number {
+  if (fromUnit === toUnit) return qty
+  if (!isLiquid(fromUnit) || !isLiquid(toUnit)) return qty
+  const liters = toExactLiters(qty, fromUnit)
+  return fromExactLiters(liters, toUnit)
+}
+
 function round3(n: number): number {
   return Math.round(n * 1000) / 1000
 }
 
 function factorFor(unit: Unit, baseUnit: Unit): number {
-  return isLiquid(baseUnit) ? round3(unitFactor(unit) / unitFactor(baseUnit)) : unit === baseUnit ? 1 : 0
+  if (isLiquid(baseUnit) && isLiquid(unit)) {
+    const fromL = LIQUID_FACTORS[unit] ?? 1
+    const toL = LIQUID_FACTORS[baseUnit] ?? 1
+    return fromL / toL
+  }
+  return unit === baseUnit ? 1 : 0
 }
 
 /** Presentaciones por defecto para un producto, relativas a su unidad base. */
@@ -105,18 +139,29 @@ export function presentationFactor(
   p: { unit: Unit; salePresentations?: SalePresentation[] },
   saleUnit: Unit,
 ): number {
+  if (isLiquid(p.unit) && isLiquid(saleUnit)) {
+    const fromL = LIQUID_FACTORS[saleUnit] ?? 1
+    const toL = LIQUID_FACTORS[p.unit] ?? 1
+    return fromL / toL
+  }
   const found = p.salePresentations?.find((s) => s.unit === saleUnit)
   if (found && found.factor > 0) return found.factor
   return factorFor(saleUnit, p.unit) || 1
 }
 
 /** Convierte una cantidad vendida en una presentación a unidades base del producto. */
-export function toBaseQty(qty: number, factor: number): number {
+export function toBaseQty(qty: number, factor: number, saleUnit?: Unit, baseUnit?: Unit): number {
+  if (saleUnit && baseUnit && isLiquid(saleUnit) && isLiquid(baseUnit)) {
+    return convertLiquid(qty, saleUnit, baseUnit)
+  }
   return round3(qty * factor)
 }
 
 /** Convierte unidades base del producto a una presentación. */
-export function fromBaseQty(baseQty: number, factor: number): number {
+export function fromBaseQty(baseQty: number, factor: number, baseUnit?: Unit, saleUnit?: Unit): number {
+  if (saleUnit && baseUnit && isLiquid(saleUnit) && isLiquid(baseUnit)) {
+    return convertLiquid(baseQty, baseUnit, saleUnit)
+  }
   return factor === 0 ? 0 : round3(baseQty / factor)
 }
 
