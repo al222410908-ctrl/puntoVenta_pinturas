@@ -25,6 +25,7 @@ import { formatMoney, round2 } from '../lib/utils'
 import {
   UNIT_LABELS,
   formatQty,
+  formatProductStock,
   productPresentations,
   presentationFactor,
   toBaseQty,
@@ -423,7 +424,7 @@ export default function Pos() {
                             out ? 'chip-bad' : low ? 'chip-warn' : 'chip-ok'
                           }`}
                         >
-                          {out ? 'Agotado' : `${formatQty(p.stock, p.unit)}`}
+                          {out ? 'Agotado' : formatProductStock(p.stock, p.unit, p.fractional, true)}
                         </span>
                       </div>
                       <div className="flex flex-1 flex-col justify-between">
@@ -651,10 +652,12 @@ function quickButtons(l: CartLine): { unit: Unit; qty: number; label: string }[]
   }
   if (isLiquid(l.unit) && l.fractional) {
     return [
-      { unit: 'cuarto', qty: 1, label: '1 cuarto' },
-      { unit: 'medio', qty: 1, label: '1 medio' },
+      { unit: 'cuarto', qty: 1, label: '¼ L (Cuarto)' },
+      { unit: 'medio', qty: 1, label: '½ L (Medio)' },
       { unit: 'litro', qty: 1, label: '1 L' },
+      { unit: 'litro', qty: 1.5, label: '1.5 L' },
       { unit: 'litro', qty: 2, label: '2 L' },
+      { unit: 'galon', qty: 1, label: 'Galón (4 L)' },
     ]
   }
   if (isLiquid(l.unit)) return []
@@ -746,7 +749,7 @@ function CartPanel({
                           {formatMoney(l.salePrice ?? l.unitPrice)}
                         </span>
                         <span>/ {UNIT_LABELS[l.salePrice != null ? l.saleUnit : l.unit]}</span>
-                        {!isLiquid(l.unit) && l.presentations.length > 1 && (
+                        {l.presentations.length > 1 && (
                           <select
                             value={l.saleUnit}
                             onChange={(e) => setLineUnitAndQty(l.productId, l.saleUnit, e.target.value as Unit, 1)}
@@ -838,8 +841,8 @@ function CartPanel({
                       const avail = fromBaseQty(l.stock, factor)
                       return (
                         <span>
-                          Disponible: {formatQty(avail, l.saleUnit)}
-                          {l.saleUnit !== l.unit && ` (${formatQty(l.stock, l.unit)})`}
+                          Disponible: {formatProductStock(l.stock, l.unit, l.fractional)}
+                          {l.saleUnit !== l.unit && ` (${formatQty(avail, l.saleUnit)})`}
                         </span>
                       )
                     })()}

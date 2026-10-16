@@ -15,7 +15,7 @@ import {
   openWhatsAppChat,
   saveClientPhone,
 } from '../lib/ticket'
-import { formatMoney } from '../lib/utils'
+import { formatMoney, round2 } from '../lib/utils'
 import { formatQty } from '../lib/units'
 
 export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: () => void }) {
@@ -76,17 +76,22 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
             <span>{formatTicketDate(sale.date)}</span>
           </div>
           <hr className="my-2 border-dashed border-slate-300 dark:border-slate-600" />
-          {sale.items.map((it) => (
-            <div key={`${it.productId}-${it.unit}`} className="mb-1.5">
-              <p className="truncate">{it.name}</p>
-              <div className="flex justify-between">
-                <span>
-                  {formatQty(it.qty, it.unit)} × {formatMoney(it.unitPrice)}
-                </span>
-                <span>{formatMoney(it.lineTotal)}</span>
+          {sale.items.map((it) => {
+            const displayQty = it.saleQty ?? it.qty
+            const displayUnit = it.saleUnit ?? it.unit
+            const displayPrice = displayQty > 0 ? round2(it.lineTotal / displayQty) : it.unitPrice
+            return (
+              <div key={`${it.productId}-${displayUnit}`} className="mb-1.5">
+                <p className="truncate">{it.name}</p>
+                <div className="flex justify-between">
+                  <span>
+                    {formatQty(displayQty, displayUnit)} × {formatMoney(displayPrice)}
+                  </span>
+                  <span>{formatMoney(it.lineTotal)}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
           <hr className="my-2 border-dashed border-slate-300 dark:border-slate-600" />
           <div className="flex justify-between text-sm font-bold">
             <span>TOTAL</span>

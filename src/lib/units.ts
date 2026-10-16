@@ -44,7 +44,7 @@ export const LIQUID_FACTORS: Partial<Record<Unit, number>> = {
   medio: 0.5,
   cuarto: 0.25,
   litro: 1,
-  galon: 3.785,
+  galon: 4, // 4 litros exactos (estándar comercial en pinturas)
   cubeta: 19,
 }
 
@@ -126,6 +126,79 @@ export function formatQty(qty: number, unit: Unit): string {
   const value = Number(qty.toFixed(decimals)).toString()
   const label = qty === 1 ? UNIT_LABELS[unit] : UNIT_LABELS_PLURAL[unit]
   return `${value} ${label}`
+}
+
+/**
+ * Formateo comprensible de stock para productos líquidos y fraccionados.
+ * Si una cubeta de 19L tiene 0.894 (17 L restantes), muestra "17 L (0.89 cub.)" o "17 Litros".
+ * Si un galón de 4L tiene 0.5 (2 L restantes), muestra "½ galón (2 L)".
+ */
+export function formatProductStock(
+  stock: number,
+  unit: Unit,
+  fractional = false,
+  compact = false,
+): string {
+  if (!fractional || !isLiquid(unit)) {
+    return formatQty(stock, unit)
+  }
+
+  const factor = unitFactor(unit) // ej. 19 para cubeta, 4 para galon, 1 para litro
+  const totalLiters = round3(stock * factor)
+  const isWhole = Math.abs(stock - Math.round(stock)) < 1e-4
+
+  if (isWhole) {
+    if (unit === 'litro') return `${stock} ${stock === 1 ? 'litro' : 'litros'}`
+    const label = stock === 1 ? UNIT_LABELS[unit] : UNIT_LABELS_PLURAL[unit]
+    return compact ? `${stock} ${label}` : `${stock} ${label} (${totalLiters} L)`
+  }
+
+  // Fracciones comunes de cubeta (19 L)
+  if (unit === 'cubeta') {
+    const whole = Math.floor(stock)
+    const remLiters = round3((stock - whole) * 19)
+    if (whole === 0) {
+      return compact ? `${remLiters} L` : `${remLiters} Litros (${Number(stock.toFixed(2))} cub.)`
+    }
+    return compact ? `${whole} cub. + ${remLiters} L` : `${whole} cubeta(s) + ${remLiters} L (${totalLiters} L)`
+  }
+
+  // Fracciones comunes de galón (4 L)
+  if (unit === 'galon') {
+    const whole = Math.floor(stock)
+    const rem = round3(stock - whole)
+    const remLiters = round3(rem * 4)
+
+    let fracLabel = ''
+    if (Math.abs(rem - 0.5) < 1e-4) fracLabel = '½'
+    else if (Math.abs(rem - 0.25) < 1e-4) fracLabel = '¼'
+    else if (Math.abs(rem - 0.75) < 1e-4) fracLabel = '¾'
+
+    if (whole === 0) {
+      if (fracLabel) return compact ? `${fracLabel} gal. (${remLiters} L)` : `${fracLabel} galón (${remLiters} L)`
+      return compact ? `${remLiters} L` : `${remLiters} Litros (${Number(stock.toFixed(2))} gal.)`
+    }
+    if (fracLabel) return compact ? `${whole} ${fracLabel} gal.` : `${whole} ${fracLabel} galones (${totalLiters} L)`
+    return compact ? `${whole} gal. + ${remLiters} L` : `${whole} galón(es) + ${remLiters} L (${totalLiters} L)`
+  }
+
+  // Litros con fracciones comunes
+  if (unit === 'litro') {
+    const whole = Math.floor(stock)
+    const rem = round3(stock - whole)
+    let frac = ''
+    if (Math.abs(rem - 0.5) < 1e-4) frac = '½'
+    else if (Math.abs(rem - 0.25) < 1e-4) frac = '¼'
+    else if (Math.abs(rem - 0.75) < 1e-4) frac = '¾'
+
+    if (frac) {
+      if (whole === 0) return `${frac} Litro`
+      return `${whole} ${frac} Litros`
+    }
+    return `${Number(stock.toFixed(2))} Litros`
+  }
+
+  return formatQty(stock, unit)
 }
 
 export function unitPlural(unit: Unit): string {

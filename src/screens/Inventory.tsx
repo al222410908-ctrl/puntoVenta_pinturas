@@ -12,12 +12,19 @@ import {
   RotateCcw,
   ScanLine,
   Search,
+  Sparkles,
 } from 'lucide-react'
 import { db } from '../db/db'
-import { applyInventoryAudit, registerMerma } from '../db/repos'
+import {
+  applyInventoryAudit,
+  registerMerma,
+  detectFractionalDiscrepancies,
+  applyFractionalAdjustment,
+  type FractionalStockDiscrepancy,
+} from '../db/repos'
 import type { MermaReason, MovementType, Product } from '../types'
 import { formatMoney, round2 } from '../lib/utils'
-import { formatQty } from '../lib/units'
+import { formatQty, formatProductStock } from '../lib/units'
 import { Button, EmptyState, Field, Input, Modal, Segmented, Select } from '../components/ui'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 
@@ -322,6 +329,9 @@ function AuditView() {
 
   return (
     <div className="space-y-4">
+      {/* Asistente de saneamiento de stock fraccionario si se detectan residuos */}
+      <FractionalStockNotice />
+
       {/* Barra de escaneo rápido continuo */}
       <div className="card space-y-3 p-4">
         <div className="flex items-center justify-between">
@@ -1051,3 +1061,106 @@ function HistoryView() {
     </div>
   )
 }
+
+function FractionalStockNotice() {
+  const [items, setItems] = useState<FractionalStockDiscrepancy[]>([])
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const reload = async () => {
+    try {
+      const list = await detectFractionalDiscrepancies()
+      setItems(list)
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    void reload()
+  }, [])
+
+  if (items.length === 0) return null
+
+  const handleApplyAll = async () => {
+    setBusy(true)
+    try {
+      const count = await applyFractionalAdjustment(
+        items.map((i) => ({ productId: i.product.id, newStock: i.suggestedStock, reason: i.reason })),
+      )
+      toast.success(`${count} producto${count === 1 ? '' : 's'} alineados a fracciones estándar`)
+      setOpen(false)
+      void reload()
+    } catch {
+      toast.error('Error al aplicar ajustes de stock fraccionario')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card border-amber-300 bg-amber-50/80 p-3.5 dark:border-amber-800 dark:bg-amber-950/30">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
+            <Sparkles className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
+              {items.length} producto{items.length === 1 ? '' : 's'} con fracciones/decimales por ajustar
+            </p>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300">
+              Se detectaron productos con decimales residuales (ej. 0.8 en vez de ½ galón o decimales de cubeta). Puedes corregirlos en 1 clic.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button className="btn-accent px-3 py-1.5 text-xs font-bold shadow-xs" onClick={() => setOpen(true)}>
+            Revisar y corregir ({items.length})
+          </Button>
+        </div>
+      </div>
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Alineación Inteligente de Stock Fraccionario" wide>
+        <div className="space-y-3">
+          <p className="text-xs text-slate-600 dark:text-slate-300">
+            Los siguientes productos tienen decimales atípicos. El sistema calculó la equivalencia limpia en Litros y fracciones comerciales estándar (ej. ½ galón = 2 L, cuartos o cubetas abiertas):
+          </p>
+          <div className="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">
+            {items.map((it) => (
+              <div
+                key={it.product.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-2.5 text-xs shadow-2xs dark:bg-slate-900"
+              >
+                <div>
+                  <p className="font-bold text-slate-800 dark:text-slate-100">{it.product.name}</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">{it.reason}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <span className="mr-2 text-slate-400 line-through">
+                      {it.currentStock} {it.unit}
+                    </span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      → {it.suggestedStock} {it.unit} ({formatProductStock(it.suggestedStock, it.unit, true)})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button className="btn-secondary" onClick={() => setOpen(false)} disabled={busy}>
+              Cancelar
+            </Button>
+            <Button className="btn-accent" onClick={handleApplyAll} disabled={busy}>
+              {busy ? 'Aplicando…' : `Aplicar corrección a todos (${items.length})`}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+

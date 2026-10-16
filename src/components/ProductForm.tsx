@@ -11,6 +11,7 @@ import {
   defaultPresentations,
   productPresentations,
   unitPlural,
+  formatProductStock,
   isLiquid,
 } from '../lib/units'
 import { formatMoney, round2, uid } from '../lib/utils'
@@ -698,13 +699,127 @@ if (!(unit > 0) || !(price > 0)) {
             </Field>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Stock actual">
-              <Input type="number" inputMode="decimal" min="0" step="0.01" value={form.stock} onChange={(e) => set('stock', e.target.value)} />
-            </Field>
-            <Field label="Stock mínimo (para resurtir)">
-              <Input type="number" inputMode="decimal" min="0" step="0.01" value={form.minStock} onChange={(e) => set('minStock', e.target.value)} />
-            </Field>
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={`Stock actual (${UNIT_LABELS[form.unit]})`}>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={form.stock}
+                  onChange={(e) => set('stock', e.target.value)}
+                />
+              </Field>
+              <Field label="Stock mínimo (para resurtir)">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={form.minStock}
+                  onChange={(e) => set('minStock', e.target.value)}
+                />
+              </Field>
+            </div>
+
+            {/* Ayudante interactivo para productos líquidos */}
+            {isLiquid(form.unit) && form.fractional && (
+              <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-2.5 text-xs text-slate-700 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-slate-200">
+                <div className="flex items-center justify-between font-medium">
+                  <span>Equivalencia real:</span>
+                  <span className="font-bold text-primary dark:text-emerald-400">
+                    {formatProductStock(Number(form.stock) || 0, form.unit, true)}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  <span className="text-[11px] text-slate-500">Llenado rápido:</span>
+                  {form.unit === 'galon' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => set('stock', '0.25')}
+                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                      >
+                        ¼ gal (1L)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => set('stock', '0.5')}
+                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                      >
+                        ½ gal (2L)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => set('stock', '0.75')}
+                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                      >
+                        ¾ gal (3L)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => set('stock', '1')}
+                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                      >
+                        1 gal (4L)
+                      </button>
+                    </>
+                  )}
+                  {form.unit === 'cubeta' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => set('stock', String(round2(17 / 19)))}
+                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                        title="17 Litros restantes de cubeta"
+                      >
+                        17 L restantes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => set('stock', String(round2(10 / 19)))}
+                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                      >
+                        10 L
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => set('stock', '1')}
+                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                      >
+                        1 cubeta (19L)
+                      </button>
+                    </>
+                  )}
+                  {form.unit === 'litro' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => set('stock', '0.25')}
+                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                      >
+                        ¼ L
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => set('stock', '0.5')}
+                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                      >
+                        ½ L
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => set('stock', '1')}
+                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                      >
+                        1 L
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

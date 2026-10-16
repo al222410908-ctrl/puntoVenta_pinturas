@@ -85,6 +85,10 @@ export interface SaleItem {
   unitPrice: number
   cost: number
   lineTotal: number
+  /** Unidad en la que se vendió al cliente (ej. litro, cuarto) */
+  saleUnit?: Unit
+  /** Cantidad vendida en la presentación seleccionada */
+  saleQty?: number
 }
 
 export interface Sale {

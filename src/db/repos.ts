@@ -18,10 +18,11 @@ import type {
   ShiftSalesSummary,
   Supplier,
   Tombstone,
+  Unit,
 } from '../types'
 import { round2, uid } from '../lib/utils'
 import { notifyLocalChange } from '../lib/sync'
-import { toBaseQty, presentationFactor, unitFactor } from '../lib/units'
+import { toBaseQty, presentationFactor, unitFactor, isLiquid } from '../lib/units'
 
 export interface CartLine {
   productId: string
@@ -59,6 +60,8 @@ export function cartToItems(lines: CartLine[]): SaleItem[] {
       unitPrice,
       cost: l.cost,
       lineTotal: round2(baseQty * unitPrice),
+      saleUnit: l.saleUnit,
+      saleQty: l.qty,
     }
   })
 }
@@ -976,3 +979,126 @@ export async function restoreBackup(data: Backup): Promise<void> {
   )
   notifyLocalChange()
 }
+
+export interface FractionalStockDiscrepancy {
+  product: Product
+  currentStock: number
+  suggestedStock: number
+  unit: Unit
+  litersCurrent: number
+  litersSuggested: number
+  reason: string
+}
+
+export async function detectFractionalDiscrepancies(): Promise<FractionalStockDiscrepancy[]> {
+  const products = await db.products.toArray()
+  const list: FractionalStockDiscrepancy[] = []
+
+  for (const p of products) {
+    if (!p.fractional && !isLiquid(p.unit)) continue
+    const stock = p.stock ?? 0
+    if (stock <= 0) continue
+
+    const isWhole = Math.abs(stock - Math.round(stock)) < 1e-4
+    if (isWhole) continue
+
+    const factor = unitFactor(p.unit) // 19 para cubeta, 4 para galon, 1 para litro
+    const totalLiters = stock * factor
+
+    if (p.unit === 'galon') {
+      const wholeGal = Math.floor(stock)
+      const remGal = stock - wholeGal
+      let suggestedStock = stock
+      let reason = ''
+
+      // Si el residuo está cerca de 0.8 (ej. 0.76 a 0.84), venía del error de medio galón (0.5)
+      if (remGal >= 0.75 && remGal <= 0.85) {
+        suggestedStock = wholeGal + 0.5
+        reason = 'Ajuste de residuo (0.8 → ½ galón / 2 L)'
+      } else {
+        // Alinear a cuartos de litro limpios
+        const litersRounded = Math.round(totalLiters * 4) / 4
+        const galRounded = round2(litersRounded / 4)
+        if (Math.abs(galRounded - stock) > 0.01) {
+          suggestedStock = galRounded
+          reason = `Alinear a fracciones limpias (${litersRounded} L)`
+        }
+      }
+
+      if (suggestedStock !== stock) {
+        list.push({
+          product: p,
+          currentStock: round2(stock),
+          suggestedStock: round2(suggestedStock),
+          unit: p.unit,
+          litersCurrent: round2(totalLiters),
+          litersSuggested: round2(suggestedStock * 4),
+          reason,
+        })
+      }
+    } else if (p.unit === 'cubeta') {
+      const wholeCub = Math.floor(stock)
+      const remCub = stock - wholeCub
+      const remLiters = remCub * 19
+      // Redondear a litros o medios litros limpios (ej. 17 L, 16.5 L)
+      const roundLiters = Math.round(remLiters * 2) / 2
+      const newStock = round2(wholeCub + roundLiters / 19)
+      if (Math.abs(newStock - stock) > 0.005) {
+        list.push({
+          product: p,
+          currentStock: round2(stock),
+          suggestedStock: newStock,
+          unit: p.unit,
+          litersCurrent: round2(totalLiters),
+          litersSuggested: round2(wholeCub * 19 + roundLiters),
+          reason: `Alinear litros de cubeta (${roundLiters} L restantes)`,
+        })
+      }
+    } else if (p.unit === 'litro') {
+      const litersRounded = Math.round(stock * 4) / 4
+      if (Math.abs(litersRounded - stock) > 0.01) {
+        list.push({
+          product: p,
+          currentStock: round2(stock),
+          suggestedStock: litersRounded,
+          unit: p.unit,
+          litersCurrent: round2(stock),
+          litersSuggested: round2(litersRounded),
+          reason: `Alinear a cuartos de litro (${litersRounded} L)`,
+        })
+      }
+    }
+  }
+
+  return list
+}
+
+export async function applyFractionalAdjustment(
+  items: { productId: string; newStock: number; reason?: string }[],
+): Promise<number> {
+  const now = Date.now()
+  let count = 0
+  await db.transaction('rw', [db.products, db.stockMovements], async () => {
+    for (const it of items) {
+      const p = await db.products.get(it.productId)
+      if (!p) continue
+      const delta = round2(it.newStock - p.stock)
+      if (delta === 0) continue
+      await db.products.update(it.productId, { stock: round2(it.newStock), updatedAt: now })
+      await db.stockMovements.add({
+        id: uid(),
+        date: now,
+        type: 'ajuste',
+        productId: p.id,
+        productName: p.name,
+        unit: p.unit,
+        qty: delta,
+        note: it.reason ?? 'Ajuste de stock fraccionario',
+      })
+      count++
+    }
+  })
+  if (count > 0) notifyLocalChange()
+  return count
+}
+

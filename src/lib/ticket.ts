@@ -1,5 +1,5 @@
 import type { BusinessInfo, Sale } from '../types'
-import { formatMoney } from './utils'
+import { formatMoney, round2 } from './utils'
 import { formatQty } from './units'
 
 const BUSINESS_KEY = 'pos_business'
@@ -70,7 +70,9 @@ export function whatsappText(sale: Sale, business: BusinessInfo): string {
   lines.push(`Nota ${folioLabel(sale)} — ${formatTicketDate(sale.date)}`)
   lines.push('')
   for (const it of sale.items) {
-    lines.push(`${formatQty(it.qty, it.unit)} de ${it.name} — ${formatMoney(it.lineTotal)}`)
+    const displayQty = it.saleQty ?? it.qty
+    const displayUnit = it.saleUnit ?? it.unit
+    lines.push(`${formatQty(displayQty, displayUnit)} de ${it.name} — ${formatMoney(it.lineTotal)}`)
   }
   lines.push('')
   lines.push(`*Total: ${formatMoney(sale.total)}*`)
@@ -208,8 +210,12 @@ export async function buildTicketPdf(
       doc.text(ln, M, yb)
       yb += lineH(12)
     }
+    const displayQty = it.saleQty ?? it.qty
+    const displayUnit = it.saleUnit ?? it.unit
+    const displayPrice = displayQty > 0 ? round2(it.lineTotal / displayQty) : it.unitPrice
+
     style(10, false, GRAY)
-    doc.text(`${formatQty(it.qty, it.unit)} × ${formatMoney(it.unitPrice)}`, M + 4, yb)
+    doc.text(`${formatQty(displayQty, displayUnit)} × ${formatMoney(displayPrice)}`, M + 4, yb)
     style(11, true, DARK)
     doc.text(formatMoney(it.lineTotal), RIGHT, yb, { align: 'right' })
     yb += lineH(10) + 6
