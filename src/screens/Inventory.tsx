@@ -20,7 +20,7 @@ import {
   registerMerma,
   detectFractionalDiscrepancies,
   applyFractionalAdjustment,
-  migrateLiquidProductsToLiters,
+  sanitizeLiquidStockDiscrepancies,
   type FractionalStockDiscrepancy,
 } from '../db/repos'
 import type { MermaReason, MovementType, Product } from '../types'
@@ -1102,12 +1102,12 @@ function FractionalStockNotice() {
   const handleConvertToLiters = async () => {
     setBusy(true)
     try {
-      const count = await migrateLiquidProductsToLiters()
-      toast.success(`${count} producto${count === 1 ? '' : 's'} convertidos a control en Litros (ej. 17 L)`)
+      const count = await sanitizeLiquidStockDiscrepancies()
+      toast.success(`${count} producto${count === 1 ? '' : 's'} saneados y normalizados a Litros exactos`)
       setOpen(false)
       void reload()
     } catch {
-      toast.error('Error al convertir a litros')
+      toast.error('Error al sanear y normalizar a litros')
     } finally {
       setBusy(false)
     }

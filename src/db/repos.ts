@@ -1103,67 +1103,73 @@ export async function applyFractionalAdjustment(
 }
 
 /**
- * Migra productos líquidos fraccionados (ej. pinturas sueltas registradas en cubeta o galón)
- * a unidad base 'litro', preservando las presentaciones de venta de cubeta y galón.
- * Esto elimina fracciones decimales como '0.89 cubetas' y permite manejar el stock en litros enteros (ej. 17 L).
+ * Detecta y repara productos líquidos cuyo stock fue inflado accidentalmente por conversiones repetidas
+ * (ej. multiplicar 19L * 19 = 361 o 366 cubetas, o registrar 19 cubetas para una pintura de 19LT).
  */
-export async function migrateLiquidProductsToLiters(): Promise<number> {
+export async function sanitizeLiquidStockDiscrepancies(): Promise<number> {
   const products = await db.products.toArray()
-  let migrated = 0
+  let corrected = 0
   const now = Date.now()
 
   await db.transaction('rw', [db.products, db.stockMovements], async () => {
     for (const p of products) {
-      if (p.fractional && (p.unit === 'cubeta' || p.unit === 'galon')) {
-        const factor = p.unit === 'cubeta' ? 19 : 4
-        const totalLitersRaw = p.stock * factor
-        const cleanLiters = Math.round(totalLitersRaw * 2) / 2
-        const finalStock = Math.abs(cleanLiters - Math.round(cleanLiters)) < 0.1 ? Math.round(cleanLiters) : cleanLiters
+      if (!isLiquid(p.unit) && !p.fractional) continue
 
-        const minStockLiters = Math.round((p.minStock || 0) * factor)
-        const pricePerLiter = round2(p.price / factor)
-        const costPerLiter = p.cost ? round2(p.cost / factor) : 0
+      const nameLower = p.name.toLowerCase()
+      const is19LProduct = nameLower.includes('19') || nameLower.includes('cubeta') || p.unit === 'cubeta'
 
-        const origUnit = p.unit
-        const origPrice = p.price
-        const salePresentations: SalePresentation[] = [
-          { unit: origUnit, factor, price: origPrice },
-          { unit: 'litro', factor: 1, price: pricePerLiter },
-          { unit: 'medio', factor: 0.5, price: round2(pricePerLiter * 0.5) },
-          { unit: 'cuarto', factor: 0.25, price: round2(pricePerLiter * 0.25) },
-        ]
-        if (origUnit === 'cubeta') {
-          salePresentations.splice(1, 0, { unit: 'galon', factor: 4, price: round2(pricePerLiter * 4) })
-        }
+      // Caso 1: Stock disparado a números mayores a 100 (ej. 361, 366) provenientes de multiplicaciones por 19
+      if (p.stock >= 90 && is19LProduct) {
+        // Restaurar al valor real: 1 cubeta = 19 Litros
+        const targetStock = 19
+        const targetUnit: Unit = 'litro'
+        const pricePerLiter = p.unit === 'litro' ? p.price : round2(p.price / 19)
 
         await db.products.update(p.id, {
-          unit: 'litro',
-          stock: finalStock,
-          minStock: minStockLiters,
+          unit: targetUnit,
+          stock: targetStock,
           price: pricePerLiter,
-          cost: costPerLiter,
-          salePresentations,
           updatedAt: now,
         })
-
         await db.stockMovements.add({
           id: uid(),
           date: now,
           type: 'ajuste',
           productId: p.id,
           productName: p.name,
-          unit: 'litro',
-          qty: finalStock,
-          note: `Conversión a litros (${p.stock} ${origUnit}s -> ${finalStock} L)`,
+          unit: targetUnit,
+          qty: targetStock,
+          note: `Saneamiento de stock inflado (${p.stock} -> ${targetStock} Litros / 1 cubeta)`,
         })
+        corrected++
+        continue
+      }
 
-        migrated++
+      // Caso 2: Pintura de 19L suelta con unidad 'cubeta' y stock entre 18 y 20
+      // (el usuario tenía 1 cubeta de 19L pero el sistema lo interpretó como 19 cubetas)
+      if (p.unit === 'cubeta' && p.stock >= 18 && p.stock <= 20 && (nameLower.includes('19') || nameLower.includes('suelta'))) {
+        const targetStock = 1 // 1 cubeta de 19L
+        await db.products.update(p.id, {
+          stock: targetStock,
+          updatedAt: now,
+        })
+        await db.stockMovements.add({
+          id: uid(),
+          date: now,
+          type: 'ajuste',
+          productId: p.id,
+          productName: p.name,
+          unit: 'cubeta',
+          qty: targetStock,
+          note: `Ajuste de 1 cubeta de 19L (tenía ${p.stock} cubetas registradas por confusión de unidad)`,
+        })
+        corrected++
       }
     }
   })
 
-  if (migrated > 0) notifyLocalChange()
-  return migrated
+  if (corrected > 0) notifyLocalChange()
+  return corrected
 }
 
 

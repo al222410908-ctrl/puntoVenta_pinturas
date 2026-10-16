@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
-import { registerSale, undoLastSale, migrateLiquidProductsToLiters } from '../db/repos'
+import { registerSale, undoLastSale, sanitizeLiquidStockDiscrepancies } from '../db/repos'
 import type { Product, Payment, Unit, SalePresentation, Sale } from '../types'
 import { formatMoney, round2 } from '../lib/utils'
 import {
@@ -31,6 +31,8 @@ import {
   toBaseQty,
   fromBaseQty,
   isLiquid,
+  toExactLiters,
+  unitFactor,
 } from '../lib/units'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { SaleNoteModal } from '../components/SaleNoteModal'
@@ -128,11 +130,80 @@ export default function Pos() {
       }
     }
     const factor = factorOf(p, saleUnit)
+
     setCart((prev) => {
       if (p.stock <= 0) {
         toast.error(`${p.name} está sin stock`)
         return prev
       }
+
+      // Validación universal para líquidos fraccionados basada en LITROS EXACTOS
+      if (isLiquid(p.unit)) {
+        const totalAvailLiters = toExactLiters(p.stock, p.unit)
+        const otherLiters = prev.reduce(
+          (s, l) => (l.productId === p.id && l.saleUnit !== saleUnit ? s + toExactLiters(l.qty, l.saleUnit) : s),
+          0,
+        )
+        const remainingLiters = Math.max(0, Math.round((totalAvailLiters - otherLiters) * 1000) / 1000)
+
+        if (remainingLiters <= 0) {
+          toast.error(`${p.name} ya no tiene litros disponibles en stock`)
+          return prev
+        }
+
+        const existing = prev.find((l) => l.productId === p.id && l.saleUnit === saleUnit)
+        const nextQty = round2((existing?.qty ?? 0) + 1)
+        const nextLiters = toExactLiters(nextQty, saleUnit)
+
+        if (nextLiters > remainingLiters) {
+          const unitLiters = unitFactor(saleUnit)
+          const maxAllowedQty =
+            saleUnit === 'litro'
+              ? remainingLiters
+              : saleUnit === 'cuarto'
+                ? Math.floor(remainingLiters / 0.25)
+                : saleUnit === 'medio'
+                  ? Math.floor(remainingLiters / 0.5)
+                  : Math.floor(remainingLiters / unitLiters)
+
+          if (maxAllowedQty <= (existing?.qty ?? 0)) {
+            if (saleUnit !== 'litro' && remainingLiters >= 1 && pres.some((s) => s.unit === 'litro')) {
+              toast.info(`Solo quedan ${remainingLiters} Litros, no alcanza para 1 ${UNIT_LABELS[saleUnit]}. Se agregó 1 Litro`)
+              const litLine = prev.find((l) => l.productId === p.id && l.saleUnit === 'litro')
+              if (litLine) {
+                const nextLitQty = litLine.qty + 1
+                return prev.map((l) =>
+                  l.productId === p.id && l.saleUnit === 'litro'
+                    ? { ...l, qty: nextLitQty, baseQty: toBaseQty(nextLitQty, 1, 'litro', p.unit) }
+                    : l,
+                )
+              }
+              return [...prev, makeLine(p, 'litro', 1)]
+            }
+            toast.error(`Stock insuficiente. Solo hay ${remainingLiters} Litros disponibles`)
+            return prev
+          }
+
+          toast.error(`Solo hay ${remainingLiters} Litros disponibles`)
+          const finalBase = toBaseQty(maxAllowedQty, factor, saleUnit, p.unit)
+          if (existing) {
+            return prev.map((l) =>
+              l.productId === p.id && l.saleUnit === saleUnit ? { ...l, qty: maxAllowedQty, baseQty: finalBase } : l,
+            )
+          }
+          return [...prev, makeLine(p, saleUnit, maxAllowedQty)]
+        }
+
+        const nextBase = toBaseQty(nextQty, factor, saleUnit, p.unit)
+        if (existing) {
+          return prev.map((l) =>
+            l.productId === p.id && l.saleUnit === saleUnit ? { ...l, qty: nextQty, baseQty: nextBase } : l,
+          )
+        }
+        return [...prev, makeLine(p, saleUnit, 1)]
+      }
+
+      // Para no líquidos:
       const existing = prev.find((l) => l.productId === p.id && l.saleUnit === saleUnit)
       const otherBase = prev.reduce((s, l) => (l.productId === p.id && l.saleUnit !== saleUnit ? s + l.baseQty : s), 0)
       const nextQty = round2((existing?.qty ?? 0) + 1)
@@ -143,14 +214,6 @@ export default function Pos() {
         if (maxBase <= 0) {
           toast.error(`${p.name} está sin stock`)
           return prev
-        }
-        // Si es líquido fraccionario y no cabe 1 cubeta/galón, agregar en litros disponibles
-        if (isLiquid(p.unit) && p.fractional && saleUnit !== 'litro' && pres.some((s) => s.unit === 'litro')) {
-          const availLiters = Math.max(0, Math.floor(fromBaseQty(maxBase, 1, p.unit, 'litro')))
-          if (availLiters >= 1) {
-            toast.info(`Solo quedan ${formatProductStock(p.stock, p.unit, true)}, se agregó 1 Litro`)
-            return [...prev, makeLine(p, 'litro', 1)]
-          }
         }
         const maxQty = fromBaseQty(maxBase, factor, p.unit, saleUnit)
         toast.error(`Solo hay ${formatProductStock(p.stock, p.unit, p.fractional)} de ${p.name}, se agregó lo disponible`)
@@ -175,7 +238,45 @@ export default function Pos() {
     const product = products.find((p) => p.id === productId)
     if (!product) return
     const factor = factorOf(product, saleUnit)
+
     setCart((prev) => {
+      if (isLiquid(product.unit)) {
+        const totalAvailLiters = toExactLiters(product.stock, product.unit)
+        const otherLiters = prev.reduce(
+          (s, l) => (l.productId === productId && l.saleUnit !== saleUnit ? s + toExactLiters(l.qty, l.saleUnit) : s),
+          0,
+        )
+        const remainingLiters = Math.max(0, Math.round((totalAvailLiters - otherLiters) * 1000) / 1000)
+        const requestedLiters = toExactLiters(qty, saleUnit)
+
+        if (requestedLiters > remainingLiters) {
+          const unitLiters = unitFactor(saleUnit)
+          const maxAllowedQty =
+            saleUnit === 'litro'
+              ? remainingLiters
+              : saleUnit === 'cuarto'
+                ? Math.floor(remainingLiters / 0.25)
+                : saleUnit === 'medio'
+                  ? Math.floor(remainingLiters / 0.5)
+                  : Math.floor(remainingLiters / unitLiters)
+
+          toast.error(`Stock insuficiente. Solo hay ${remainingLiters} Litros disponibles`)
+          const finalQty = Math.max(0, maxAllowedQty)
+          const nextBase = toBaseQty(finalQty, factor, saleUnit, product.unit)
+          return prev.map((l) =>
+            l.productId === productId && l.saleUnit === saleUnit
+              ? { ...l, qty: finalQty, baseQty: nextBase }
+              : l,
+          )
+        }
+
+        const nextBase = toBaseQty(qty, factor, saleUnit, product.unit)
+        return prev.map((l) =>
+          l.productId === productId && l.saleUnit === saleUnit ? { ...l, qty, baseQty: nextBase } : l,
+        )
+      }
+
+      // No líquido:
       const otherBase = prev.reduce(
         (s, l) => (l.productId === productId && l.saleUnit !== saleUnit ? s + l.baseQty : s),
         0,
@@ -200,13 +301,69 @@ export default function Pos() {
     const product = products.find((p) => p.id === productId)
     if (!product) return
     const factor = factorOf(product, toUnit)
-    const nextBase = toBaseQty(qty, factor, toUnit, product.unit)
 
     setCart((prev) => {
+      if (isLiquid(product.unit)) {
+        const totalAvailLiters = toExactLiters(product.stock, product.unit)
+        const otherLiters = prev.reduce(
+          (s, l) => (l.productId === productId && l.saleUnit !== fromUnit ? s + toExactLiters(l.qty, l.saleUnit) : s),
+          0,
+        )
+        const remainingLiters = Math.max(0, Math.round((totalAvailLiters - otherLiters) * 1000) / 1000)
+        const requestedLiters = toExactLiters(qty, toUnit)
+
+        if (requestedLiters > remainingLiters) {
+          const unitLiters = unitFactor(toUnit)
+          const maxAllowedQty =
+            toUnit === 'litro'
+              ? remainingLiters
+              : Math.floor(remainingLiters / unitLiters)
+
+          if (maxAllowedQty <= 0) {
+            toast.error(
+              `Stock insuficiente. Hay ${remainingLiters} Litros, no alcanza para 1 ${UNIT_LABELS[toUnit]}`,
+            )
+            return prev
+          }
+          toast.error(`Solo hay ${remainingLiters} Litros disponibles. Se ajustó la cantidad`)
+          const salePrice = presentationsOf(product).find((s) => s.unit === toUnit)?.price
+          const nextBase = toBaseQty(maxAllowedQty, factor, toUnit, product.unit)
+          return prev.map((l) => {
+            if (l.productId === productId && l.saleUnit === fromUnit) {
+              return {
+                ...l,
+                saleUnit: toUnit,
+                qty: maxAllowedQty,
+                baseQty: nextBase,
+                salePrice,
+              }
+            }
+            return l
+          })
+        }
+
+        const salePrice = presentationsOf(product).find((s) => s.unit === toUnit)?.price
+        const nextBase = toBaseQty(qty, factor, toUnit, product.unit)
+        return prev.map((l) => {
+          if (l.productId === productId && l.saleUnit === fromUnit) {
+            return {
+              ...l,
+              saleUnit: toUnit,
+              qty,
+              baseQty: nextBase,
+              salePrice,
+            }
+          }
+          return l
+        })
+      }
+
+      // No líquido:
       const otherBase = prev.reduce(
         (s, l) => (l.productId === productId && l.saleUnit !== fromUnit ? s + l.baseQty : s),
         0,
       )
+      const nextBase = toBaseQty(qty, factor, toUnit, product.unit)
       if (round2(otherBase + nextBase) > product.stock) {
         toast.error(`Stock insuficiente. Solo hay ${formatQty(product.stock, product.unit)}`)
         return prev
@@ -261,9 +418,14 @@ export default function Pos() {
     return () => window.removeEventListener('pos:add_to_cart', onExternalAdd)
   }, [addToCart])
 
-  // Migración automática suave de productos fraccionados a unidad Litro
+  // Saneamiento seguro de una sola vez para reparar productos de 19L inflados
   useEffect(() => {
-    void migrateLiquidProductsToLiters().catch(() => {})
+    const key = 'pinturas_pos_fixed_liquid_stock_v3'
+    if (!localStorage.getItem(key)) {
+      void sanitizeLiquidStockDiscrepancies().then(() => {
+        localStorage.setItem(key, '1')
+      }).catch(() => {})
+    }
   }, [])
 
 
@@ -853,18 +1015,39 @@ function CartPanel({
                   </div>
 
                   {/* Disponibilidad */}
-                  <div className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] text-slate-400">
+                  <div className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                     {l.saleUnit === 'kg' && l.fractional ? (
                       <span>≡ {formatQty(l.baseQty, l.unit)}</span>
                     ) : null}
                     {(() => {
+                      if (l.stock == null) return null
+                      if (isLiquid(l.unit)) {
+                        const totalLiters = toExactLiters(l.stock, l.unit)
+                        let maxNote = ''
+                        if (l.saleUnit === 'cubeta') {
+                          const maxCub = Math.floor(totalLiters / 19)
+                          maxNote = ` · máx. ${maxCub} cubeta${maxCub === 1 ? '' : 's'}`
+                        } else if (l.saleUnit === 'galon') {
+                          const maxGal = Math.floor(totalLiters / 4)
+                          maxNote = ` · máx. ${maxGal} galón${maxGal === 1 ? '' : 'es'}`
+                        }
+                        return (
+                          <span>
+                            Disponible:{' '}
+                            <strong className="text-primary dark:text-emerald-400 font-semibold">
+                              {totalLiters} Litro{totalLiters === 1 ? '' : 's'}
+                            </strong>
+                            {maxNote}
+                          </span>
+                        )
+                      }
                       const factor = l.presentations.find((s) => s.unit === l.saleUnit)?.factor ?? 1
-                      if (l.stock == null || factor <= 0) return null
+                      if (factor <= 0) return null
                       const avail = fromBaseQty(l.stock, factor, l.unit, l.saleUnit)
                       return (
                         <span>
                           Disponible: {formatProductStock(l.stock, l.unit, l.fractional)}
-                          {l.saleUnit !== l.unit && !isLiquid(l.unit) && ` (${formatQty(avail, l.saleUnit)})`}
+                          {l.saleUnit !== l.unit && ` (${formatQty(avail, l.saleUnit)})`}
                         </span>
                       )
                     })()}
