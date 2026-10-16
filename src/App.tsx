@@ -182,7 +182,7 @@ export default function App() {
         <button
           onClick={() => void doSyncRef.current()}
           className="inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/90 px-2.5 py-1 text-xs font-medium text-slate-600 shadow-2xs hover:bg-slate-100/80 transition dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300"
-          title="Toca para sincronizar ahora"
+          title={syncError ? `${syncError} — Toca para reintentar sincronizar` : 'Toca para sincronizar ahora'}
         >
           <span
             className={`h-2 w-2 shrink-0 rounded-full ${
@@ -190,14 +190,14 @@ export default function App() {
                 ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50'
                 : syncState === 'syncing'
                   ? 'animate-pulse bg-amber-400'
-                  : 'bg-red-500'
+                  : 'bg-amber-500'
             }`}
           />
           <span className="text-[11px] sm:text-xs">
             {syncState === 'syncing'
               ? 'Sincronizando…'
               : syncState === 'offline'
-                ? `Sin conexión${syncError ? `: ${syncError}` : ''}`
+                ? 'Modo local (Offline) · Datos seguros'
                 : `Sincronizado${last > 0 ? ` · ${new Date(last).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}` : ' ahora'}`}
           </span>
         </button>
