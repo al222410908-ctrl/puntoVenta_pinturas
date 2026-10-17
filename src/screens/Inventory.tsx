@@ -512,7 +512,7 @@ function AuditView() {
                       {p.barcode ? `Código: ${p.barcode} · ` : ''}
                       Sistema:{' '}
                       <b className="text-slate-700 dark:text-slate-200">
-                        {formatQty(row.systemStock, p.unit)}
+                        {formatProductStock(row.systemStock, p.unit, p.fractional)}
                       </b>{' '}
                       · Costo: {formatMoney(p.cost || 0)}
                     </p>

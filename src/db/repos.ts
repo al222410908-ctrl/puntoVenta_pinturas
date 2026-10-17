@@ -22,7 +22,7 @@ import type {
 } from '../types'
 import { round2, uid } from '../lib/utils'
 import { notifyLocalChange } from '../lib/sync'
-import { toBaseQty, presentationFactor, unitFactor, isLiquid } from '../lib/units'
+import { toBaseQty, presentationFactor, unitFactor, isLiquid, toExactLiters, fromExactLiters } from '../lib/units'
 
 export interface CartLine {
   productId: string
@@ -50,7 +50,10 @@ export interface CartLine {
 export function cartToItems(lines: CartLine[]): SaleItem[] {
   return lines.map((l) => {
     const factor = presentationFactor({ unit: l.unit, salePresentations: l.presentations }, l.saleUnit)
-    const baseQty = round2(l.baseQty ?? toBaseQty(l.qty, factor))
+    const baseQty = isLiquid(l.unit) && isLiquid(l.saleUnit)
+      ? fromExactLiters(toExactLiters(l.qty, l.saleUnit), l.unit)
+      : round2(l.baseQty ?? toBaseQty(l.qty, factor, l.saleUnit, l.unit))
+    const lineTotal = l.salePrice != null ? round2(l.qty * l.salePrice) : round2(baseQty * l.unitPrice)
     const unitPrice = l.salePrice != null ? round2(l.salePrice / (factor || 1)) : l.unitPrice
     return {
       productId: l.productId,
@@ -59,7 +62,7 @@ export function cartToItems(lines: CartLine[]): SaleItem[] {
       qty: baseQty,
       unitPrice,
       cost: l.cost,
-      lineTotal: round2(baseQty * unitPrice),
+      lineTotal,
       saleUnit: l.saleUnit,
       saleQty: l.qty,
     }
@@ -91,9 +94,20 @@ export async function registerSale(
       for (const item of items) {
         const product = await db.products.get(item.productId)
         if (product) {
-          const next = round2(product.stock - item.qty)
-          if (next < 0) {
-            throw new Error(`Stock insuficiente para ${item.name}: solo hay ${round2(product.stock)} ${item.unit}(s)`)
+          let next: number
+          if (isLiquid(product.unit)) {
+            const currentLiters = toExactLiters(product.stock, product.unit)
+            const soldLiters = toExactLiters(item.saleQty ?? item.qty, item.saleUnit ?? item.unit)
+            if (soldLiters > currentLiters + 1e-4) {
+              throw new Error(`Stock insuficiente para ${item.name}: solo hay ${currentLiters} Litro(s)`)
+            }
+            const remainingLiters = Math.max(0, Math.round((currentLiters - soldLiters) * 1000) / 1000)
+            next = fromExactLiters(remainingLiters, product.unit)
+          } else {
+            next = round2(product.stock - item.qty)
+            if (next < 0) {
+              throw new Error(`Stock insuficiente para ${item.name}: solo hay ${round2(product.stock)} ${item.unit}(s)`)
+            }
           }
           await db.products.update(item.productId, { stock: next, updatedAt: sale.date })
         }
@@ -135,8 +149,17 @@ export async function undoLastSale(): Promise<Sale | null> {
       for (const item of last.items) {
         const product = await db.products.get(item.productId)
         if (product) {
+          let next: number
+          if (isLiquid(product.unit)) {
+            const currentLiters = toExactLiters(product.stock, product.unit)
+            const returnedLiters = toExactLiters(item.saleQty ?? item.qty, item.saleUnit ?? item.unit)
+            const newLiters = Math.round((currentLiters + returnedLiters) * 1000) / 1000
+            next = fromExactLiters(newLiters, product.unit)
+          } else {
+            next = round2(product.stock + item.qty)
+          }
           await db.products.update(item.productId, {
-            stock: round2(product.stock + item.qty),
+            stock: next,
             updatedAt: now,
           })
         }

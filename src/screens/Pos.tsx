@@ -109,7 +109,7 @@ export default function Pos() {
     presentations: presentationsOf(p),
     saleUnit,
     qty,
-    baseQty: toBaseQty(qty, factorOf(p, saleUnit)),
+    baseQty: toBaseQty(qty, factorOf(p, saleUnit), saleUnit, p.unit),
     stock: p.stock,
     unitPrice: p.price,
     salePrice: presentationsOf(p).find((s) => s.unit === saleUnit)?.price,
@@ -128,11 +128,11 @@ export default function Pos() {
       const existing = prev.find((l) => l.productId === p.id && l.saleUnit === saleUnit)
       const otherBase = prev.reduce((s, l) => (l.productId === p.id && l.saleUnit !== saleUnit ? s + l.baseQty : s), 0)
       const nextQty = round2((existing?.qty ?? 0) + 1)
-      const nextBase = toBaseQty(nextQty, factor)
+      const nextBase = toBaseQty(nextQty, factor, saleUnit, p.unit)
       const totalBase = round2(otherBase + nextBase)
       if (totalBase > p.stock) {
         const maxBase = Math.max(0, round2(p.stock - otherBase))
-        const maxQty = fromBaseQty(maxBase, factor)
+        const maxQty = fromBaseQty(maxBase, factor, p.unit, saleUnit)
         if (maxBase <= 0) {
           toast.error(`${p.name} está sin stock`)
           return prev
@@ -163,11 +163,11 @@ export default function Pos() {
         (s, l) => (l.productId === productId && l.saleUnit !== saleUnit ? s + l.baseQty : s),
         0,
       )
-      const nextBase = toBaseQty(qty, factor)
+      const nextBase = toBaseQty(qty, factor, saleUnit, product?.unit)
       if (product && round2(otherBase + nextBase) > product.stock) {
         toast.error(`Solo hay ${formatQty(product.stock, product.unit)}`)
         const maxBase = Math.max(0, round2(product.stock - otherBase))
-        const maxQty = fromBaseQty(maxBase, factor)
+        const maxQty = fromBaseQty(maxBase, factor, product.unit, saleUnit)
         return prev.map((l) =>
           l.productId === productId && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
         )
@@ -183,7 +183,7 @@ export default function Pos() {
     const product = products.find((p) => p.id === productId)
     if (!product) return
     const factor = factorOf(product, toUnit)
-    const nextBase = toBaseQty(qty, factor)
+    const nextBase = toBaseQty(qty, factor, toUnit, product.unit)
 
     setCart((prev) => {
       const otherBase = prev.reduce(
@@ -651,7 +651,7 @@ function quickButtons(l: CartLine): { unit: Unit; qty: number; label: string }[]
     ]
   }
   if (isLiquid(l.unit) && l.fractional) {
-    return [
+    const list: { unit: Unit; qty: number; label: string }[] = [
       { unit: 'cuarto', qty: 1, label: '¼ L (Cuarto)' },
       { unit: 'medio', qty: 1, label: '½ L (Medio)' },
       { unit: 'litro', qty: 1, label: '1 L' },
@@ -659,6 +659,10 @@ function quickButtons(l: CartLine): { unit: Unit; qty: number; label: string }[]
       { unit: 'litro', qty: 2, label: '2 L' },
       { unit: 'galon', qty: 1, label: 'Galón (4 L)' },
     ]
+    if (l.unit === 'cubeta') {
+      list.push({ unit: 'cubeta', qty: 1, label: 'Cubeta (19 L)' })
+    }
+    return list
   }
   if (isLiquid(l.unit)) return []
   if (!l.fractional && l.presentations.length <= 1) return []
