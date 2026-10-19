@@ -21,7 +21,7 @@ import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
 import { registerSale, undoLastSale } from '../db/repos'
 import type { Product, Payment, Unit, SalePresentation, Sale } from '../types'
-import { formatMoney, round2 } from '../lib/utils'
+import { formatMoney, round2, matchesSearch, normalizeSearch } from '../lib/utils'
 import {
   UNIT_LABELS,
   formatQty,
@@ -65,13 +65,9 @@ export default function Pos() {
   })
 
   const allFiltered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return products.filter((p) => !categoryId || p.categoryId === categoryId).filter(
-      (p) =>
-        !q ||
-        p.name.toLowerCase().includes(q) ||
-        (p.barcode ?? '').replace(/\s|-/g, '').includes(q.replace(/\s|-/g, '')),
-    )
+    return products
+      .filter((p) => !categoryId || p.categoryId === categoryId)
+      .filter((p) => matchesSearch(search, [p.name, p.barcode, p.purchaseCode]))
   }, [products, search, categoryId])
 
   const filtered = useMemo(() => allFiltered.slice(0, visible), [allFiltered, visible])
@@ -282,11 +278,12 @@ export default function Pos() {
 
   const handleScan = (code: string) => {
     setScanOpen(false)
-    const clean = code.replace(/\s|-/g, '')
+    const clean = normalizeSearch(code).replace(/[\s\-_/.]/g, '')
     const product = products.find(
       (p) =>
-        (p.barcode ?? '').replace(/\s|-/g, '') === clean ||
-        (p.purchaseCode ?? '').replace(/\s|-/g, '') === clean,
+        normalizeSearch(p.barcode ?? '').replace(/[\s\-_/.]/g, '') === clean ||
+        normalizeSearch(p.purchaseCode ?? '').replace(/[\s\-_/.]/g, '') === clean ||
+        matchesSearch(code, p.name),
     )
     if (product) {
       addToCart(product)

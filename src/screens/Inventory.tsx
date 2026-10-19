@@ -23,7 +23,7 @@ import {
   type FractionalStockDiscrepancy,
 } from '../db/repos'
 import type { MermaReason, MovementType, Product } from '../types'
-import { formatMoney, round2 } from '../lib/utils'
+import { formatMoney, round2, matchesSearch } from '../lib/utils'
 import { formatQty, formatProductStock } from '../lib/units'
 import { Button, EmptyState, Field, Input, Modal, Segmented, Select } from '../components/ui'
 import { BarcodeScanner } from '../components/BarcodeScanner'
@@ -171,16 +171,11 @@ function AuditView() {
 
   // Handle barcode or text search input
   const handleScanOrSubmit = (val: string) => {
-    const query = val.trim().toLowerCase()
-    if (!query) return
+    if (!val.trim()) return
 
-    // Buscar coincidencia exacta por barcode, purchaseCode o nombre
-    const matched = products.find(
-      (p) =>
-        p.barcode?.toLowerCase() === query ||
-        p.purchaseCode?.toLowerCase() === query ||
-        p.name.toLowerCase() === query ||
-        p.name.toLowerCase().includes(query),
+    // Buscar coincidencia flexible por barcode, purchaseCode o nombre
+    const matched = products.find((p) =>
+      matchesSearch(val, [p.name, p.barcode, p.purchaseCode]),
     )
 
     if (matched) {

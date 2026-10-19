@@ -7,7 +7,7 @@ import { markDeleted } from '../db/repos'
 import { notifyLocalChange } from '../lib/sync'
 import type { Category, Product, Supplier, Unit } from '../types'
 import { UNITS } from '../lib/units'
-import { formatMoney, round2, uid } from '../lib/utils'
+import { formatMoney, round2, uid, matchesSearch } from '../lib/utils'
 import { ProductForm } from '../components/ProductForm'
 import { Button, EmptyState, Field, Input, Modal, SafeImage, Segmented, Select, TextArea } from '../components/ui'
 
@@ -126,10 +126,9 @@ function ProductList() {
   const importRef = useRef<HTMLInputElement>(null)
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
     return products.filter(
       (p) =>
-        (!q || p.name.toLowerCase().includes(q) || (p.barcode ?? '').includes(q)) &&
+        matchesSearch(search, [p.name, p.barcode, p.purchaseCode]) &&
         (!supFilter || p.supplierId === supFilter),
     )
   }, [products, search, supFilter])

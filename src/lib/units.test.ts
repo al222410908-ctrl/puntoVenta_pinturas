@@ -11,6 +11,7 @@ import {
   exactAvailableInUnit,
   snapToCommercialGrid,
 } from './units'
+import { matchesSearch } from './utils'
 
 describe('Exact Liquid Arithmetic & Commercial Standards', () => {
   it('defines 1 galon as exactly 4 liters and 1 cubeta as 19 liters', () => {
@@ -166,5 +167,44 @@ describe('Exact Liquid Arithmetic & Commercial Standards', () => {
     liters = liters - sale4Liters
     expect(liters).toBe(0) // Agotado limpio
     expect(exactAvailableInUnit(liters, 'litro', 'cuarto')).toBe(0)
+  })
+})
+
+describe('Flexible & Case-Insensitive Search (matchesSearch)', () => {
+  const product = {
+    name: 'Pintura Vinílica Blanca Comex 19L',
+    barcode: '750123456789',
+    purchaseCode: 'PV-BL-19',
+  }
+
+  it('matches case-insensitively (mayúsculas y minúsculas)', () => {
+    expect(matchesSearch('pintura', product.name)).toBe(true)
+    expect(matchesSearch('PINTURA', product.name)).toBe(true)
+    expect(matchesSearch('PiNtUrA', product.name)).toBe(true)
+    expect(matchesSearch('BLANCA', product.name)).toBe(true)
+    expect(matchesSearch('comex', product.name)).toBe(true)
+  })
+
+  it('matches accent-insensitively (con o sin acentos)', () => {
+    // Busca sin acento cuando el producto tiene acento
+    expect(matchesSearch('vinilica', product.name)).toBe(true)
+    expect(matchesSearch('VINILICA', product.name)).toBe(true)
+    expect(matchesSearch('vinílica', product.name)).toBe(true)
+    expect(matchesSearch('VINÍLICA', product.name)).toBe(true)
+  })
+
+  it('matches multiple tokens in any order', () => {
+    expect(matchesSearch('blanca vinilica', product.name)).toBe(true)
+    expect(matchesSearch('comex 19l blanca', product.name)).toBe(true)
+    expect(matchesSearch('19l vinilica pintura', product.name)).toBe(true)
+  })
+
+  it('matches across multiple target fields (name, barcode, purchaseCode)', () => {
+    const fields = [product.name, product.barcode, product.purchaseCode]
+    expect(matchesSearch('750123', fields)).toBe(true)
+    expect(matchesSearch('PV-BL', fields)).toBe(true)
+    expect(matchesSearch('pvbl', fields)).toBe(true) // sin guiones
+    expect(matchesSearch('pv-bl-19', fields)).toBe(true)
+    expect(matchesSearch('inexistente12345', fields)).toBe(false)
   })
 })
