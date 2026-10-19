@@ -13,6 +13,10 @@ import {
   unitPlural,
   formatProductStock,
   isLiquid,
+  presentationDisplayName,
+  toExactLiters,
+  fromExactLiters,
+  unitFactor,
 } from '../lib/units'
 import { formatMoney, round2, uid } from '../lib/utils'
 import { uploadImage } from '../lib/image'
@@ -543,52 +547,80 @@ if (!(unit > 0) || !(price > 0)) {
         )}
 
         {!isPkg && form.fractional && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Presentaciones de venta
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-700 dark:bg-slate-800/60">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Precios por Presentación de Venta
+              </p>
+              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                {isLiquid(form.unit) ? 'Medidas de pintura' : 'Presentaciones'}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {isLiquid(form.unit)
+                ? 'Ingresa el precio de venta para cada presentación. Si dejas una en blanco, se calculará proporcionalmente.'
+                : 'Define cómo vendes este producto y el precio de cada presentación.'}
             </p>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              Define cómo vendes este producto y el precio de cada presentación. Ej.: 1 caja = 50 {unitPlural(form.unit)} o 1 medio = $60.
-            </p>
-            <div className="mt-2 space-y-1.5">
-              {form.presentations.map((s) => (
-                <div
-                  key={s.unit}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5 text-sm dark:bg-slate-900"
-                >
-                  <span className="text-slate-700 dark:text-slate-200">
-                    1 {UNIT_LABELS[s.unit]} = {s.factor} {s.factor === 1 ? UNIT_LABELS[form.unit] : unitPlural(form.unit)}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="0.01"
-                      className="w-24"
-                      placeholder={s.unit === form.unit ? 'Precio base' : 'Proporcional'}
-                      value={s.price != null ? String(s.price) : ''}
-                      onChange={(e) =>
-                        set(
-                          'presentations',
-                          form.presentations.map((x) =>
-                            x.unit === s.unit ? { ...x, price: e.target.value === '' ? undefined : Number(e.target.value) } : x,
-                          ),
-                        )
-                      }
-                    />
-                    {s.unit !== form.unit && (
-                      <button
-                        type="button"
-                        onClick={() => removePresentation(s.unit)}
-                        className="rounded-md p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
+            <div className="mt-3 space-y-2">
+              {form.presentations.map((s) => {
+                const isBase = s.unit === form.unit
+                const displayName = presentationDisplayName(s.unit)
+                return (
+                  <div
+                    key={s.unit}
+                    className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border p-2.5 text-sm transition-colors ${
+                      isBase
+                        ? 'border-primary/40 bg-emerald-50/50 dark:border-emerald-800/50 dark:bg-emerald-950/20'
+                        : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">
+                        {displayName}
+                      </span>
+                      {isBase && (
+                        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary dark:bg-emerald-900/40 dark:text-emerald-300">
+                          Unidad base
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.01"
+                          className="w-28 pl-6 font-semibold"
+                          placeholder={isBase ? 'Precio base' : 'Proporcional'}
+                          value={s.price != null ? String(s.price) : ''}
+                          onChange={(e) =>
+                            set(
+                              'presentations',
+                              form.presentations.map((x) =>
+                                x.unit === s.unit
+                                  ? { ...x, price: e.target.value === '' ? undefined : Number(e.target.value) }
+                                  : x,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                      {!isBase && (
+                        <button
+                          type="button"
+                          onClick={() => removePresentation(s.unit)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30"
+                          title="Eliminar presentación"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
             {!isLiquid(form.unit) && (
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -698,6 +730,130 @@ if (!(unit > 0) || !(price > 0)) {
               <Input type="number" inputMode="decimal" min="0" step="0.01" value={form.minStock} onChange={(e) => set('minStock', e.target.value)} />
             </Field>
           </div>
+        ) : isLiquid(form.unit) && form.fractional && (form.unit === 'cubeta' || form.unit === 'galon') ? (
+          <div className="space-y-3">
+            {(() => {
+              const stockNum = Number(form.stock) || 0
+              const wholeUnits = Math.floor(stockNum + 1e-4)
+              const remStock = Math.max(0, stockNum - wholeUnits)
+              const remLiters = toExactLiters(remStock, form.unit)
+              const factor = unitFactor(form.unit)
+
+              const handleWholeChange = (wStr: string) => {
+                const w = Math.max(0, parseInt(wStr, 10) || 0)
+                const totalL = w * factor + remLiters
+                set('stock', String(fromExactLiters(totalL, form.unit)))
+              }
+
+              const handleRemLitersChange = (lStr: string) => {
+                const l = Math.max(0, parseFloat(lStr) || 0)
+                const totalL = wholeUnits * factor + l
+                set('stock', String(fromExactLiters(totalL, form.unit)))
+              }
+
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label={`${form.unit === 'cubeta' ? 'Cubetas completas' : 'Galones completos'} (cerrados)`}>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        min="0"
+                        step="1"
+                        value={wholeUnits}
+                        onChange={(e) => handleWholeChange(e.target.value)}
+                        placeholder="0"
+                      />
+                    </Field>
+                    <Field label="Litros sueltos (bote abierto)">
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          max={factor - 0.25}
+                          step="0.25"
+                          value={remLiters}
+                          onChange={(e) => handleRemLitersChange(e.target.value)}
+                          placeholder="0"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+                          L
+                        </span>
+                      </div>
+                    </Field>
+                  </div>
+
+                  <Field label={`Stock mínimo en ${UNIT_LABELS[form.unit]}s (para resurtir)`}>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="1"
+                      value={form.minStock}
+                      onChange={(e) => set('minStock', e.target.value)}
+                    />
+                  </Field>
+
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-2.5 text-xs text-slate-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-slate-200">
+                    <div className="flex items-center justify-between font-medium">
+                      <span>Total físico en almacén:</span>
+                      <span className="font-bold text-primary dark:text-emerald-400 text-sm">
+                        {formatProductStock(stockNum, form.unit, true)}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      <span className="text-[11px] text-slate-500">Llenado rápido de bote abierto:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemLitersChange('0')}
+                        className="rounded bg-white px-2 py-0.5 font-semibold text-slate-700 shadow-2xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        0 L (solo cerrados)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemLitersChange('0.5')}
+                        className="rounded bg-white px-2 py-0.5 font-semibold text-slate-700 shadow-2xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        ½ L
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemLitersChange('1')}
+                        className="rounded bg-white px-2 py-0.5 font-semibold text-slate-700 shadow-2xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        1 L
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemLitersChange('1.5')}
+                        className="rounded bg-white px-2 py-0.5 font-semibold text-slate-700 shadow-2xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        1.5 L
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemLitersChange('3')}
+                        className="rounded bg-white px-2 py-0.5 font-semibold text-slate-700 shadow-2xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        3 L
+                      </button>
+                      {form.unit === 'cubeta' && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemLitersChange('17')}
+                          className="rounded bg-white px-2 py-0.5 font-semibold text-slate-700 shadow-2xs hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                          17 L
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
         ) : (
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-3">
@@ -723,7 +879,7 @@ if (!(unit > 0) || !(price > 0)) {
               </Field>
             </div>
 
-            {/* Ayudante interactivo para productos líquidos */}
+            {/* Ayudante interactivo para litros */}
             {isLiquid(form.unit) && form.fractional && (
               <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-2.5 text-xs text-slate-700 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-slate-200">
                 <div className="flex items-center justify-between font-medium">
@@ -734,89 +890,34 @@ if (!(unit > 0) || !(price > 0)) {
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1">
                   <span className="text-[11px] text-slate-500">Llenado rápido:</span>
-                  {form.unit === 'galon' && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => set('stock', '0.25')}
-                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
-                      >
-                        ¼ gal (1L)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => set('stock', '0.5')}
-                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
-                      >
-                        ½ gal (2L)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => set('stock', '0.75')}
-                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
-                      >
-                        ¾ gal (3L)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => set('stock', '1')}
-                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
-                      >
-                        1 gal (4L)
-                      </button>
-                    </>
-                  )}
-                  {form.unit === 'cubeta' && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => set('stock', String(round2(17 / 19)))}
-                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
-                        title="17 Litros restantes de cubeta"
-                      >
-                        17 L restantes
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => set('stock', String(round2(10 / 19)))}
-                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
-                      >
-                        10 L
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => set('stock', '1')}
-                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
-                      >
-                        1 cubeta (19L)
-                      </button>
-                    </>
-                  )}
-                  {form.unit === 'litro' && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => set('stock', '0.25')}
-                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
-                      >
-                        ¼ L
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => set('stock', '0.5')}
-                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
-                      >
-                        ½ L
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => set('stock', '1')}
-                        className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
-                      >
-                        1 L
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => set('stock', '0.25')}
+                    className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                  >
+                    ¼ L
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => set('stock', '0.5')}
+                    className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                  >
+                    ½ L
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => set('stock', '1')}
+                    className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                  >
+                    1 L
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => set('stock', '2')}
+                    className="rounded bg-white px-1.5 py-0.5 font-semibold shadow-2xs hover:bg-slate-100 dark:bg-slate-800"
+                  >
+                    2 L
+                  </button>
                 </div>
               </div>
             )}

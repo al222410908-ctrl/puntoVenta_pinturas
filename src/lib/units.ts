@@ -65,6 +65,29 @@ export function unitFactor(unit: Unit): number {
 }
 
 /**
+ * Absorbe residuos de redondeo en litros y alinea hacia la rejilla comercial física más cercana:
+ * - Enteros (ej. 0.97 -> 1, 2.98 -> 3, 16.98 -> 17, 18.87 -> 19)
+ * - Medios litros (ej. 0.49 -> 0.5, 1.48 -> 1.5, 2.51 -> 2.5)
+ * - Cuartos de litro (ej. 0.24 -> 0.25, 0.76 -> 0.75)
+ */
+export function snapToCommercialGrid(liters: number): number {
+  if (liters <= 0) return 0
+  const nearestInt = Math.round(liters)
+  if (Math.abs(liters - nearestInt) < 0.14) {
+    return nearestInt
+  }
+  const nearestHalf = Math.round(liters * 2) / 2
+  if (Math.abs(liters - nearestHalf) < 0.08) {
+    return nearestHalf
+  }
+  const nearestQuarter = Math.round(liters * 4) / 4
+  if (Math.abs(liters - nearestQuarter) < 0.05) {
+    return nearestQuarter
+  }
+  return Math.round(liters * 1000) / 1000
+}
+
+/**
  * Convierte de una unidad líquida a litros exactos sin errores de truncado ni residuos flotantes.
  * Absorbe residuos de redondeo en cubetas y galones (ej. 0.89 cub * 19 = 16.91 -> 17 L exacto; 0.05 * 19 = 0.95 -> 1 L exacto).
  */
@@ -72,24 +95,53 @@ export function toExactLiters(qty: number, unit: Unit): number {
   if (!isLiquid(unit)) return qty
   const factor = LIQUID_FACTORS[unit] ?? 1
   const rawLiters = qty * factor
+  return snapToCommercialGrid(rawLiters)
+}
 
-  // Para cubetas (19 L), absorber desviaciones por residuos flotantes
-  if (unit === 'cubeta') {
-    const nearestHalf = Math.round(rawLiters * 2) / 2
-    if (Math.abs(rawLiters - nearestHalf) < 0.15) {
-      return nearestHalf
-    }
+/**
+ * Calcula la disponibilidad real en la unidad de venta seleccionada sin divisiones con residuos truncados.
+ * Ej: 1 L en cuartos = 4 cuartos exactos (nunca 3.846).
+ * 19 L en medios = 38 medios exactos.
+ * 19 L en cuartos = 76 cuartos exactos.
+ */
+export function exactAvailableInUnit(
+  stock: number,
+  baseUnit: Unit,
+  saleUnit: Unit,
+): number {
+  if (stock <= 0) return 0
+  if (baseUnit === saleUnit) return stock
+
+  if (isLiquid(baseUnit) && isLiquid(saleUnit)) {
+    const liters = toExactLiters(stock, baseUnit)
+    const factor = LIQUID_FACTORS[saleUnit] ?? 1
+    const raw = liters / factor
+    const rounded = Math.round(raw)
+    if (Math.abs(raw - rounded) < 0.06) return rounded
+    return Math.round(raw * 100) / 100
   }
 
-  // Para galones (4 L)
-  if (unit === 'galon') {
-    const nearestQuarter = Math.round(rawLiters * 4) / 4
-    if (Math.abs(rawLiters - nearestQuarter) < 0.08) {
-      return nearestQuarter
-    }
-  }
+  const factor = unitFactor(saleUnit) / unitFactor(baseUnit)
+  if (factor <= 0) return 0
+  const raw = stock / factor
+  const rounded = Math.round(raw)
+  if (Math.abs(raw - rounded) < 0.02) return rounded
+  return Math.round(raw * 100) / 100
+}
 
-  return Math.round(rawLiters * 1000) / 1000
+export const PRESENTATION_LABELS: Partial<Record<Unit, string>> = {
+  cuarto: 'Cuarto (¼ L · 250 ml)',
+  medio: 'Medio (½ L · 500 ml)',
+  litro: 'Litro (1.0 L · 1000 ml)',
+  galon: 'Galón (4.0 L)',
+  cubeta: 'Cubeta (19.0 L)',
+  kg: 'Kilogramo (1 kg)',
+  metro: 'Metro (1 m)',
+  pieza: 'Pieza',
+}
+
+export function presentationDisplayName(unit: Unit): string {
+  return PRESENTATION_LABELS[unit] ?? UNIT_LABELS[unit]
 }
 
 /**

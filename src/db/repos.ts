@@ -22,7 +22,7 @@ import type {
 } from '../types'
 import { round2, uid } from '../lib/utils'
 import { notifyLocalChange } from '../lib/sync'
-import { toBaseQty, presentationFactor, unitFactor, isLiquid, toExactLiters, fromExactLiters } from '../lib/units'
+import { toBaseQty, presentationFactor, unitFactor, isLiquid, toExactLiters, fromExactLiters, snapToCommercialGrid } from '../lib/units'
 
 export interface CartLine {
   productId: string
@@ -101,7 +101,7 @@ export async function registerSale(
             if (soldLiters > currentLiters + 1e-4) {
               throw new Error(`Stock insuficiente para ${item.name}: solo hay ${currentLiters} Litro(s)`)
             }
-            const remainingLiters = Math.max(0, Math.round((currentLiters - soldLiters) * 1000) / 1000)
+            const remainingLiters = snapToCommercialGrid(Math.max(0, currentLiters - soldLiters))
             next = fromExactLiters(remainingLiters, product.unit)
           } else {
             next = round2(product.stock - item.qty)
@@ -153,7 +153,7 @@ export async function undoLastSale(): Promise<Sale | null> {
           if (isLiquid(product.unit)) {
             const currentLiters = toExactLiters(product.stock, product.unit)
             const returnedLiters = toExactLiters(item.saleQty ?? item.qty, item.saleUnit ?? item.unit)
-            const newLiters = Math.round((currentLiters + returnedLiters) * 1000) / 1000
+            const newLiters = snapToCommercialGrid(currentLiters + returnedLiters)
             next = fromExactLiters(newLiters, product.unit)
           } else {
             next = round2(product.stock + item.qty)

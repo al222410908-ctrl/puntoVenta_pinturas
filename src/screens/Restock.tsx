@@ -28,7 +28,7 @@ import {
 } from '../db/repos'
 import type { Container, Product, PurchaseItem, PurchaseOrder, PurchaseOrderItem, Supplier } from '../types'
 import { formatMoney, round2, uid } from '../lib/utils'
-import { formatQty, isLiquid, unitFactor } from '../lib/units'
+import { formatQty, isLiquid, unitFactor, formatProductStock } from '../lib/units'
 import { Button, EmptyState, Field, Input, Modal, SafeImage, Segmented, Select } from '../components/ui'
 import { loadBusinessInfo } from '../lib/ticket'
 import { openOwnerCallWhatsApp, downloadOwnerCallSheetPdf, type CallSheetGroup } from '../lib/callSheet'
@@ -434,7 +434,7 @@ function SuggestionView() {
                             <span>
                               Stock:{' '}
                               <strong className={isOutOfStock ? 'text-rose-600 font-bold' : 'text-slate-700 dark:text-slate-200'}>
-                                {formatQty(p.stock, p.unit)}
+                                {formatProductStock(p.stock, p.unit, p.fractional)}
                               </strong>{' '}
                               / mín: {formatQty(p.minStock, p.unit)}
                             </span>

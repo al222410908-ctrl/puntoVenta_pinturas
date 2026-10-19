@@ -31,6 +31,10 @@ import {
   toBaseQty,
   fromBaseQty,
   isLiquid,
+  toExactLiters,
+  exactAvailableInUnit,
+  unitPlural,
+  unitFactor,
 } from '../lib/units'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { SaleNoteModal } from '../components/SaleNoteModal'
@@ -118,7 +122,14 @@ export default function Pos() {
 
   const addToCart = (p: Product) => {
     const pres = presentationsOf(p)
-    const saleUnit = pres.some((s) => s.unit === p.unit) ? p.unit : pres[0]?.unit ?? p.unit
+    const availLiters = isLiquid(p.unit) ? toExactLiters(p.stock, p.unit) : p.stock
+    // Si la unidad base es cubeta o galón pero no hay suficiente para una unidad cerrada completa (ej. 1.5 L restantes),
+    // la presentación por defecto para venta DEBE ser 'litro':
+    let defaultUnit = pres.some((s) => s.unit === p.unit) ? p.unit : pres[0]?.unit ?? p.unit
+    if (isLiquid(p.unit) && p.fractional && availLiters < unitFactor(p.unit)) {
+      defaultUnit = pres.some((s) => s.unit === 'litro') ? 'litro' : pres[0]?.unit ?? p.unit
+    }
+    const saleUnit = defaultUnit
     const factor = factorOf(p, saleUnit)
     setCart((prev) => {
       if (p.stock <= 0) {
@@ -129,22 +140,50 @@ export default function Pos() {
       const otherBase = prev.reduce((s, l) => (l.productId === p.id && l.saleUnit !== saleUnit ? s + l.baseQty : s), 0)
       const nextQty = round2((existing?.qty ?? 0) + 1)
       const nextBase = toBaseQty(nextQty, factor, saleUnit, p.unit)
-      const totalBase = round2(otherBase + nextBase)
-      if (totalBase > p.stock) {
-        const maxBase = Math.max(0, round2(p.stock - otherBase))
-        const maxQty = fromBaseQty(maxBase, factor, p.unit, saleUnit)
-        if (maxBase <= 0) {
-          toast.error(`${p.name} está sin stock`)
-          return prev
+
+      if (isLiquid(p.unit)) {
+        const currentLiters = toExactLiters(p.stock, p.unit)
+        const neededLiters = toExactLiters(otherBase, p.unit) + toExactLiters(nextQty, saleUnit)
+        if (neededLiters > currentLiters + 1e-4) {
+          const availLitersRemaining = Math.max(0, currentLiters - toExactLiters(otherBase, p.unit))
+          let effSaleUnit = saleUnit
+          if ((effSaleUnit === 'cubeta' || effSaleUnit === 'galon') && availLitersRemaining < unitFactor(effSaleUnit)) {
+            effSaleUnit = 'litro'
+          }
+          const maxQty = exactAvailableInUnit(availLitersRemaining, 'litro', effSaleUnit)
+          if (maxQty <= 0) {
+            toast.error(`${p.name} está sin stock`)
+            return prev
+          }
+          toast.error(`Solo hay ${formatProductStock(p.stock, p.unit, p.fractional)} de ${p.name}, se agregó lo disponible`)
+          const effFactor = factorOf(p, effSaleUnit)
+          const maxBase = toBaseQty(maxQty, effFactor, effSaleUnit, p.unit)
+          if (existing && existing.saleUnit === effSaleUnit) {
+            return prev.map((l) =>
+              l.productId === p.id && l.saleUnit === effSaleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
+            )
+          }
+          return [...prev, makeLine(p, effSaleUnit, maxQty)]
         }
-        toast.error(`Solo hay ${formatQty(p.stock, p.unit)} de ${p.name}, se agregó lo disponible`)
-        if (existing) {
-          return prev.map((l) =>
-            l.productId === p.id && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
-          )
+      } else {
+        const totalBase = round2(otherBase + nextBase)
+        if (totalBase > p.stock) {
+          const maxBase = Math.max(0, round2(p.stock - otherBase))
+          const maxQty = fromBaseQty(maxBase, factor, p.unit, saleUnit)
+          if (maxBase <= 0) {
+            toast.error(`${p.name} está sin stock`)
+            return prev
+          }
+          toast.error(`Solo hay ${formatQty(p.stock, p.unit)} de ${p.name}, se agregó lo disponible`)
+          if (existing) {
+            return prev.map((l) =>
+              l.productId === p.id && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
+            )
+          }
+          return [...prev, makeLine(p, saleUnit, maxQty)]
         }
-        return [...prev, makeLine(p, saleUnit, maxQty)]
       }
+
       if (existing) {
         return prev.map((l) =>
           l.productId === p.id && l.saleUnit === saleUnit ? { ...l, qty: nextQty, baseQty: nextBase } : l,
@@ -164,13 +203,33 @@ export default function Pos() {
         0,
       )
       const nextBase = toBaseQty(qty, factor, saleUnit, product?.unit)
-      if (product && round2(otherBase + nextBase) > product.stock) {
-        toast.error(`Solo hay ${formatQty(product.stock, product.unit)}`)
-        const maxBase = Math.max(0, round2(product.stock - otherBase))
-        const maxQty = fromBaseQty(maxBase, factor, product.unit, saleUnit)
-        return prev.map((l) =>
-          l.productId === productId && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
-        )
+      if (product) {
+        if (isLiquid(product.unit)) {
+          const currentLiters = toExactLiters(product.stock, product.unit)
+          const neededLiters = toExactLiters(otherBase, product.unit) + toExactLiters(qty, saleUnit)
+          if (neededLiters > currentLiters + 1e-4) {
+            const availLiters = Math.max(0, currentLiters - toExactLiters(otherBase, product.unit))
+            if ((saleUnit === 'cubeta' || saleUnit === 'galon') && availLiters < unitFactor(saleUnit)) {
+              toast.error(
+                `No hay ${UNIT_LABELS[saleUnit]}s completas cerradas (solo quedan ${formatProductStock(product.stock, product.unit, product.fractional)}). Selecciona Litro, Medio o Cuarto.`,
+              )
+              return prev
+            }
+            toast.error(`Solo hay ${formatProductStock(product.stock, product.unit, product.fractional)}`)
+            const maxQty = exactAvailableInUnit(availLiters, 'litro', saleUnit)
+            const maxBase = toBaseQty(maxQty, factor, saleUnit, product.unit)
+            return prev.map((l) =>
+              l.productId === productId && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
+            )
+          }
+        } else if (round2(otherBase + nextBase) > product.stock) {
+          toast.error(`Solo hay ${formatQty(product.stock, product.unit)}`)
+          const maxBase = Math.max(0, round2(product.stock - otherBase))
+          const maxQty = fromBaseQty(maxBase, factor, product.unit, saleUnit)
+          return prev.map((l) =>
+            l.productId === productId && l.saleUnit === saleUnit ? { ...l, qty: maxQty, baseQty: maxBase } : l,
+          )
+        }
       }
       return prev.map((l) =>
         l.productId === productId && l.saleUnit === saleUnit ? { ...l, qty, baseQty: nextBase } : l,
@@ -190,7 +249,14 @@ export default function Pos() {
         (s, l) => (l.productId === productId && l.saleUnit !== fromUnit ? s + l.baseQty : s),
         0,
       )
-      if (round2(otherBase + nextBase) > product.stock) {
+      if (isLiquid(product.unit)) {
+        const currentLiters = toExactLiters(product.stock, product.unit)
+        const neededLiters = toExactLiters(otherBase, product.unit) + toExactLiters(qty, toUnit)
+        if (neededLiters > currentLiters + 1e-4) {
+          toast.error(`Stock insuficiente. Solo hay ${formatProductStock(product.stock, product.unit, product.fractional)}`)
+          return prev
+        }
+      } else if (round2(otherBase + nextBase) > product.stock) {
         toast.error(`Stock insuficiente. Solo hay ${formatQty(product.stock, product.unit)}`)
         return prev
       }
@@ -784,7 +850,7 @@ function CartPanel({
                       {l.saleUnit === 'kg' && l.fractional ? (
                         <>
                           <button
-                            onClick={() => setLineQty(l.productId, l.saleUnit, Math.max(0, round2(l.qty - 0.1)))}
+                            onClick={() => setLineQty(l.productId, l.saleUnit, Math.max(0.1, round2(l.qty - 0.1)))}
                             className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                           >
                             <Minus className="h-3.5 w-3.5" />
@@ -805,10 +871,10 @@ function CartPanel({
                             <Plus className="h-3.5 w-3.5" />
                           </button>
                         </>
-                      ) : (
+                      ) : (l.saleUnit === 'litro' || l.saleUnit === 'metro') && l.fractional ? (
                         <>
                           <button
-                            onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty - 1))}
+                            onClick={() => setLineQty(l.productId, l.saleUnit, Math.max(0.5, round2(l.qty - 0.5)))}
                             className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                           >
                             <Minus className="h-3.5 w-3.5" />
@@ -816,11 +882,38 @@ function CartPanel({
                           <input
                             value={l.qty}
                             inputMode="decimal"
-                            onChange={(e) => setLineQty(l.productId, l.saleUnit, Math.max(0, Number(e.target.value) || 0))}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value)
+                              if (!isNaN(val) && val > 0) setLineQty(l.productId, l.saleUnit, round2(val))
+                            }}
                             className="w-12 rounded-lg border border-slate-200 px-1 py-1 text-center text-xs font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           />
                           <button
-                            onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty + 1))}
+                            onClick={() => setLineQty(l.productId, l.saleUnit, round2(l.qty + 0.5))}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setLineQty(l.productId, l.saleUnit, Math.max(1, Math.round(l.qty) - 1))}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <input
+                            value={Math.round(l.qty)}
+                            inputMode="numeric"
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10)
+                              if (!isNaN(val) && val > 0) setLineQty(l.productId, l.saleUnit, val)
+                            }}
+                            className="w-12 rounded-lg border border-slate-200 px-1 py-1 text-center text-xs font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                          />
+                          <button
+                            onClick={() => setLineQty(l.productId, l.saleUnit, Math.round(l.qty) + 1)}
                             className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                           >
                             <Plus className="h-3.5 w-3.5" />
@@ -834,19 +927,33 @@ function CartPanel({
                     </span>
                   </div>
 
-                  {/* Disponibilidad */}
+                  {/* Disponibilidad y equivalencia comercial */}
                   <div className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] text-slate-400">
-                    {l.saleUnit === 'kg' || l.saleUnit !== l.unit ? (
-                      <span>≡ {formatQty(l.baseQty, l.unit)}</span>
-                    ) : null}
                     {(() => {
-                      const factor = l.presentations.find((s) => s.unit === l.saleUnit)?.factor ?? 1
-                      if (l.stock == null || factor <= 0) return null
-                      const avail = fromBaseQty(l.stock, factor)
+                      if (isLiquid(l.unit)) {
+                        if (l.saleUnit !== 'litro') {
+                          const eqLiters = toExactLiters(l.qty, l.saleUnit)
+                          return (
+                            <span className="font-medium text-slate-500 dark:text-slate-400">
+                              ≡ {eqLiters} {eqLiters === 1 ? 'Litro' : 'Litros'}
+                            </span>
+                          )
+                        }
+                        return null
+                      }
+                      if (l.saleUnit !== l.unit) {
+                        return <span>≡ {formatQty(l.baseQty, l.unit)}</span>
+                      }
+                      return null
+                    })()}
+                    {(() => {
+                      if (l.stock == null) return null
+                      const avail = exactAvailableInUnit(l.stock, l.unit, l.saleUnit)
+                      const unitName = avail === 1 ? UNIT_LABELS[l.saleUnit] : unitPlural(l.saleUnit)
                       return (
                         <span>
                           Disponible: {formatProductStock(l.stock, l.unit, l.fractional)}
-                          {l.saleUnit !== l.unit && ` (${formatQty(avail, l.saleUnit)})`}
+                          {l.saleUnit !== l.unit && ` (${avail} ${unitName})`}
                         </span>
                       )
                     })()}

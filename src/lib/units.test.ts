@@ -8,6 +8,8 @@ import {
   toBaseQty,
   fromBaseQty,
   unitFactor,
+  exactAvailableInUnit,
+  snapToCommercialGrid,
 } from './units'
 
 describe('Exact Liquid Arithmetic & Commercial Standards', () => {
@@ -92,5 +94,77 @@ describe('Exact Liquid Arithmetic & Commercial Standards', () => {
     // Galón con 3 litros (0.75 galón)
     expect(formatProductStock(0.75, 'galon', true, false)).toBe('¾ galón (3 L)')
     expect(formatProductStock(0.75, 'galon', true, true)).toBe('¾ gal. (3 L)')
+  })
+
+  it('snapToCommercialGrid eliminates floating point and conversion residues', () => {
+    // Absorbe residuos a enteros comerciales
+    expect(snapToCommercialGrid(0.97)).toBe(1)
+    expect(snapToCommercialGrid(2.98)).toBe(3)
+    expect(snapToCommercialGrid(16.98)).toBe(17)
+    expect(snapToCommercialGrid(18.87)).toBe(19)
+    expect(toExactLiters(0.05, 'cubeta')).toBe(1) // 0.05 * 19 = 0.95 -> 1L
+    expect(toExactLiters(0.89, 'cubeta')).toBe(17) // 0.89 * 19 = 16.91 -> 17L
+    expect(toExactLiters(0.993, 'cubeta')).toBe(19) // residuo -> 19L
+
+    // Medios y cuartos
+    expect(toExactLiters(0.5, 'litro')).toBe(0.5)
+    expect(toExactLiters(0.25, 'litro')).toBe(0.25)
+    expect(toExactLiters(1.5, 'litro')).toBe(1.5)
+  })
+
+  it('exactAvailableInUnit eliminates fractional division errors (e.g. 3.846 cuartos)', () => {
+    // 0.05 cubetas de stock (1 Litro físico) en cuartos debe ser exactamente 4 cuartos, NUNCA 3.846
+    expect(exactAvailableInUnit(0.05, 'cubeta', 'cuarto')).toBe(4)
+    expect(exactAvailableInUnit(0.05, 'cubeta', 'medio')).toBe(2)
+    expect(exactAvailableInUnit(0.05, 'cubeta', 'litro')).toBe(1)
+
+    // 1 cubeta completa (19 L):
+    // 19 L / 0.25 = 76 cuartos exactos
+    expect(exactAvailableInUnit(1, 'cubeta', 'cuarto')).toBe(76)
+    // 19 L / 0.5 = 38 medios exactos
+    expect(exactAvailableInUnit(1, 'cubeta', 'medio')).toBe(38)
+    // 19 L en galones = 4.75 galones (4 galones y 3 litros)
+    expect(exactAvailableInUnit(1, 'cubeta', 'galon')).toBe(4.75)
+
+    // 1 Galón (4 L):
+    expect(exactAvailableInUnit(1, 'galon', 'litro')).toBe(4)
+    expect(exactAvailableInUnit(1, 'galon', 'medio')).toBe(8)
+    expect(exactAvailableInUnit(1, 'galon', 'cuarto')).toBe(16)
+  })
+
+  it('simulates the user bucket breakdown sequence cleanly without residues', () => {
+    // Caso de uso del usuario:
+    // 1 cubeta de 19 L:
+    let liters = 19
+
+    // 1. Se venden 4 galones (16 L)
+    const sale1Liters = toExactLiters(4, 'galon')
+    expect(sale1Liters).toBe(16)
+    liters = liters - sale1Liters
+    expect(liters).toBe(3) // Quedan 3 L exactos
+    expect(exactAvailableInUnit(liters, 'litro', 'litro')).toBe(3)
+    expect(exactAvailableInUnit(liters, 'litro', 'cuarto')).toBe(12) // 12 cuartos
+
+    // 2. Se venden 1.5 L
+    const sale2Liters = toExactLiters(1.5, 'litro')
+    expect(sale2Liters).toBe(1.5)
+    liters = liters - sale2Liters
+    expect(liters).toBe(1.5) // Queda 1.5 L (un litro y medio)
+    expect(exactAvailableInUnit(liters, 'litro', 'medio')).toBe(3) // 3 medios
+    expect(exactAvailableInUnit(liters, 'litro', 'cuarto')).toBe(6) // 6 cuartos
+
+    // 3. Se vende 1 L
+    const sale3Liters = toExactLiters(1, 'litro')
+    liters = liters - sale3Liters
+    expect(liters).toBe(0.5) // Queda 0.5 L (medio litro o 2 cuartitos)
+    expect(exactAvailableInUnit(liters, 'litro', 'medio')).toBe(1) // 1 medio
+    expect(exactAvailableInUnit(liters, 'litro', 'cuarto')).toBe(2) // 2 cuartos
+
+    // 4. Se venden 2 cuartitos (0.5 L)
+    const sale4Liters = toExactLiters(2, 'cuarto')
+    expect(sale4Liters).toBe(0.5)
+    liters = liters - sale4Liters
+    expect(liters).toBe(0) // Agotado limpio
+    expect(exactAvailableInUnit(liters, 'litro', 'cuarto')).toBe(0)
   })
 })
