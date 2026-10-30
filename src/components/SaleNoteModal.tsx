@@ -20,7 +20,7 @@ import { formatQty } from '../lib/units'
 
 export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: () => void }) {
   const [busy, setBusy] = useState(false)
-  const [phone, setPhone] = useState(() => loadClientPhone())
+  const [phone, setPhone] = useState(() => sale?.customerPhone?.trim() || loadClientPhone())
   if (!sale) return null
   const business = loadBusinessInfo()
   const paid = sale.payments.reduce((s, p) => s + p.amount, 0)
@@ -66,11 +66,22 @@ export function SaleNoteModal({ sale, onClose }: { sale: Sale | null; onClose: (
           <p className="text-center text-sm font-bold uppercase">{business.name}</p>
           {business.address?.trim() && <p className="text-center text-[10px]">{business.address}</p>}
           {business.phone?.trim() && <p className="text-center text-[10px]">Tel: {business.phone}</p>}
+          {(business.ownerName?.trim() || business.ownerPhone?.trim()) && (
+            <p className="text-center text-[10px] text-slate-500 dark:text-slate-400">
+              Supervisor: {[business.ownerName?.trim(), business.ownerPhone?.trim()].filter(Boolean).join(' · Tel: ')}
+            </p>
+          )}
           <hr className="my-2 border-dashed border-slate-300 dark:border-slate-600" />
           <div className="flex justify-between">
             <span>Nota</span>
-            <span>{folioLabel(sale)}</span>
+            <span className="font-bold">{folioLabel(sale)}</span>
           </div>
+          {sale.customerName?.trim() && (
+            <div className="flex justify-between font-semibold text-primary dark:text-emerald-400">
+              <span>Cliente</span>
+              <span className="truncate max-w-[170px]">{sale.customerName.trim()}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span>Fecha</span>
             <span>{formatTicketDate(sale.date)}</span>

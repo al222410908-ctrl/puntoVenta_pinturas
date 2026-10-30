@@ -67,6 +67,10 @@ export function formatTicketDate(date: number): string {
 export function whatsappText(sale: Sale, business: BusinessInfo): string {
   const lines: string[] = []
   lines.push(`*${business.name}*`)
+  if (sale.customerName?.trim()) {
+    const ph = sale.customerPhone?.trim() ? ` (${sale.customerPhone.trim()})` : ''
+    lines.push(`👤 Cliente: *${sale.customerName.trim()}*${ph}`)
+  }
   lines.push(`Nota ${folioLabel(sale)} — ${formatTicketDate(sale.date)}`)
   lines.push('')
   for (const it of sale.items) {
@@ -80,9 +84,17 @@ export function whatsappText(sale: Sale, business: BusinessInfo): string {
     const label = p.type === 'efectivo' ? 'Efectivo' : p.type === 'tarjeta' ? 'Tarjeta' : 'Transferencia'
     lines.push(`${label}: ${formatMoney(p.amount)}`)
   }
-  if (business.footer) {
+  const supParts = [
+    business.ownerName?.trim() ? `Supervisor: ${business.ownerName.trim()}` : '',
+    business.ownerPhone?.trim() ? `Tel: ${business.ownerPhone.trim()}` : '',
+  ].filter(Boolean)
+  if (supParts.length > 0) {
     lines.push('')
-    lines.push(business.footer)
+    lines.push(`📞 ${supParts.join(' · ')}`)
+  }
+  if (business.footer?.trim()) {
+    lines.push('')
+    lines.push(business.footer.trim())
   }
   return lines.join('\n')
 }
@@ -163,12 +175,18 @@ export async function buildTicketPdf(
   const nameLines = wrap(business.name.toUpperCase(), 14, true)
   const addrLines = business.address?.trim() ? wrap(business.address.trim(), 10, false) : []
   const tel = business.phone?.trim() ? `Tel: ${business.phone.trim()}` : ''
+  const supervisor = [
+    business.ownerName?.trim() ? `Supervisor: ${business.ownerName.trim()}` : '',
+    business.ownerPhone?.trim() ? `Tel: ${business.ownerPhone.trim()}` : '',
+  ].filter(Boolean).join(' · ')
+  const supLines = supervisor ? wrap(supervisor, 9, false) : []
   const headH =
     y +
     (logoH ? logoH + 4 : 0) +
     nameLines.length * lineH(14) +
     (addrLines.length ? addrLines.length * lineH(10) + 1 : 0) +
     (tel ? lineH(10) : 0) +
+    (supLines.length ? supLines.length * lineH(9) + 1 : 0) +
     12
 
   doc.setFillColor(BRAND[0], BRAND[1], BRAND[2])
@@ -192,6 +210,13 @@ export async function buildTicketPdf(
     doc.text(tel, PW / 2, y, { align: 'center' })
     y += lineH(10)
   }
+  if (supLines.length) {
+    style(9, false, [210, 235, 225])
+    for (const ln of supLines) {
+      doc.text(ln, PW / 2, y, { align: 'center' })
+      y += lineH(9)
+    }
+  }
 
   // --- Cuerpo ---
   let yb = headH + 12
@@ -200,6 +225,15 @@ export async function buildTicketPdf(
   style(10, false, GRAY)
   doc.text(formatTicketDate(sale.date), RIGHT, yb, { align: 'right' })
   yb += Math.max(lineH(12), lineH(10)) + 4
+  if (sale.customerName?.trim()) {
+    style(10, true, BRAND)
+    const custInfo = `Cliente: ${sale.customerName.trim()}${sale.customerPhone?.trim() ? ` (Tel: ${sale.customerPhone.trim()})` : ''}`
+    for (const ln of wrap(custInfo, 10, true)) {
+      doc.text(ln, M, yb)
+      yb += lineH(10)
+    }
+    yb += 3
+  }
   sep(yb)
   yb += 12
 

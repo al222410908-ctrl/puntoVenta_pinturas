@@ -100,6 +100,8 @@ export interface Sale {
   payments: Payment[]
   total: number
   notes?: string
+  customerName?: string
+  customerPhone?: string
 }
 
 export interface BusinessInfo {
@@ -110,6 +112,7 @@ export interface BusinessInfo {
   logo?: string
   ownerName?: string
   ownerPhone?: string
+  showOwnerOnTicket?: boolean
 }
 
 export interface PurchaseItem {

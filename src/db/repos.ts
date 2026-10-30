@@ -73,6 +73,8 @@ export async function registerSale(
   lines: CartLine[],
   payments: Payment[],
   notes?: string,
+  customerName?: string,
+  customerPhone?: string,
 ): Promise<Sale> {
   const items = cartToItems(lines)
   const total = round2(items.reduce((s, i) => s + i.lineTotal, 0))
@@ -84,7 +86,9 @@ export async function registerSale(
     items,
     payments,
     total,
-    notes,
+    notes: notes?.trim() || undefined,
+    customerName: customerName?.trim() || undefined,
+    customerPhone: customerPhone?.trim() || undefined,
   }
   await db.transaction(
     'rw',

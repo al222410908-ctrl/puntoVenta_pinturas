@@ -16,6 +16,8 @@ import {
   Package,
   X,
   Sparkles,
+  Receipt,
+  User,
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
@@ -38,6 +40,7 @@ import {
 } from '../lib/units'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { SaleNoteModal } from '../components/SaleNoteModal'
+import { SalesHistory } from '../components/SalesHistory'
 import { Button, EmptyState, Input, Modal, SafeImage } from '../components/ui'
 import { loadScannerSettings, useBarcodeScanner } from '../lib/scanner'
 
@@ -59,6 +62,10 @@ export default function Pos() {
   const [card, setCard] = useState('')
   const [transfer, setTransfer] = useState('')
   const [noteSale, setNoteSale] = useState<Sale | null>(null)
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [saleNotes, setSaleNotes] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [scanner] = useState<{ enabled: boolean; suffix: 'Enter' | 'Tab' }>(() => {
     const s = loadScannerSettings()
     return { enabled: s.enabled, suffix: s.suffix }
@@ -358,9 +365,12 @@ export default function Pos() {
       return
     }
     try {
-      const sale = await registerSale(cart, payments)
+      const sale = await registerSale(cart, payments, saleNotes, customerName, customerPhone)
       toast.success('Venta registrada')
       setCart([])
+      setCustomerName('')
+      setCustomerPhone('')
+      setSaleNotes('')
       setPayOpen(false)
       setCartOpen(false)
       setNoteSale(sale)
@@ -397,6 +407,10 @@ export default function Pos() {
             <Button onClick={() => setScanOpen(true)} className="btn-secondary shrink-0 shadow-2xs" title="Escanear con cámara (celular)">
               <ScanLine className="h-4.5 w-4.5 text-primary dark:text-emerald-400" />
               <span className="hidden sm:inline">Escanear</span>
+            </Button>
+            <Button onClick={() => setHistoryOpen(true)} className="btn-secondary shrink-0 shadow-2xs" title="Historial de notas y comprobantes">
+              <Receipt className="h-4.5 w-4.5 text-primary dark:text-emerald-400" />
+              <span className="hidden sm:inline">Notas</span>
             </Button>
           </div>
           {scannerActive && (
@@ -667,6 +681,39 @@ export default function Pos() {
             </div>
           </div>
 
+          {/* Datos del Cliente y Notas opcionales */}
+          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60 space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+              <User className="h-3.5 w-3.5 text-primary dark:text-emerald-400" />
+              <span>Cliente y comprobante (opcional)</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Input
+                placeholder="Nombre del cliente…"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                maxLength={60}
+                className="text-xs bg-white dark:bg-slate-900"
+              />
+              <Input
+                type="tel"
+                inputMode="tel"
+                placeholder="WhatsApp (10 dígitos)"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                maxLength={15}
+                className="text-xs bg-white dark:bg-slate-900"
+              />
+            </div>
+            <Input
+              placeholder="Nota de venta (ej. color preparado, factura pendiente...)"
+              value={saleNotes}
+              onChange={(e) => setSaleNotes(e.target.value)}
+              maxLength={120}
+              className="text-xs bg-white dark:bg-slate-900"
+            />
+          </div>
+
           <div className="flex items-center justify-between rounded-xl bg-emerald-50/80 border border-emerald-200/80 px-3.5 py-2.5 text-sm dark:bg-emerald-950/40 dark:border-emerald-800/40">
             <span className="font-medium text-emerald-800 dark:text-emerald-300">Total recibido</span>
             <span className="font-display font-bold text-emerald-800 dark:text-emerald-300 tabular-nums">{formatMoney(paid)}</span>
@@ -696,6 +743,13 @@ export default function Pos() {
       </Modal>
 
       <SaleNoteModal sale={noteSale} onClose={() => setNoteSale(null)} />
+
+      {/* Modal de Historial y Verificación de Notas */}
+      <Modal open={historyOpen} onClose={() => setHistoryOpen(false)} title="Historial de Ventas / Búsqueda de Notas">
+        <div className="max-h-[75vh] flex flex-col">
+          <SalesHistory compact />
+        </div>
+      </Modal>
     </div>
   )
 }
