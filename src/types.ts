@@ -91,6 +91,31 @@ export interface SaleItem {
   saleQty?: number
 }
 
+export interface QuoteItem {
+  productId: string
+  name: string
+  unit: Unit
+  qty: number
+  unitPrice: number
+  cost: number
+  lineTotal: number
+  saleUnit?: Unit
+  saleQty?: number
+}
+
+export interface Quote {
+  id: string
+  /** Folio consecutivo de la cotización (ej. COT-1) */
+  folio?: number
+  date: number
+  validUntil?: number
+  items: QuoteItem[]
+  total: number
+  customerName?: string
+  customerPhone?: string
+  notes?: string
+}
+
 export interface Sale {
   id: string
   /** Folio consecutivo de la nota de venta */

@@ -28,9 +28,10 @@ import { formatMoney, round2 } from '../lib/utils'
 import { formatQty } from '../lib/units'
 import { Button, EmptyState, Segmented } from '../components/ui'
 import { SalesHistory } from '../components/SalesHistory'
+import { QuotesHistory } from '../components/QuotesHistory'
 import { syncNow, lastSyncAt } from '../lib/sync'
 
-type MainTab = 'ventas' | 'historial' | 'categorias' | 'stock_muerto' | 'exportar' | 'sistema'
+type MainTab = 'ventas' | 'historial' | 'cotizaciones' | 'categorias' | 'stock_muerto' | 'exportar' | 'sistema'
 type Range = 'hoy' | 'semana' | 'mes' | 'todo'
 type DeadStockPeriod = '45' | '60' | '90' | 'nunca'
 
@@ -573,6 +574,7 @@ export default function Reports() {
           options={[
             { value: 'ventas', label: 'Resumen' },
             { value: 'historial', label: 'Historial / Notas' },
+            { value: 'cotizaciones', label: 'Cotizaciones' },
             { value: 'categorias', label: 'Margen x Categoría' },
             { value: 'stock_muerto', label: 'Stock Muerto' },
             { value: 'exportar', label: 'Exportar Excel' },
@@ -683,6 +685,15 @@ export default function Reports() {
         {activeTab === 'historial' && (
           <div className="space-y-4">
             <SalesHistory />
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB 1.7: COTIZACIONES Y PRESUPUESTOS
+           ========================================================================= */}
+        {activeTab === 'cotizaciones' && (
+          <div className="space-y-4">
+            <QuotesHistory />
           </div>
         )}
 

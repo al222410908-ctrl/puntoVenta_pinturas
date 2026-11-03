@@ -12,6 +12,8 @@ import type {
   PurchaseOrder,
   PurchaseOrderItem,
   OrderStatus,
+  Quote,
+  QuoteItem,
   Sale,
   SaleItem,
   SalePresentation,
@@ -45,6 +47,85 @@ export interface CartLine {
   /** Precio por presentación si la presentación tiene precio propio (ej. 1 medio = $60) */
   salePrice?: number
   cost: number
+}
+
+export function cartToQuoteItems(lines: CartLine[]): QuoteItem[] {
+  return lines.map((l) => {
+    const factor = presentationFactor({ unit: l.unit, salePresentations: l.presentations }, l.saleUnit)
+    const baseQty = isLiquid(l.unit) && isLiquid(l.saleUnit)
+      ? fromExactLiters(toExactLiters(l.qty, l.saleUnit), l.unit)
+      : round2(l.baseQty ?? toBaseQty(l.qty, factor, l.saleUnit, l.unit))
+    const lineTotal = l.salePrice != null ? round2(l.qty * l.salePrice) : round2(baseQty * l.unitPrice)
+    const unitPrice = l.salePrice != null ? round2(l.salePrice / (factor || 1)) : l.unitPrice
+    return {
+      productId: l.productId,
+      name: l.name,
+      unit: l.unit,
+      qty: baseQty,
+      unitPrice,
+      cost: l.cost,
+      lineTotal,
+      saleUnit: l.saleUnit,
+      saleQty: l.qty,
+    }
+  })
+}
+
+export async function createQuote(
+  lines: CartLine[],
+  customerName?: string,
+  customerPhone?: string,
+  notes?: string,
+  validityDays = 15,
+): Promise<Quote> {
+  const items = cartToQuoteItems(lines)
+  const total = round2(items.reduce((s, i) => s + i.lineTotal, 0))
+  const lastQuote = await db.quotes.orderBy('date').last()
+  const now = Date.now()
+  const quote: Quote = {
+    id: uid(),
+    folio: (lastQuote?.folio ?? 0) + 1,
+    date: now,
+    validUntil: now + validityDays * 86_400_000,
+    items,
+    total,
+    customerName: customerName?.trim() || undefined,
+    customerPhone: customerPhone?.trim() || undefined,
+    notes: notes?.trim() || undefined,
+  }
+  await db.quotes.add(quote)
+  return quote
+}
+
+export async function deleteQuote(id: string): Promise<void> {
+  await db.quotes.delete(id)
+}
+
+export async function quoteToCartLines(quote: Quote): Promise<CartLine[]> {
+  const products = await db.products.toArray()
+  const pMap = new Map(products.map((p) => [p.id, p]))
+  return quote.items.map((it) => {
+    const prod = pMap.get(it.productId)
+    const saleUnit = it.saleUnit ?? it.unit
+    const qty = it.saleQty ?? it.qty
+    const baseUnit = prod?.unit ?? it.unit
+    const factor = prod ? presentationFactor(prod, saleUnit) : 1
+    const baseQty = toBaseQty(qty, factor, saleUnit, baseUnit)
+    return {
+      productId: it.productId,
+      name: it.name,
+      unit: baseUnit,
+      saleUnit,
+      qty,
+      baseQty,
+      stock: prod?.stock ?? 0,
+      unitPrice: prod?.price ?? it.unitPrice,
+      salePrice: it.saleQty ? round2(it.lineTotal / it.saleQty) : it.unitPrice,
+      cost: it.cost,
+      fractional: prod?.fractional,
+      presentations: prod?.salePresentations ?? [],
+    }
+  })
 }
 
 export function cartToItems(lines: CartLine[]): SaleItem[] {

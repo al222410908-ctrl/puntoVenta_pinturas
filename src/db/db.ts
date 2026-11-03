@@ -8,6 +8,7 @@ import type {
   Product,
   Purchase,
   PurchaseOrder,
+  Quote,
   Sale,
   StockMovement,
   Supplier,
@@ -20,6 +21,7 @@ export class PosDatabase extends Dexie {
   containers!: Table<Container, string>
   products!: Table<Product, string>
   sales!: Table<Sale, string>
+  quotes!: Table<Quote, string>
   purchases!: Table<Purchase, string>
   purchaseOrders!: Table<PurchaseOrder, string>
   stockMovements!: Table<StockMovement, string>
@@ -83,6 +85,20 @@ export class PosDatabase extends Dexie {
       cashEntries: 'id, date, shiftId',
       cashShifts: 'id, openedAt, closedAt, status',
       tombstones: 'id, table, at',
+    })
+    this.version(6).stores({
+      categories: 'id, name',
+      suppliers: 'id, name',
+      containers: 'id, name',
+      products: 'id, name, barcode, categoryId, supplierId',
+      sales: 'id, date',
+      purchases: 'id, date, supplierId',
+      purchaseOrders: 'id, date, supplierId, status',
+      stockMovements: 'id, date, type, productId',
+      cashEntries: 'id, date, shiftId',
+      cashShifts: 'id, openedAt, closedAt, status',
+      tombstones: 'id, table, at',
+      quotes: 'id, date, customerName',
     })
   }
 }

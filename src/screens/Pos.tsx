@@ -18,11 +18,12 @@ import {
   Sparkles,
   Receipt,
   User,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
-import { registerSale, undoLastSale } from '../db/repos'
-import type { Product, Payment, Unit, SalePresentation, Sale } from '../types'
+import { registerSale, undoLastSale, createQuote, quoteToCartLines } from '../db/repos'
+import type { Product, Payment, Unit, SalePresentation, Sale, Quote } from '../types'
 import { formatMoney, round2, matchesSearch, normalizeSearch } from '../lib/utils'
 import {
   UNIT_LABELS,
@@ -41,6 +42,9 @@ import {
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { SaleNoteModal } from '../components/SaleNoteModal'
 import { SalesHistory } from '../components/SalesHistory'
+import { QuoteModal } from '../components/QuoteModal'
+import { QuotesHistory } from '../components/QuotesHistory'
+import { quoteFolioLabel } from '../lib/ticket'
 import { Button, EmptyState, Input, Modal, SafeImage } from '../components/ui'
 import { loadScannerSettings, useBarcodeScanner } from '../lib/scanner'
 
@@ -66,6 +70,13 @@ export default function Pos() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [saleNotes, setSaleNotes] = useState('')
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [quoteCreateOpen, setQuoteCreateOpen] = useState(false)
+  const [quoteCustomerName, setQuoteCustomerName] = useState('')
+  const [quoteCustomerPhone, setQuoteCustomerPhone] = useState('')
+  const [quoteValidityDays, setQuoteValidityDays] = useState('15')
+  const [quoteNotes, setQuoteNotes] = useState('')
+  const [activeQuote, setActiveQuote] = useState<Quote | null>(null)
+  const [quotesListOpen, setQuotesListOpen] = useState(false)
   const [scanner] = useState<{ enabled: boolean; suffix: 'Enter' | 'Tab' }>(() => {
     const s = loadScannerSettings()
     return { enabled: s.enabled, suffix: s.suffix }
@@ -339,6 +350,60 @@ export default function Pos() {
   const paid = round2(cashNum + cardNum + transferNum)
   const change = round2(paid - cartTotal)
 
+  const handleOpenQuoteCreate = () => {
+    if (cart.length === 0) {
+      toast.error('Agrega productos al carrito para generar una cotización')
+      return
+    }
+    setQuoteCustomerName(customerName)
+    setQuoteCustomerPhone(customerPhone)
+    setQuoteNotes(saleNotes)
+    setQuoteCreateOpen(true)
+  }
+
+  const handleConfirmCreateQuote = async () => {
+    if (cart.length === 0) return
+    try {
+      const q = await createQuote(
+        cart,
+        quoteCustomerName,
+        quoteCustomerPhone,
+        quoteNotes,
+        parseInt(quoteValidityDays, 10) || 15
+      )
+      toast.success(`Cotización ${quoteFolioLabel(q)} generada con éxito`)
+      setQuoteCreateOpen(false)
+      setActiveQuote(q)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al generar la cotización')
+    }
+  }
+
+  const handleLoadQuoteToCart = async (q: Quote) => {
+    if (cart.length > 0) {
+      if (!confirm('Tu carrito actual tiene productos. ¿Deseas reemplazarlos por los de esta cotización?')) {
+        return
+      }
+    }
+    try {
+      const lines = await quoteToCartLines(q)
+      setCart(lines)
+      if (q.customerName) setCustomerName(q.customerName)
+      if (q.customerPhone) setCustomerPhone(q.customerPhone)
+      if (q.notes) setSaleNotes(`Cotización ${quoteFolioLabel(q)}: ${q.notes}`)
+      setQuotesListOpen(false)
+      toast.success(`Cotización ${quoteFolioLabel(q)} cargada al carrito`)
+    } catch {
+      toast.error('No se pudo cargar la cotización al carrito')
+    }
+  }
+
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    setTimeout(() => {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 300)
+  }
+
   const finishSale = async () => {
     let cashNumEff = cashNum
     let cardNumEff = cardNum
@@ -411,6 +476,10 @@ export default function Pos() {
             <Button onClick={() => setHistoryOpen(true)} className="btn-secondary shrink-0 shadow-2xs" title="Historial de notas y comprobantes">
               <Receipt className="h-4.5 w-4.5 text-primary dark:text-emerald-400" />
               <span className="hidden sm:inline">Notas</span>
+            </Button>
+            <Button onClick={() => setQuotesListOpen(true)} className="btn-secondary shrink-0 shadow-2xs" title="Cotizaciones y Presupuestos">
+              <FileSpreadsheet className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
+              <span className="hidden sm:inline">Cotizaciones</span>
             </Button>
           </div>
           {scannerActive && (
@@ -540,6 +609,7 @@ export default function Pos() {
           setLineUnitAndQty={setLineUnitAndQty}
           removeLine={removeLine}
           onPay={openPayment}
+          onQuote={handleOpenQuoteCreate}
           onUndo={() => void handleUndo()}
         />
       </div>
@@ -605,6 +675,7 @@ export default function Pos() {
                 min="0"
                 step="0.01"
                 value={cash}
+                onFocus={handleInputFocus}
                 onChange={(e) => setCash(e.target.value)}
                 placeholder="0.00"
               />
@@ -646,6 +717,7 @@ export default function Pos() {
                 min="0"
                 step="0.01"
                 value={card}
+                onFocus={handleInputFocus}
                 onChange={(e) => setCard(e.target.value)}
                 placeholder="0.00"
               />
@@ -675,6 +747,7 @@ export default function Pos() {
                 min="0"
                 step="0.01"
                 value={transfer}
+                onFocus={handleInputFocus}
                 onChange={(e) => setTransfer(e.target.value)}
                 placeholder="0.00"
               />
@@ -750,6 +823,101 @@ export default function Pos() {
           <SalesHistory compact />
         </div>
       </Modal>
+
+      {/* Modal para Crear Cotización */}
+      <Modal open={quoteCreateOpen} onClose={() => setQuoteCreateOpen(false)} title="Generar Cotización / Presupuesto">
+        <div className="space-y-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs dark:border-amber-900/60 dark:bg-amber-950/20">
+            <div className="flex justify-between items-center font-bold text-amber-900 dark:text-amber-300">
+              <span>Total a cotizar ({cartCount} artículos):</span>
+              <span className="font-display text-base tabular-nums">{formatMoney(cartTotal)}</span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-amber-700/80 dark:text-amber-400">
+              Esta cotización no reserva existencias ni descuenta producto del almacén.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <span className="label">Nombre del cliente</span>
+              <Input
+                placeholder="Ej: Arq. Juan Pérez / Contratista"
+                value={quoteCustomerName}
+                onChange={(e) => setQuoteCustomerName(e.target.value)}
+                maxLength={60}
+                autoFocus
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <span className="label">WhatsApp (opcional)</span>
+                <Input
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="10 dígitos ej: 5512345678"
+                  value={quoteCustomerPhone}
+                  onChange={(e) => setQuoteCustomerPhone(e.target.value)}
+                  maxLength={15}
+                />
+              </div>
+              <div>
+                <span className="label">Vigencia (días)</span>
+                <select
+                  value={quoteValidityDays}
+                  onChange={(e) => setQuoteValidityDays(e.target.value)}
+                  className="input w-full"
+                >
+                  <option value="7">7 días</option>
+                  <option value="15">15 días (recomendado)</option>
+                  <option value="30">30 días</option>
+                  <option value="60">60 días</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <span className="label">Notas / Observaciones (opcional)</span>
+              <Input
+                placeholder="Ej: Precios válidos por volumen, flete incluido..."
+                value={quoteNotes}
+                onChange={(e) => setQuoteNotes(e.target.value)}
+                maxLength={120}
+              />
+            </div>
+          </div>
+
+          <div className="pt-2 flex gap-2">
+            <Button className="btn-accent flex-1 py-3 font-bold" onClick={() => void handleConfirmCreateQuote()}>
+              <FileSpreadsheet className="mr-2 inline h-4 w-4" />
+              Generar Cotización
+            </Button>
+            <Button className="btn-secondary" onClick={() => setQuoteCreateOpen(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de Previsualización y Envío de Cotización */}
+      <QuoteModal
+        quote={activeQuote}
+        onClose={() => setActiveQuote(null)}
+        onConvertToSale={() => {
+          if (activeQuote) {
+            void handleLoadQuoteToCart(activeQuote)
+            setActiveQuote(null)
+          }
+        }}
+      />
+
+      {/* Modal con Historial de Cotizaciones */}
+      <Modal open={quotesListOpen} onClose={() => setQuotesListOpen(false)} title="Cotizaciones y Presupuestos Guardados">
+        <div className="max-h-[75vh] flex flex-col">
+          <QuotesHistory onLoadQuoteToCart={handleLoadQuoteToCart} compact />
+        </div>
+      </Modal>
+
     </div>
   )
 }
@@ -794,6 +962,7 @@ function CartPanel({
   setLineUnitAndQty,
   removeLine,
   onPay,
+  onQuote,
   onUndo,
 }: {
   cart: CartLine[]
@@ -802,6 +971,7 @@ function CartPanel({
   setLineUnitAndQty: (productId: string, fromUnit: Unit, toUnit: Unit, qty: number) => void
   removeLine: (productId: string, saleUnit: Unit) => void
   onPay: () => void
+  onQuote?: () => void
   onUndo: () => void
 }) {
   const applyPreset = (l: CartLine, b: { unit: Unit; qty: number }) => {
@@ -1056,13 +1226,26 @@ function CartPanel({
                 {formatMoney(cartTotal)}
               </span>
             </div>
-            <button
-              onClick={onPay}
-              className="btn-accent flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-base font-extrabold shadow-md transition-all active:scale-[0.98]"
-            >
-              <Banknote className="h-5 w-5" />
-              <span>Cobrar {formatMoney(cartTotal)}</span>
-            </button>
+            <div className="flex gap-2">
+              {onQuote && (
+                <button
+                  type="button"
+                  onClick={onQuote}
+                  className="btn-secondary flex items-center justify-center gap-1.5 rounded-xl py-3 px-3.5 text-xs font-bold shadow-2xs transition-all active:scale-[0.98] border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300"
+                  title="Generar cotización sin venta"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span>Cotizar</span>
+                </button>
+              )}
+              <button
+                onClick={onPay}
+                className="btn-accent flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 text-base font-extrabold shadow-md transition-all active:scale-[0.98]"
+              >
+                <Banknote className="h-5 w-5" />
+                <span>Cobrar {formatMoney(cartTotal)}</span>
+              </button>
+            </div>
           </div>
         </>
       )}
