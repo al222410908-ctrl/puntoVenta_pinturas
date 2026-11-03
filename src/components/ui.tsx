@@ -72,12 +72,14 @@ export function Modal({
   title,
   children,
   wide,
+  size,
 }: {
   open: boolean
   onClose: () => void
   title: string
   children: ReactNode
   wide?: boolean
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl'
 }) {
   useEffect(() => {
     if (!open) return
@@ -93,7 +95,19 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-sm p-0 transition-opacity duration-200 md:items-center md:p-4">
       <div
         className={`flex max-h-[92dvh] md:max-h-[90vh] w-full flex-col rounded-t-3xl border border-slate-200/90 bg-white shadow-2xl md:rounded-3xl dark:border-slate-700/80 dark:bg-slate-900 dark:shadow-2xl dark:shadow-black/70 ${
-          wide ? 'md:max-w-2xl' : 'md:max-w-md'
+          size === '3xl'
+            ? 'md:max-w-3xl lg:max-w-4xl'
+            : size === '4xl'
+            ? 'md:max-w-4xl lg:max-w-5xl'
+            : size === 'xl'
+            ? 'md:max-w-xl'
+            : size === 'lg'
+            ? 'md:max-w-lg'
+            : size === 'sm'
+            ? 'md:max-w-sm'
+            : (wide || size === '2xl')
+            ? 'md:max-w-2xl'
+            : 'md:max-w-md'
         }`}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">

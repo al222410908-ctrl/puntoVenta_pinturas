@@ -601,7 +601,7 @@ export default function Pos() {
         </div>
       </div>
 
-      <div className="hidden w-80 shrink-0 flex-col border-l border-slate-200 bg-white lg:flex dark:border-slate-800 dark:bg-slate-900">
+      <div className="hidden w-[400px] xl:w-[460px] 2xl:w-[500px] shrink-0 flex-col border-l border-slate-200 bg-white lg:flex dark:border-slate-800 dark:bg-slate-900 shadow-sm">
         <CartPanel
           cart={cart}
           cartTotal={cartTotal}
@@ -643,175 +643,230 @@ export default function Pos() {
         />
       </Modal>
 
-      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Cobrar venta">
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50 to-white p-4 text-center dark:border-slate-800 dark:from-slate-800/80 dark:to-slate-900 shadow-2xs">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Total a liquidar</p>
-            <p className="font-display text-3xl font-extrabold text-primary dark:text-emerald-400 tabular-nums mt-0.5">{formatMoney(cartTotal)}</p>
-          </div>
+      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Cobrar venta" size="3xl">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+          {/* Columna Izquierda: Total, Resumen de Artículos y Cambio */}
+          <div className="md:col-span-5 space-y-3">
+            <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50 to-white p-4 text-center dark:border-slate-800 dark:from-slate-800/80 dark:to-slate-900 shadow-2xs">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">
+                Total a liquidar
+              </p>
+              <p className="font-display text-3xl lg:text-4xl font-extrabold text-primary dark:text-emerald-400 tabular-nums mt-1">
+                {formatMoney(cartTotal)}
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5 font-medium">
+                {cartCount} {cartCount === 1 ? 'artículo en la nota' : 'artículos en la nota'}
+              </p>
+            </div>
 
-          <div className="space-y-3">
-            <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                  <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  Efectivo recibido
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCash(String(cartTotal.toFixed(2)))
-                    setCard('')
-                    setTransfer('')
-                  }}
-                  className="text-[11px] font-bold text-primary hover:underline dark:text-emerald-400"
-                >
-                  Exacto ({formatMoney(cartTotal)})
-                </button>
-              </div>
-              <Input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                value={cash}
-                onFocus={handleInputFocus}
-                onChange={(e) => setCash(e.target.value)}
-                placeholder="0.00"
-              />
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {[50, 100, 200, 500].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setCash(String((Math.ceil(cartTotal / n) * n).toFixed(2)))}
-                    className="rounded-lg border border-slate-200/90 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                  >
-                    ${n}
-                  </button>
+            {/* Desglose rápido de lo que se lleva el cliente para confirmación en mostrador */}
+            <div className="hidden md:block rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-xs dark:border-slate-800 dark:bg-slate-900/40">
+              <p className="font-bold text-slate-600 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                <span>Resumen de nota</span>
+                <span className="text-[11px] font-normal text-slate-400">Verificación</span>
+              </p>
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                {cart.map((l, i) => (
+                  <div key={i} className="flex justify-between items-center text-[11.5px]">
+                    <span className="truncate pr-2 text-slate-700 dark:text-slate-300">
+                      {formatQty(l.qty, l.saleUnit)} {l.name}
+                    </span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100 tabular-nums shrink-0">
+                      {formatMoney(lineTotal(l))}
+                    </span>
+                  </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                  <CreditCard className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                  Tarjeta / Terminal
+            {/* Estado de Pagos y Cambio */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between rounded-xl bg-slate-100/80 border border-slate-200/80 px-3.5 py-2.5 text-xs dark:bg-slate-800/80 dark:border-slate-700">
+                <span className="font-medium text-slate-600 dark:text-slate-300">Total recibido:</span>
+                <span className="font-display font-bold text-slate-900 dark:text-slate-100 tabular-nums text-sm">
+                  {formatMoney(paid)}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCard(String(cartTotal.toFixed(2)))
-                    setCash('')
-                    setTransfer('')
-                  }}
-                  className="text-[11px] font-bold text-sky-600 hover:underline dark:text-sky-400"
-                >
-                  Todo con tarjeta
-                </button>
+              </div>
+
+              {paid < cartTotal ? (
+                <div className="flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 px-3.5 py-2.5 text-xs dark:bg-amber-950/40 dark:border-amber-800">
+                  <span className="font-bold text-amber-800 dark:text-amber-300">Resta por cubrir:</span>
+                  <span className="font-display font-extrabold text-amber-700 dark:text-amber-400 tabular-nums text-base">
+                    {formatMoney(round2(cartTotal - paid))}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-3 text-xs dark:bg-emerald-950/40 dark:border-emerald-800">
+                  <div>
+                    <span className="block font-bold text-emerald-800 dark:text-emerald-300 text-xs">
+                      Cambio a entregar
+                    </span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                      En efectivo al cliente
+                    </span>
+                  </div>
+                  <span className="font-display text-2xl font-black text-emerald-700 dark:text-emerald-300 tabular-nums">
+                    {change > 0 ? formatMoney(change) : '$0.00'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Columna Derecha: Formas de Pago, Datos del Cliente y Botón Final */}
+          <div className="md:col-span-7 space-y-3">
+            <div className="space-y-2.5">
+              {/* Efectivo */}
+              <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    Efectivo recibido
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCash(String(cartTotal.toFixed(2)))
+                      setCard('')
+                      setTransfer('')
+                    }}
+                    className="text-[11px] font-bold text-primary hover:underline dark:text-emerald-400"
+                  >
+                    Exacto ({formatMoney(cartTotal)})
+                  </button>
+                </div>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={cash}
+                  onFocus={handleInputFocus}
+                  onChange={(e) => setCash(e.target.value)}
+                  placeholder="0.00"
+                />
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {[50, 100, 200, 500].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setCash(String((Math.ceil(cartTotal / n) * n).toFixed(2)))}
+                      className="rounded-lg border border-slate-200/90 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    >
+                      ${n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tarjeta y Transferencia en Grid de 2 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Tarjeta */}
+                <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <CreditCard className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                      Tarjeta
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCard(String(cartTotal.toFixed(2)))
+                        setCash('')
+                        setTransfer('')
+                      }}
+                      className="text-[11px] font-bold text-sky-600 hover:underline dark:text-sky-400"
+                    >
+                      Todo
+                    </button>
+                  </div>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={card}
+                    onFocus={handleInputFocus}
+                    onChange={(e) => setCard(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+
+                {/* Transferencia */}
+                <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <Smartphone className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                      Transferencia
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTransfer(String(cartTotal.toFixed(2)))
+                        setCash('')
+                        setCard('')
+                      }}
+                      className="text-[11px] font-bold text-violet-600 hover:underline dark:text-violet-400"
+                    >
+                      Todo
+                    </button>
+                  </div>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={transfer}
+                    onFocus={handleInputFocus}
+                    onChange={(e) => setTransfer(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Datos del Cliente y Notas opcionales */}
+            <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                <User className="h-3.5 w-3.5 text-primary dark:text-emerald-400" />
+                <span>Cliente y comprobante (opcional)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Input
+                  placeholder="Nombre del cliente…"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  maxLength={60}
+                  className="text-xs bg-white dark:bg-slate-900"
+                />
+                <Input
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="WhatsApp (10 dígitos)"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  maxLength={15}
+                  className="text-xs bg-white dark:bg-slate-900"
+                />
               </div>
               <Input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                value={card}
-                onFocus={handleInputFocus}
-                onChange={(e) => setCard(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                  <Smartphone className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                  Transferencia / SPEI
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTransfer(String(cartTotal.toFixed(2)))
-                    setCash('')
-                    setCard('')
-                  }}
-                  className="text-[11px] font-bold text-violet-600 hover:underline dark:text-violet-400"
-                >
-                  Todo con transferencia
-                </button>
-              </div>
-              <Input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                value={transfer}
-                onFocus={handleInputFocus}
-                onChange={(e) => setTransfer(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-
-          {/* Datos del Cliente y Notas opcionales */}
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60 space-y-2">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-              <User className="h-3.5 w-3.5 text-primary dark:text-emerald-400" />
-              <span>Cliente y comprobante (opcional)</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Input
-                placeholder="Nombre del cliente…"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                maxLength={60}
-                className="text-xs bg-white dark:bg-slate-900"
-              />
-              <Input
-                type="tel"
-                inputMode="tel"
-                placeholder="WhatsApp (10 dígitos)"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                maxLength={15}
+                placeholder="Nota de venta (ej. color preparado, factura pendiente...)"
+                value={saleNotes}
+                onChange={(e) => setSaleNotes(e.target.value)}
+                maxLength={120}
                 className="text-xs bg-white dark:bg-slate-900"
               />
             </div>
-            <Input
-              placeholder="Nota de venta (ej. color preparado, factura pendiente...)"
-              value={saleNotes}
-              onChange={(e) => setSaleNotes(e.target.value)}
-              maxLength={120}
-              className="text-xs bg-white dark:bg-slate-900"
-            />
+
+            <Button
+              className="w-full py-3.5 text-base font-bold shadow-md shadow-primary/20"
+              disabled={paid < cartTotal}
+              onClick={() => void finishSale()}
+            >
+              <Check className="h-5 w-5 mr-1.5 inline" />
+              Completar venta ({formatMoney(cartTotal)})
+            </Button>
           </div>
-
-          <div className="flex items-center justify-between rounded-xl bg-emerald-50/80 border border-emerald-200/80 px-3.5 py-2.5 text-sm dark:bg-emerald-950/40 dark:border-emerald-800/40">
-            <span className="font-medium text-emerald-800 dark:text-emerald-300">Total recibido</span>
-            <span className="font-display font-bold text-emerald-800 dark:text-emerald-300 tabular-nums">{formatMoney(paid)}</span>
-          </div>
-
-          {paid < cartTotal ? (
-            <div className="flex items-center justify-between rounded-xl bg-amber-50/80 border border-amber-200/80 px-3.5 py-2.5 text-sm dark:bg-amber-950/40 dark:border-amber-800/40">
-              <span className="font-medium text-amber-800 dark:text-amber-300">Resta por cubrir</span>
-              <span className="font-display font-bold text-amber-700 dark:text-amber-400 tabular-nums">{formatMoney(round2(cartTotal - paid))}</span>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/15 px-3.5 py-2.5 text-sm dark:bg-slate-800 dark:border-slate-700">
-              <span className="font-medium text-slate-700 dark:text-slate-300">Cambio (efectivo)</span>
-              <span className="font-display text-lg font-extrabold text-primary dark:text-emerald-400 tabular-nums">{change > 0 ? formatMoney(change) : '$0.00'}</span>
-            </div>
-          )}
-
-          <Button
-            className="w-full py-3 text-base shadow-sm shadow-primary/20"
-            disabled={paid < cartTotal}
-            onClick={() => void finishSale()}
-          >
-            <Check className="h-5 w-5" />
-            Completar venta ({formatMoney(cartTotal)})
-          </Button>
         </div>
       </Modal>
 
