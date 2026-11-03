@@ -19,6 +19,10 @@ import {
   Receipt,
   User,
   FileSpreadsheet,
+  Keyboard,
+  PauseCircle,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
@@ -47,6 +51,10 @@ import { QuotesHistory } from '../components/QuotesHistory'
 import { quoteFolioLabel } from '../lib/ticket'
 import { Button, EmptyState, Input, Modal, SafeImage } from '../components/ui'
 import { loadScannerSettings, useBarcodeScanner } from '../lib/scanner'
+import { sound } from '../lib/sound'
+import { getHeldSales, holdSale, removeHeldSale, type HeldSale } from '../lib/heldSales'
+import { HeldSalesModal } from '../components/HeldSalesModal'
+import { KeyboardShortcutsModal } from '../components/KeyboardShortcutsModal'
 
 
 
@@ -77,6 +85,10 @@ export default function Pos() {
   const [quoteNotes, setQuoteNotes] = useState('')
   const [activeQuote, setActiveQuote] = useState<Quote | null>(null)
   const [quotesListOpen, setQuotesListOpen] = useState(false)
+  const [heldSales, setHeldSales] = useState<HeldSale[]>(() => getHeldSales())
+  const [heldModalOpen, setHeldModalOpen] = useState(false)
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(() => sound.isEnabled())
   const [scanner] = useState<{ enabled: boolean; suffix: 'Enter' | 'Tab' }>(() => {
     const s = loadScannerSettings()
     return { enabled: s.enabled, suffix: s.suffix }
@@ -203,6 +215,7 @@ export default function Pos() {
           l.productId === p.id && l.saleUnit === saleUnit ? { ...l, qty: nextQty, baseQty: nextBase } : l,
         )
       }
+      sound.beep(1100, 0.06)
       return [...prev, makeLine(p, saleUnit, 1)]
     })
   }
@@ -404,6 +417,122 @@ export default function Pos() {
     }, 300)
   }
 
+  const handleHoldSale = () => {
+    if (cart.length === 0) {
+      toast.error('El carrito está vacío, no hay nada que pausar')
+      return
+    }
+    holdSale(cart, customerName, saleNotes)
+    sound.beep(650, 0.08)
+    toast.success('Venta pausada y guardada en espera [F9]')
+    setCart([])
+    setCustomerName('')
+    setCustomerPhone('')
+    setSaleNotes('')
+    setCartOpen(false)
+  }
+
+  const handleResumeHeldSale = (held: HeldSale) => {
+    if (cart.length > 0) {
+      if (!confirm('Tu carrito actual tiene productos. ¿Deseas reemplazarlo con la venta pausada?')) {
+        return
+      }
+    }
+    setCart(held.cart)
+    if (held.customerName) setCustomerName(held.customerName)
+    if (held.notes) setSaleNotes(held.notes)
+    removeHeldSale(held.id)
+    setHeldModalOpen(false)
+    sound.beep(1200, 0.08)
+    toast.success('Venta reanudada')
+  }
+
+  useEffect(() => {
+    const refreshHeld = () => setHeldSales(getHeldSales())
+    window.addEventListener('pos:held_sales_updated', refreshHeld)
+    return () => window.removeEventListener('pos:held_sales_updated', refreshHeld)
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const isEditing =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT')
+
+      if (e.key === 'Escape') {
+        if (payOpen) setPayOpen(false)
+        else if (quoteCreateOpen) setQuoteCreateOpen(false)
+        else if (quotesListOpen) setQuotesListOpen(false)
+        else if (historyOpen) setHistoryOpen(false)
+        else if (heldModalOpen) setHeldModalOpen(false)
+        else if (shortcutsModalOpen) setShortcutsModalOpen(false)
+        else if (cartOpen) setCartOpen(false)
+        else if (scanOpen) setScanOpen(false)
+        else if (search) setSearch('')
+        return
+      }
+
+      if (e.key === 'F2' || (!isEditing && e.key === '/')) {
+        e.preventDefault()
+        const searchEl = document.getElementById('pos-search') as HTMLInputElement | null
+        if (searchEl) {
+          searchEl.focus()
+          searchEl.select()
+        }
+        return
+      }
+
+      if (e.key === 'F4') {
+        e.preventDefault()
+        if (cart.length > 0 && !payOpen && !quoteCreateOpen) {
+          openPayment()
+        } else if (cart.length === 0) {
+          toast.error('Agrega productos al carrito para cobrar [F4]')
+        }
+        return
+      }
+
+      if (e.key === 'F7') {
+        e.preventDefault()
+        if (cart.length > 0 && !payOpen && !quoteCreateOpen) {
+          handleOpenQuoteCreate()
+        } else if (cart.length === 0) {
+          toast.error('Agrega productos al carrito para cotizar [F7]')
+        }
+        return
+      }
+
+      if (e.key === 'F9') {
+        e.preventDefault()
+        if (cart.length > 0) {
+          handleHoldSale()
+        } else {
+          toast.error('El carrito está vacío para pausar [F9]')
+        }
+        return
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [
+    cart,
+    payOpen,
+    quoteCreateOpen,
+    quotesListOpen,
+    historyOpen,
+    heldModalOpen,
+    shortcutsModalOpen,
+    cartOpen,
+    scanOpen,
+    search,
+    customerName,
+    saleNotes,
+  ])
+
   const finishSale = async () => {
     let cashNumEff = cashNum
     let cardNumEff = cardNum
@@ -431,6 +560,7 @@ export default function Pos() {
     }
     try {
       const sale = await registerSale(cart, payments, saleNotes, customerName, customerPhone)
+      sound.success()
       toast.success('Venta registrada')
       setCart([])
       setCustomerName('')
@@ -454,7 +584,7 @@ export default function Pos() {
               <Input
                 id="pos-search"
                 className="pl-10 pr-9 bg-white/90 dark:bg-slate-950/80 shadow-2xs"
-                placeholder="Buscar por nombre o código de barras…"
+                placeholder="Buscar producto o código… [/] [F2]"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -481,6 +611,37 @@ export default function Pos() {
               <FileSpreadsheet className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
               <span className="hidden sm:inline">Cotizaciones</span>
             </Button>
+            {heldSales.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setHeldModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 px-3 py-1.5 text-xs font-bold shadow-xs hover:bg-amber-200 transition animate-pulse dark:bg-amber-950/60 dark:border-amber-700 dark:text-amber-200 shrink-0"
+                title="Ver ventas pausadas en espera [F9]"
+              >
+                <PauseCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <span>{heldSales.length} en espera</span>
+              </button>
+            )}
+            <Button
+              onClick={() => setShortcutsModalOpen(true)}
+              className="btn-secondary shrink-0 shadow-2xs"
+              title="Guía rápida de atajos de teclado [F2, F4, F7, F9, Esc]"
+            >
+              <Keyboard className="h-4.5 w-4.5 text-slate-600 dark:text-slate-300" />
+              <span className="hidden sm:inline">Atajos</span>
+            </Button>
+            <button
+              type="button"
+              onClick={() => setSoundEnabled(sound.toggle())}
+              className="rounded-xl border border-slate-200/90 bg-white p-2 text-slate-600 hover:bg-slate-50 transition shadow-2xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 shrink-0"
+              title={soundEnabled ? 'Sonido activado (clic para silenciar)' : 'Sonido silenciado (clic para activar)'}
+            >
+              {soundEnabled ? (
+                <Volume2 className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <VolumeX className="h-4.5 w-4.5 text-slate-400" />
+              )}
+            </button>
           </div>
           {scannerActive && (
             <div className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
@@ -565,6 +726,11 @@ export default function Pos() {
                           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                           fallbackIcon={<Package className="h-7 w-7 text-slate-300 dark:text-slate-600" />}
                         />
+                        {low && (
+                          <span className="absolute top-1.5 left-1.5 z-10 flex items-center gap-1 rounded-md bg-amber-500 text-slate-950 px-1.5 py-0.5 text-[9.5px] font-black shadow-xs ring-1 ring-amber-300/50 animate-pulse">
+                            ⚠️ ¡Quedan {formatProductStock(p.stock, p.unit, p.fractional, true)}!
+                          </span>
+                        )}
                         <span
                           className={`chip absolute bottom-1.5 right-1.5 text-[10px] shadow-2xs backdrop-blur-md ${
                             out ? 'chip-bad' : low ? 'chip-warn' : 'chip-ok'
@@ -610,6 +776,7 @@ export default function Pos() {
           removeLine={removeLine}
           onPay={openPayment}
           onQuote={handleOpenQuoteCreate}
+          onHold={handleHoldSale}
           onUndo={() => void handleUndo()}
         />
       </div>
@@ -639,6 +806,8 @@ export default function Pos() {
           setLineUnitAndQty={setLineUnitAndQty}
           removeLine={removeLine}
           onPay={openPayment}
+          onQuote={handleOpenQuoteCreate}
+          onHold={handleHoldSale}
           onUndo={() => void handleUndo()}
         />
       </Modal>
@@ -745,17 +914,34 @@ export default function Pos() {
                   onChange={(e) => setCash(e.target.value)}
                   placeholder="0.00"
                 />
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {[50, 100, 200, 500].map((n) => (
+                <div className="mt-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    <span>Billetes rápidos (MXN):</span>
+                    <span className="text-[10px] text-slate-400">Toca para fijar pago</span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1.5">
+                  {[
+                    { val: 50, label: '$50', style: 'border-pink-300/90 bg-pink-50 text-pink-700 hover:bg-pink-100 dark:border-pink-800 dark:bg-pink-950/40 dark:text-pink-300' },
+                    { val: 100, label: '$100', style: 'border-rose-300/90 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300' },
+                    { val: 200, label: '$200', style: 'border-emerald-300/90 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' },
+                    { val: 500, label: '$500', style: 'border-blue-300/90 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300' },
+                    { val: 1000, label: '$1,000', style: 'border-amber-300/90 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300' },
+                  ].map((b) => (
                     <button
-                      key={n}
+                      key={b.val}
                       type="button"
-                      onClick={() => setCash(String((Math.ceil(cartTotal / n) * n).toFixed(2)))}
-                      className="rounded-lg border border-slate-200/90 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                      onClick={() => {
+                        sound.beep(850, 0.05)
+                        const target = b.val >= cartTotal ? b.val : Math.ceil(cartTotal / b.val) * b.val
+                        setCash(String(target.toFixed(2)))
+                      }}
+                      className={`flex items-center justify-center rounded-xl border py-2 px-1 text-xs font-black shadow-2xs transition active:scale-95 ${b.style}`}
+                      title={`Pagar con billete de ${b.label}`}
                     >
-                      ${n}
+                      {b.label}
                     </button>
                   ))}
+                </div>
                 </div>
               </div>
 
@@ -973,6 +1159,24 @@ export default function Pos() {
         </div>
       </Modal>
 
+      {/* Modal de Ventas en Espera (Pausadas) */}
+      <HeldSalesModal
+        open={heldModalOpen}
+        onClose={() => setHeldModalOpen(false)}
+        heldSales={heldSales}
+        onResume={handleResumeHeldSale}
+        onDelete={(id) => {
+          removeHeldSale(id)
+          toast.info('Venta en espera eliminada')
+        }}
+      />
+
+      {/* Guía Rápida de Atajos de Teclado */}
+      <KeyboardShortcutsModal
+        open={shortcutsModalOpen}
+        onClose={() => setShortcutsModalOpen(false)}
+      />
+
     </div>
   )
 }
@@ -1018,6 +1222,7 @@ function CartPanel({
   removeLine,
   onPay,
   onQuote,
+  onHold,
   onUndo,
 }: {
   cart: CartLine[]
@@ -1027,6 +1232,7 @@ function CartPanel({
   removeLine: (productId: string, saleUnit: Unit) => void
   onPay: () => void
   onQuote?: () => void
+  onHold?: () => void
   onUndo: () => void
 }) {
   const applyPreset = (l: CartLine, b: { unit: Unit; qty: number }) => {
@@ -1282,23 +1488,38 @@ function CartPanel({
               </span>
             </div>
             <div className="flex gap-2">
+              {onHold && (
+                <button
+                  type="button"
+                  onClick={onHold}
+                  className="btn-secondary flex items-center justify-center gap-1 rounded-xl py-3 px-3 text-xs font-bold shadow-2xs transition-all active:scale-[0.98] border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                  title="Pausar venta actual y atender a otro cliente [F9]"
+                >
+                  <PauseCircle className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                  <span>Pausar</span>
+                  <span className="text-[10px] opacity-60 font-mono">[F9]</span>
+                </button>
+              )}
               {onQuote && (
                 <button
                   type="button"
                   onClick={onQuote}
-                  className="btn-secondary flex items-center justify-center gap-1.5 rounded-xl py-3 px-3.5 text-xs font-bold shadow-2xs transition-all active:scale-[0.98] border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300"
-                  title="Generar cotización sin venta"
+                  className="btn-secondary flex items-center justify-center gap-1 rounded-xl py-3 px-3 text-xs font-bold shadow-2xs transition-all active:scale-[0.98] border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300"
+                  title="Generar cotización sin venta [F7]"
                 >
                   <FileSpreadsheet className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   <span>Cotizar</span>
+                  <span className="text-[10px] opacity-60 font-mono">[F7]</span>
                 </button>
               )}
               <button
                 onClick={onPay}
-                className="btn-accent flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 text-base font-extrabold shadow-md transition-all active:scale-[0.98]"
+                className="btn-accent flex-1 flex items-center justify-center gap-1.5 rounded-xl py-3.5 text-base font-extrabold shadow-md transition-all active:scale-[0.98]"
+                title="Cobrar venta actual [F4]"
               >
                 <Banknote className="h-5 w-5" />
                 <span>Cobrar {formatMoney(cartTotal)}</span>
+                <span className="text-xs opacity-75 font-mono ml-0.5 bg-black/10 px-1.5 py-0.5 rounded-md">[F4]</span>
               </button>
             </div>
           </div>

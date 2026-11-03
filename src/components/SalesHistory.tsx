@@ -6,6 +6,7 @@ import {
   History,
   MessageCircle,
   Receipt,
+  RotateCcw,
   Search,
   User,
   X,
@@ -17,6 +18,7 @@ import { formatMoney, matchesSearch, round2 } from '../lib/utils'
 import { formatQty } from '../lib/units'
 import { Button, EmptyState, Input } from './ui'
 import { SaleNoteModal } from './SaleNoteModal'
+import { ReturnModal } from './ReturnModal'
 import { toast } from 'sonner'
 
 type DateFilter = 'hoy' | 'ayer' | 'semana' | 'mes' | 'todo'
@@ -30,6 +32,7 @@ export function SalesHistory({ compact = false }: SalesHistoryProps) {
   const [search, setSearch] = useState('')
   const [dateFilter, setDateFilter] = useState<DateFilter>('hoy')
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
+  const [returnSale, setReturnSale] = useState<Sale | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const business = useMemo(() => loadBusinessInfo(), [])
@@ -243,6 +246,11 @@ export function SalesHistory({ compact = false }: SalesHistoryProps) {
                     {s.items.map((it, idx) => (
                       <span key={idx} className="mr-2">
                         • {formatQty(it.saleQty ?? it.qty, it.saleUnit ?? it.unit)} {it.name}
+                        {it.returnedQty && it.returnedQty > 0 ? (
+                          <span className="ml-1 text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                            (Dev: {it.returnedQty})
+                          </span>
+                        ) : null}
                       </span>
                     ))}
                   </div>
@@ -263,6 +271,17 @@ export function SalesHistory({ compact = false }: SalesHistoryProps) {
                   </div>
 
                   <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setReturnSale(s)
+                      }}
+                      title="Devolver artículo o reembolsar dinero"
+                      className="rounded-lg border border-amber-200 bg-amber-50 p-1.5 text-amber-700 hover:bg-amber-100 transition dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => handleWhatsApp(s, e)}
@@ -300,6 +319,17 @@ export function SalesHistory({ compact = false }: SalesHistoryProps) {
 
       {/* Modal de Detalle de Nota Original */}
       <SaleNoteModal sale={selectedSale} onClose={() => setSelectedSale(null)} />
+
+      {/* Modal de Devolución Directo */}
+      {returnSale && (
+        <ReturnModal
+          sale={returnSale}
+          onClose={() => setReturnSale(null)}
+          onSuccess={() => {
+            setReturnSale(null)
+          }}
+        />
+      )}
     </div>
   )
 }

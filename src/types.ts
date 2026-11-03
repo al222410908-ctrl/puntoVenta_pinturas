@@ -89,6 +89,8 @@ export interface SaleItem {
   saleUnit?: Unit
   /** Cantidad vendida en la presentación seleccionada */
   saleQty?: number
+  /** Cantidad que ha sido devuelta por el cliente */
+  returnedQty?: number
 }
 
 export interface QuoteItem {
@@ -101,6 +103,8 @@ export interface QuoteItem {
   lineTotal: number
   saleUnit?: Unit
   saleQty?: number
+  /** Cantidad que ha sido devuelta por el cliente */
+  returnedQty?: number
 }
 
 export interface Quote {

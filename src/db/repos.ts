@@ -266,6 +266,122 @@ export async function undoLastSale(): Promise<Sale | null> {
   return last
 }
 
+export interface ReturnSaleItemInput {
+  saleId: string
+  itemIndex: number
+  qtyToReturn: number
+  reason: string
+  refundCash: boolean
+  refundAmount?: number
+}
+
+export async function returnSaleItem(input: ReturnSaleItemInput): Promise<{
+  sale: Sale
+  returnedStock: number
+  refundAmount?: number
+}> {
+  const sale = await db.sales.get(input.saleId)
+  if (!sale) throw new Error('Venta no encontrada')
+  const item = sale.items[input.itemIndex]
+  if (!item) throw new Error('Artículo no encontrado en la venta')
+
+  const originalQty = item.saleQty ?? item.qty
+  const currentReturned = item.returnedQty ?? 0
+  const availableToReturn = round2(originalQty - currentReturned)
+
+  if (input.qtyToReturn <= 0) {
+    throw new Error('La cantidad a devolver debe ser mayor a 0')
+  }
+  if (input.qtyToReturn > availableToReturn + 1e-4) {
+    throw new Error(`Solo se pueden devolver hasta ${availableToReturn} ${item.saleUnit ?? item.unit}(s)`)
+  }
+
+  const now = Date.now()
+  let returnedBaseQty = input.qtyToReturn
+  let returnedProductStock = 0
+
+  await db.transaction(
+    'rw',
+    [db.sales, db.products, db.stockMovements, db.cashEntries, db.cashShifts],
+    async () => {
+      // 1. Restaurar inventario del producto
+      const product = await db.products.get(item.productId)
+      if (product) {
+        let nextStock: number
+        if (isLiquid(product.unit)) {
+          const currentLiters = toExactLiters(product.stock, product.unit)
+          const returnedLiters = toExactLiters(input.qtyToReturn, item.saleUnit ?? item.unit)
+          const newLiters = snapToCommercialGrid(currentLiters + returnedLiters)
+          nextStock = fromExactLiters(newLiters, product.unit)
+          returnedBaseQty = fromExactLiters(returnedLiters, product.unit)
+        } else {
+          nextStock = round2(product.stock + input.qtyToReturn)
+          returnedBaseQty = round2(input.qtyToReturn)
+        }
+        await db.products.update(product.id, {
+          stock: nextStock,
+          updatedAt: now,
+        })
+        returnedProductStock = nextStock
+      }
+
+      // 2. Registrar movimiento de stock de tipo 'devolucion'
+      await db.stockMovements.add({
+        id: uid(),
+        date: now,
+        type: 'devolucion',
+        productId: item.productId,
+        productName: item.name,
+        unit: item.unit,
+        qty: returnedBaseQty,
+        note: `Devolución nota #${sale.folio ?? sale.id.slice(0, 8)} (${input.reason.trim() || 'Cliente'})`,
+        refId: sale.id,
+      })
+
+      // 3. Actualizar la venta con la cantidad devuelta
+      const updatedItems = [...sale.items]
+      updatedItems[input.itemIndex] = {
+        ...item,
+        returnedQty: round2(currentReturned + input.qtyToReturn),
+      }
+      const noteAppend = `[Devolución: ${input.qtyToReturn} ${item.saleUnit ?? item.unit} (${input.reason.trim() || 'Cliente'})]`
+      const updatedSale: Sale = {
+        ...sale,
+        items: updatedItems,
+        notes: sale.notes ? `${sale.notes} | ${noteAppend}` : noteAppend,
+      }
+      await db.sales.put(updatedSale)
+
+      // 4. Si se solicitó reembolso en efectivo de caja
+      if (input.refundCash && input.refundAmount && input.refundAmount > 0) {
+        const activeShifts = await db.cashShifts.where('status').equals('abierto').toArray()
+        const currentShift = activeShifts.sort((a, b) => b.openedAt - a.openedAt)[0]
+        const entry: CashEntry = {
+          id: uid(),
+          date: now,
+          type: 'egreso',
+          concept: `Reembolso devolución #${sale.folio ?? sale.id.slice(0, 8)}: ${item.name}`,
+          category: 'operativo',
+          subCategory: 'otro',
+          amount: round2(input.refundAmount),
+          note: input.reason.trim() || undefined,
+          shiftId: currentShift?.id,
+          updatedAt: now,
+        }
+        await db.cashEntries.add(entry)
+      }
+    },
+  )
+
+  notifyLocalChange()
+  const freshSale = await db.sales.get(sale.id)
+  return {
+    sale: freshSale ?? sale,
+    returnedStock: returnedProductStock,
+    refundAmount: input.refundCash ? input.refundAmount : undefined,
+  }
+}
+
 export function pkgUnits(product: Product): number {
   return product.isPackage && product.pkgUnits ? product.pkgUnits : 1
 }
