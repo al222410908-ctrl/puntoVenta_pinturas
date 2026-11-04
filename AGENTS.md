@@ -48,3 +48,13 @@ Este archivo define las convenciones de arquitectura, desarrollo y diseño para 
 - **Ergonomía Táctil**:
   - Botones clave (Cobrar, Agregar, Confirmar) con altura mínima `h-11` o `py-3` para pantallas táctiles y celulares.
   - Números y totales en formato tabular: `tabular-nums font-bold text-xl`.
+
+---
+
+## 5. Control de Despliegues y Subidas a GitHub (REGLA ESTRICTA)
+
+- **Desarrollo y Verificación Local Autónomos**:
+  - Puedes modificar código, compilar (`npm run build`), probar (`npm run test`), lint (`npm run lint`) y ejecutar el servidor local (`npm run dev`) sin pedir permiso previo para que el usuario pueda evaluar los resultados de inmediato en su máquina.
+- **NUNCA ejecutar `git push` automáticamente sin confirmación previa del usuario**:
+  - **REGLA ABSOLUTA**: Antes de subir cualquier cambio al repositorio remoto (`git push origin main` o similar), **SIEMPRE debes preguntar explícitamente al usuario** y esperar su aprobación (`"¿Deseas que suba estos cambios a GitHub?"`).
+  - Solo se procede con el `git push` cuando el usuario haya revisado los cambios de forma local y dé su visto bueno explícito.

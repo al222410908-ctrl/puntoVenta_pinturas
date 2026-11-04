@@ -66,6 +66,22 @@ export default function App() {
   const [syncState, setSyncState] = useState<SyncState>('syncing')
   const [syncError, setSyncError] = useState<string | null>(null)
   const [last, setLast] = useState(lastSyncAt)
+  const [kioskMode, setKioskMode] = useState(false)
+
+  useEffect(() => {
+    const onToggle = () => setKioskMode((prev) => !prev)
+    const onFsChange = () => {
+      if (!document.fullscreenElement) setKioskMode(false)
+    }
+    window.addEventListener('pos:toggle_kiosk', onToggle)
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => {
+      window.removeEventListener('pos:toggle_kiosk', onToggle)
+      document.removeEventListener('fullscreenchange', onFsChange)
+    }
+  }, [])
+
+  const isKiosk = kioskMode && tab === 'vender'
   const busyRef = useRef(false)
 
   const doSync = async (full = false) => {
@@ -178,7 +194,8 @@ export default function App() {
 
   return (
     <div className="flex h-app flex-col bg-surface dark:bg-slate-950">
-      <header className="flex h-10 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white/80 backdrop-blur-md px-3 sm:px-4 dark:border-slate-800 dark:bg-slate-900/80">
+      {!isKiosk && (
+        <header className="flex h-10 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white/80 backdrop-blur-md px-3 sm:px-4 dark:border-slate-800 dark:bg-slate-900/80">
         <button
           onClick={() => void doSyncRef.current()}
           className="inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/90 px-2.5 py-1 text-xs font-medium text-slate-600 shadow-2xs hover:bg-slate-100/80 transition dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300"
@@ -214,9 +231,10 @@ export default function App() {
           <span className="hidden sm:inline">Sincronizar</span>
         </button>
       </header>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200/90 bg-white/95 backdrop-blur-sm md:flex dark:border-slate-800 dark:bg-slate-900/95">
+        <aside className={`w-60 shrink-0 flex-col border-r border-slate-200/90 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95 ${isKiosk ? 'hidden' : 'hidden md:flex'}`}>
           <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800">
             <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-700 to-primary-600 p-0.5 shadow-sm shadow-primary/30">
               <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-full w-full rounded-[10px] object-cover" />
@@ -279,7 +297,7 @@ export default function App() {
         </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/90 bg-white/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] shadow-lg md:hidden dark:border-slate-800 dark:bg-slate-900/95">
+      <nav className={`fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/90 bg-white/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] shadow-lg ${isKiosk ? 'hidden' : 'md:hidden'} dark:border-slate-800 dark:bg-slate-900/95`}>
         <div className="grid grid-cols-7 py-1">
           {NAV.map((n) => {
             const Icon = n.icon

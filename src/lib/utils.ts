@@ -71,3 +71,48 @@ export function matchesSearch(
     return false
   })
 }
+
+export interface DenominationBreakdown {
+  value: number
+  label: string
+  count: number
+  isCoin: boolean
+}
+
+/**
+ * Calcula el desglose óptimo de billetes y monedas mexicanas (MXN) para entregar cambio.
+ */
+export function calculateChangeBreakdown(change: number): DenominationBreakdown[] {
+  if (change <= 0) return []
+  let remainingCents = Math.round(change * 100)
+
+  const denominations: { cents: number; value: number; label: string; isCoin: boolean }[] = [
+    { cents: 50000, value: 500, label: '$500', isCoin: false },
+    { cents: 20000, value: 200, label: '$200', isCoin: false },
+    { cents: 10000, value: 100, label: '$100', isCoin: false },
+    { cents: 5000, value: 50, label: '$50', isCoin: false },
+    { cents: 2000, value: 20, label: '$20', isCoin: false },
+    { cents: 1000, value: 10, label: '$10', isCoin: true },
+    { cents: 500, value: 5, label: '$5', isCoin: true },
+    { cents: 200, value: 2, label: '$2', isCoin: true },
+    { cents: 100, value: 1, label: '$1', isCoin: true },
+    { cents: 50, value: 0.5, label: '50¢', isCoin: true },
+  ]
+
+  const result: DenominationBreakdown[] = []
+
+  for (const d of denominations) {
+    if (remainingCents >= d.cents) {
+      const count = Math.floor(remainingCents / d.cents)
+      remainingCents %= d.cents
+      result.push({
+        value: d.value,
+        label: d.label,
+        count,
+        isCoin: d.isCoin,
+      })
+    }
+  }
+
+  return result
+}

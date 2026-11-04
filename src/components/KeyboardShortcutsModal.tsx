@@ -1,4 +1,4 @@
-import { Keyboard, Search, ShoppingBag, PauseCircle, FileSpreadsheet, X } from 'lucide-react'
+import { Keyboard, Search, ShoppingBag, PauseCircle, FileSpreadsheet, X, Maximize2 } from 'lucide-react'
 import { Button, Modal } from './ui'
 
 interface KeyboardShortcutsModalProps {
@@ -30,6 +30,12 @@ const SHORTCUTS = [
     title: 'Pausar Venta (Espera)',
     description: 'Guarda temporalmente el carrito actual para atender a otro cliente y reanudarlo después.',
     icon: PauseCircle,
+  },
+  {
+    key: 'F11',
+    title: 'Pantalla Completa (Modo Caja)',
+    description: 'Expande la terminal al 100% de la pantalla para máxima velocidad y sin distracciones.',
+    icon: Maximize2,
   },
   {
     key: 'Esc',

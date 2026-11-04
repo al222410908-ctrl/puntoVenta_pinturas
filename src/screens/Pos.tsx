@@ -23,12 +23,17 @@ import {
   PauseCircle,
   Volume2,
   VolumeX,
+  Coins,
+  Split,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
 import { registerSale, undoLastSale, createQuote, quoteToCartLines } from '../db/repos'
 import type { Product, Payment, Unit, SalePresentation, Sale, Quote } from '../types'
-import { formatMoney, round2, matchesSearch, normalizeSearch } from '../lib/utils'
+import { formatMoney, round2, matchesSearch, normalizeSearch, calculateChangeBreakdown } from '../lib/utils'
+import { HighlightText } from '../components/HighlightText'
 import {
   UNIT_LABELS,
   formatQty,
@@ -93,6 +98,36 @@ export default function Pos() {
     const s = loadScannerSettings()
     return { enabled: s.enabled, suffix: s.suffix }
   })
+  const [isFullscreen, setIsFullscreen] = useState(() => typeof document !== 'undefined' && !!document.fullscreenElement)
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen()
+          sound.beep(900, 0.05)
+          toast.success('Modo caja pantalla completa activado [F11]')
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen()
+          sound.beep(600, 0.05)
+        }
+      }
+    } catch {
+      // Fallback
+    } finally {
+      window.dispatchEvent(new CustomEvent('pos:toggle_kiosk'))
+    }
+  }
 
   const allFiltered = useMemo(() => {
     return products
@@ -108,6 +143,16 @@ export default function Pos() {
 
   const cartTotal = round2(cart.reduce((s, l) => s + lineTotal(l), 0))
   const cartCount = cart.reduce((s, l) => s + l.qty, 0)
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const p of products) {
+      if (p.categoryId) {
+        counts[p.categoryId] = (counts[p.categoryId] || 0) + 1
+      }
+    }
+    return counts
+  }, [products])
 
   const topSellers = useMemo(() => {
     const since = Date.now() - 30 * 24 * 60 * 60 * 1000
@@ -362,6 +407,46 @@ export default function Pos() {
   const transferNum = Math.max(0, Number(transfer) || 0)
   const paid = round2(cashNum + cardNum + transferNum)
   const change = round2(paid - cartTotal)
+  const changeBreakdown = useMemo(() => calculateChangeBreakdown(change), [change])
+
+  const handleSplit5050CashCard = () => {
+    sound.beep(750, 0.05)
+    const half1 = round2(cartTotal / 2)
+    const half2 = round2(cartTotal - half1)
+    setCash(String(half1.toFixed(2)))
+    setCard(String(half2.toFixed(2)))
+    setTransfer('')
+  }
+
+  const handleSplit5050CashTransfer = () => {
+    sound.beep(750, 0.05)
+    const half1 = round2(cartTotal / 2)
+    const half2 = round2(cartTotal - half1)
+    setCash(String(half1.toFixed(2)))
+    setTransfer(String(half2.toFixed(2)))
+    setCard('')
+  }
+
+  const handleAllCash = () => {
+    sound.beep(800, 0.05)
+    setCash(String(cartTotal.toFixed(2)))
+    setCard('')
+    setTransfer('')
+  }
+
+  const handleAllCard = () => {
+    sound.beep(800, 0.05)
+    setCard(String(cartTotal.toFixed(2)))
+    setCash('')
+    setTransfer('')
+  }
+
+  const handleAllTransfer = () => {
+    sound.beep(800, 0.05)
+    setTransfer(String(cartTotal.toFixed(2)))
+    setCash('')
+    setCard('')
+  }
 
   const handleOpenQuoteCreate = () => {
     if (cart.length === 0) {
@@ -514,6 +599,12 @@ export default function Pos() {
         }
         return
       }
+
+      if (e.key === 'F11') {
+        e.preventDefault()
+        void toggleFullscreen()
+        return
+      }
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -663,6 +754,22 @@ export default function Pos() {
                 <VolumeX className="h-4.5 w-4.5 text-slate-400" />
               )}
             </button>
+            <button
+              type="button"
+              onClick={() => void toggleFullscreen()}
+              className={`rounded-xl border h-10 w-10 flex items-center justify-center transition shadow-2xs shrink-0 ${
+                isFullscreen
+                  ? 'border-primary bg-primary text-white shadow-xs ring-2 ring-primary/20'
+                  : 'border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'
+              }`}
+              title={isFullscreen ? 'Salir de pantalla completa [F11 o Esc]' : 'Modo caja pantalla completa [F11]'}
+            >
+              {isFullscreen ? (
+                <Minimize2 className="h-4.5 w-4.5" />
+              ) : (
+                <Maximize2 className="h-4.5 w-4.5" />
+              )}
+            </button>
           </div>
           {scannerActive && (
             <div className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
@@ -695,30 +802,52 @@ export default function Pos() {
             </div>
           )}
 
-          <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-1">
+          <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin">
             <button
               onClick={() => setCategoryId('')}
-              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition-all shadow-2xs ${
+              className={`shrink-0 flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition-all shadow-2xs active:scale-95 ${
                 categoryId === ''
-                  ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-sm shadow-primary/25'
+                  ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-sm shadow-primary/25 ring-2 ring-primary/20'
                   : 'bg-white text-slate-700 border border-slate-200/90 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
               }`}
             >
-              Todos
-            </button>
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setCategoryId(c.id)}
-                className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition-all shadow-2xs ${
-                  categoryId === c.id
-                    ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-sm shadow-primary/25'
-                    : 'bg-white text-slate-700 border border-slate-200/90 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+              <span>Todos</span>
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                  categoryId === ''
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                 }`}
               >
-                {c.name}
-              </button>
-            ))}
+                {products.length}
+              </span>
+            </button>
+            {categories.map((c) => {
+              const count = categoryCounts[c.id] || 0
+              const active = categoryId === c.id
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setCategoryId(c.id)}
+                  className={`shrink-0 flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition-all shadow-2xs active:scale-95 ${
+                    active
+                      ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-sm shadow-primary/25 ring-2 ring-primary/20'
+                      : 'bg-white text-slate-700 border border-slate-200/90 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                  }`}
+                >
+                  <span>{c.name}</span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                      active
+                        ? 'bg-white/20 text-white'
+                        : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
           </div>
 
           {filtered.length === 0 ? (
@@ -738,32 +867,64 @@ export default function Pos() {
                       key={p.id}
                       onClick={() => addToCart(p)}
                       disabled={out}
-                      className="group card relative flex min-w-0 flex-col justify-between overflow-hidden p-3 text-left transition-all duration-200 hover:-translate-y-1 hover:border-primary/50 hover:shadow-md active:scale-[0.98] disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none bg-white dark:bg-slate-900"
+                      className={`group card relative flex min-w-0 flex-col justify-between overflow-hidden p-3 text-left transition-all duration-200 active:scale-[0.98] ${
+                        out
+                          ? 'border-slate-200/60 bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-900/40 cursor-not-allowed opacity-75'
+                          : low
+                          ? 'border-amber-300/90 bg-gradient-to-b from-amber-50/40 via-white to-white dark:border-amber-700/60 dark:from-amber-950/20 dark:to-slate-900 hover:-translate-y-1 hover:border-amber-400 hover:shadow-md'
+                          : 'border-slate-200/90 bg-white dark:border-slate-800 dark:bg-slate-900 hover:-translate-y-1 hover:border-primary/50 hover:shadow-md'
+                      }`}
                     >
                       <div className="relative mb-2 aspect-4/3 w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60">
                         <SafeImage
                           src={p.photo}
                           alt={p.name}
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 ${
+                            out ? 'grayscale contrast-75 opacity-60' : ''
+                          }`}
                           fallbackIcon={<Package className="h-7 w-7 text-slate-300 dark:text-slate-600" />}
                         />
-                        {low && (
-                          <span className="absolute top-1.5 left-1.5 z-10 flex items-center gap-1 rounded-md bg-amber-500 text-slate-950 px-1.5 py-0.5 text-[9.5px] font-black shadow-xs ring-1 ring-amber-300/50 animate-pulse">
+                        {out ? (
+                          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-[0.5px] flex items-center justify-center">
+                            <span className="px-2.5 py-1 rounded-lg bg-rose-600/95 text-white font-black text-[10.5px] shadow-sm tracking-wider uppercase">
+                              Agotado
+                            </span>
+                          </div>
+                        ) : low ? (
+                          <span className="absolute top-1.5 left-1.5 z-10 inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 px-1.5 py-0.5 text-[9.5px] font-black shadow-xs ring-1 ring-amber-300/60 animate-pulse">
                             ⚠️ ¡Quedan {formatProductStock(p.stock, p.unit, p.fractional, true)}!
                           </span>
-                        )}
+                        ) : null}
+
                         <span
                           className={`chip absolute bottom-1.5 right-1.5 text-[10px] shadow-2xs backdrop-blur-md ${
                             out ? 'chip-bad' : low ? 'chip-warn' : 'chip-ok'
                           }`}
                         >
-                          {out ? 'Agotado' : formatProductStock(p.stock, p.unit, p.fractional, true)}
+                          {!out && !low && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1 inline-block" />}
+                          {out ? 'Sin stock' : formatProductStock(p.stock, p.unit, p.fractional, true)}
                         </span>
                       </div>
                       <div className="flex flex-1 flex-col justify-between">
-                        <p className="line-clamp-2 text-xs font-bold leading-snug text-slate-800 transition-colors group-hover:text-primary dark:text-slate-100 dark:group-hover:text-emerald-400 min-h-[30px]">
-                          {p.name}
-                        </p>
+                        <div>
+                          <p className="line-clamp-2 text-xs font-bold leading-snug text-slate-800 transition-colors group-hover:text-primary dark:text-slate-100 dark:group-hover:text-emerald-400 min-h-[30px]">
+                            <HighlightText text={p.name} query={search} />
+                          </p>
+                          {search.trim() && (matchesSearch(search, p.barcode || '') || matchesSearch(search, p.purchaseCode || '')) && (
+                            <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                              {p.barcode && matchesSearch(search, p.barcode || '') && (
+                                <span className="rounded bg-slate-100 px-1 py-0.2 dark:bg-slate-800">
+                                  Cód: <HighlightText text={p.barcode} query={search} />
+                                </span>
+                              )}
+                              {p.purchaseCode && matchesSearch(search, p.purchaseCode || '') && (
+                                <span className="rounded bg-slate-100 px-1 py-0.2 dark:bg-slate-800">
+                                  Clave: <HighlightText text={p.purchaseCode} query={search} />
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                         <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-1.5 dark:border-slate-800/80">
                           <div>
                             <span className="font-display text-base sm:text-lg font-black text-slate-900 dark:text-white tabular-nums">
@@ -771,7 +932,13 @@ export default function Pos() {
                             </span>
                             <span className="text-[10.5px] font-semibold text-slate-400 ml-0.5">/{UNIT_LABELS[p.unit]}</span>
                           </div>
-                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-primary transition-all group-hover:bg-primary group-hover:text-white group-hover:shadow-2xs dark:bg-emerald-950/40 dark:text-emerald-400 dark:group-hover:bg-emerald-500 dark:group-hover:text-slate-950">
+                          <div
+                            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
+                              out
+                                ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
+                                : 'bg-emerald-50 text-primary transition-all group-hover:bg-primary group-hover:text-white group-hover:shadow-2xs group-hover:scale-105 active:scale-90 dark:bg-emerald-950/40 dark:text-emerald-400 dark:group-hover:bg-emerald-500 dark:group-hover:text-slate-950'
+                            }`}
+                          >
                             <Plus className="h-4 w-4 stroke-[2.5]" />
                           </div>
                         </div>
@@ -893,18 +1060,49 @@ export default function Pos() {
                   </span>
                 </div>
               ) : (
-                <div className="flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-3 text-xs dark:bg-emerald-950/40 dark:border-emerald-800">
-                  <div>
-                    <span className="block font-bold text-emerald-800 dark:text-emerald-300 text-xs">
-                      Cambio a entregar
-                    </span>
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                      En efectivo al cliente
+                <div className="rounded-xl bg-emerald-50/90 border border-emerald-200 p-3 text-xs dark:bg-emerald-950/40 dark:border-emerald-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="block font-bold text-emerald-900 dark:text-emerald-300 text-xs uppercase tracking-wider">
+                        Cambio a entregar
+                      </span>
+                      <span className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                        {change > 0 ? 'Entregar en efectivo al cliente' : 'Pago exacto cubierto'}
+                      </span>
+                    </div>
+                    <span className="font-display text-2xl sm:text-3xl font-black text-emerald-700 dark:text-emerald-300 tabular-nums">
+                      {change > 0 ? formatMoney(change) : '$0.00'}
                     </span>
                   </div>
-                  <span className="font-display text-2xl font-black text-emerald-700 dark:text-emerald-300 tabular-nums">
-                    {change > 0 ? formatMoney(change) : '$0.00'}
-                  </span>
+
+                  {changeBreakdown.length > 0 && (
+                    <div className="pt-2 border-t border-emerald-200/80 dark:border-emerald-800/80">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900 dark:text-emerald-300 mb-1.5">
+                        <span className="flex items-center gap-1">
+                          <Coins className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          Desglose sugerido de billetes y monedas:
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {changeBreakdown.map((item, idx) => (
+                          <span
+                            key={idx}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black shadow-2xs ${
+                              item.isCoin
+                                ? 'bg-amber-100/90 border border-amber-300 text-amber-950 dark:bg-amber-950/50 dark:border-amber-700 dark:text-amber-200'
+                                : 'bg-emerald-100 border border-emerald-300 text-emerald-950 dark:bg-emerald-900/60 dark:border-emerald-700 dark:text-emerald-200'
+                            }`}
+                          >
+                            <span className="text-[10px] opacity-75 font-semibold">{item.count}×</span>
+                            <span>{item.label}</span>
+                            <span className="text-[9px] font-normal opacity-60">
+                              ({item.isCoin ? 'moneda' : 'billete'})
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -912,6 +1110,56 @@ export default function Pos() {
 
           {/* Columna Derecha: Formas de Pago, Datos del Cliente y Botón Final */}
           <div className="md:col-span-7 space-y-3">
+            {/* Barra de División Rápida */}
+            <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <Split className="h-3.5 w-3.5 text-primary dark:text-emerald-400" />
+                  División rápida del total ({formatMoney(cartTotal)})
+                </span>
+                <span className="text-[10px] text-slate-400">1 toque</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleAllCash}
+                  className="rounded-lg border border-emerald-200 bg-emerald-50/90 hover:bg-emerald-100 px-2 py-1.5 text-center text-xs font-bold text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 transition active:scale-95 shadow-2xs"
+                >
+                  Todo Efvo
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAllCard}
+                  className="rounded-lg border border-sky-200 bg-sky-50/90 hover:bg-sky-100 px-2 py-1.5 text-center text-xs font-bold text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 transition active:scale-95 shadow-2xs"
+                >
+                  Todo Tarjeta
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAllTransfer}
+                  className="rounded-lg border border-violet-200 bg-violet-50/90 hover:bg-violet-100 px-2 py-1.5 text-center text-xs font-bold text-violet-900 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300 transition active:scale-95 shadow-2xs"
+                >
+                  Todo Transf
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSplit5050CashCard}
+                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-2 py-1.5 text-center text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition active:scale-95 shadow-2xs"
+                  title="50% Efectivo + 50% Tarjeta"
+                >
+                  ½ Efvo + ½ Tarjeta
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSplit5050CashTransfer}
+                  className="col-span-2 sm:col-span-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-2 py-1.5 text-center text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition active:scale-95 shadow-2xs"
+                  title="50% Efectivo + 50% Transferencia"
+                >
+                  ½ Efvo + ½ Transf
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-2.5">
               {/* Efectivo */}
               <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
@@ -1278,14 +1526,23 @@ function CartPanel({
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-slate-200/90 px-3.5 py-3 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60">
-        <div className="flex items-center gap-2">
-          <ShoppingCart className="h-4 w-4 text-primary dark:text-emerald-400" />
-          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Venta actual</p>
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-extrabold text-primary dark:bg-emerald-950/40 dark:text-emerald-400">
-            {cart.length} {cart.length === 1 ? 'artículo' : 'artículos'}
-          </span>
+    <div className="flex h-full flex-col bg-slate-50/40 dark:bg-slate-900/40">
+      {/* Encabezado Estilo Ticket / Mostrador */}
+      <div className="flex items-center justify-between border-b border-slate-200/90 px-4 py-3 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-primary dark:bg-emerald-950/60 dark:text-emerald-400">
+            <Receipt className="h-4.5 w-4.5 stroke-[2.2]" />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-black tracking-tight text-slate-900 dark:text-slate-100">Ticket de Venta</p>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100/90 dark:bg-emerald-950/60 px-2 py-0.2 text-[10px] font-black text-emerald-900 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {cart.length} {cart.length === 1 ? 'producto' : 'productos'}
+              </span>
+            </div>
+            <p className="text-[10.5px] text-slate-400 font-medium">Mostrador · Entrega Inmediata</p>
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           {cart.length > 0 && onClear && (
@@ -1294,7 +1551,7 @@ function CartPanel({
               onClick={() => {
                 if (confirm('¿Vaciar todos los artículos del carrito actual?')) onClear()
               }}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-red-50 hover:text-red-600 transition dark:hover:bg-red-950/40 dark:hover:text-red-400"
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-red-50 hover:text-red-600 transition active:scale-95 dark:hover:bg-red-950/40 dark:hover:text-red-400"
               title="Vaciar carrito actual"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -1306,11 +1563,11 @@ function CartPanel({
             onClick={() => {
               if (confirm('¿Deshacer la última venta registrada? Se repondrá el stock.')) onUndo()
             }}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 transition dark:text-slate-400 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition active:scale-95 dark:text-slate-300 dark:hover:bg-slate-800"
             title="Deshacer la última venta registrada y recuperar stock"
           >
             <Undo2 className="h-3.5 w-3.5" />
-            <span>Deshacer</span>
+            <span className="hidden sm:inline">Deshacer</span>
           </button>
         </div>
       </div>
@@ -1539,10 +1796,15 @@ function CartPanel({
               )
             })}
           </div>
-          <div className="border-t border-slate-200/90 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/80">
+          {/* Separador punteado estilo ticket y Dock Flotante de Cobro */}
+          <div className="border-t-2 border-dashed border-slate-200/90 dark:border-slate-800" />
+          <div className="bg-white/95 backdrop-blur-md p-4 dark:bg-slate-900/95 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] border-t border-slate-100 dark:border-slate-800/60">
             <div className="mb-3 flex items-baseline justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total a liquidar</span>
-              <span className="font-display text-2xl font-extrabold text-slate-900 tabular-nums dark:text-slate-100">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total a liquidar</span>
+                <span className="block text-[10.5px] text-slate-400">IVA incluido · Mostrador</span>
+              </div>
+              <span className="font-display text-3xl font-black text-slate-950 tabular-nums dark:text-white tracking-tight">
                 {formatMoney(cartTotal)}
               </span>
             </div>
@@ -1551,7 +1813,7 @@ function CartPanel({
                 <button
                   type="button"
                   onClick={onHold}
-                  className="btn-secondary flex items-center justify-center gap-1 rounded-xl py-3 px-3 text-xs font-bold shadow-2xs transition-all active:scale-[0.98] border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                  className="flex h-12 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-slate-100 px-3.5 text-xs font-bold text-slate-800 shadow-2xs transition-all hover:bg-slate-200 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                   title="Pausar venta actual y atender a otro cliente [F9]"
                 >
                   <PauseCircle className="h-4 w-4 text-slate-600 dark:text-slate-400" />
@@ -1563,7 +1825,7 @@ function CartPanel({
                 <button
                   type="button"
                   onClick={onQuote}
-                  className="btn-secondary flex items-center justify-center gap-1 rounded-xl py-3 px-3 text-xs font-bold shadow-2xs transition-all active:scale-[0.98] border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300"
+                  className="flex h-12 items-center justify-center gap-1.5 rounded-xl border border-amber-300/80 bg-amber-50 px-3.5 text-xs font-bold text-amber-900 shadow-2xs transition-all hover:bg-amber-100 active:scale-95 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                   title="Generar cotización sin venta [F7]"
                 >
                   <FileSpreadsheet className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -1573,12 +1835,12 @@ function CartPanel({
               )}
               <button
                 onClick={onPay}
-                className="btn-accent flex-1 flex items-center justify-center gap-1.5 rounded-xl py-3.5 text-base font-extrabold shadow-md transition-all active:scale-[0.98]"
+                className="btn-accent flex-1 flex h-12 items-center justify-center gap-2 rounded-xl text-base font-black shadow-lg shadow-accent/25 transition-all hover:brightness-105 active:scale-[0.98]"
                 title="Cobrar venta actual [F4]"
               >
                 <Banknote className="h-5 w-5" />
                 <span>Cobrar {formatMoney(cartTotal)}</span>
-                <span className="text-xs opacity-75 font-mono ml-0.5 bg-black/10 px-1.5 py-0.5 rounded-md">[F4]</span>
+                <span className="text-xs opacity-80 font-mono bg-black/10 px-1.5 py-0.5 rounded-md">[F4]</span>
               </button>
             </div>
           </div>

@@ -45,3 +45,10 @@ npm run test
 - [ ] ¿Los botones clave son cómodos de presionar en pantalla táctil?
 - [ ] ¿Los campos de cantidad admiten fracciones/decimales (ej. 1.5 litros)?
 - [ ] ¿La generación de tickets en PDF ([src/lib/ticket.ts](file:///src/lib/ticket.ts)) mantiene los anchos de 58mm/80mm sin desbordar texto?
+
+---
+
+## 5. Regla de Subida a GitHub (`git push`)
+- **NUNCA hacer `git push` automáticamente**.
+- Toda verificación y prueba debe mostrarse primero al usuario de forma local en `http://localhost:5173/`.
+- Preguntar siempre al usuario y obtener su confirmación explícita antes de enviar commits al repositorio remoto de GitHub.
