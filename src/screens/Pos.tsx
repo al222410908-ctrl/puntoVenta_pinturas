@@ -578,17 +578,17 @@ export default function Pos() {
     <div className="flex h-full min-w-0 flex-col lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="p-3 pb-2 bg-white/70 backdrop-blur-md border-b border-slate-200/80 dark:bg-slate-900/70 dark:border-slate-800">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="relative flex-1 min-w-[160px]">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
               <Input
                 id="pos-search"
-                className="pl-10 pr-9 bg-white/90 dark:bg-slate-950/80 shadow-2xs"
-                placeholder="Buscar producto o código… [/] [F2]"
+                className="pl-10 pr-10 bg-white/90 dark:bg-slate-950/80 shadow-2xs h-10 text-sm"
+                placeholder="Buscar por nombre o código de barras…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-              {search && (
+              {search ? (
                 <button
                   type="button"
                   onClick={() => setSearch('')}
@@ -597,43 +597,64 @@ export default function Pos() {
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
+              ) : (
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center px-1.5 py-0.5 rounded border border-slate-200 bg-slate-100 font-mono text-[10px] text-slate-400 dark:border-slate-800 dark:bg-slate-900 pointer-events-none">
+                  F2
+                </kbd>
               )}
             </div>
-            <Button onClick={() => setScanOpen(true)} className="btn-secondary shrink-0 shadow-2xs" title="Escanear con cámara (celular)">
-              <ScanLine className="h-4.5 w-4.5 text-primary dark:text-emerald-400" />
-              <span className="hidden sm:inline">Escanear</span>
-            </Button>
-            <Button onClick={() => setHistoryOpen(true)} className="btn-secondary shrink-0 shadow-2xs" title="Historial de notas y comprobantes">
-              <Receipt className="h-4.5 w-4.5 text-primary dark:text-emerald-400" />
-              <span className="hidden sm:inline">Notas</span>
-            </Button>
-            <Button onClick={() => setQuotesListOpen(true)} className="btn-secondary shrink-0 shadow-2xs" title="Cotizaciones y Presupuestos">
-              <FileSpreadsheet className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
-              <span className="hidden sm:inline">Cotizaciones</span>
-            </Button>
+            <button
+              type="button"
+              onClick={() => setScanOpen(true)}
+              className="btn-secondary h-10 w-10 sm:w-auto sm:px-2.5 flex items-center justify-center gap-1.5 rounded-xl shrink-0 shadow-2xs"
+              title="Escanear código con cámara [Celular/Webcam]"
+            >
+              <ScanLine className="h-4.5 w-4.5 text-primary dark:text-emerald-400 shrink-0" />
+              <span className="hidden 2xl:inline text-xs font-semibold">Escanear</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              className="btn-secondary h-10 w-10 sm:w-auto sm:px-2.5 flex items-center justify-center gap-1.5 rounded-xl shrink-0 shadow-2xs"
+              title="Historial de notas de venta y comprobantes"
+            >
+              <Receipt className="h-4.5 w-4.5 text-primary dark:text-emerald-400 shrink-0" />
+              <span className="hidden 2xl:inline text-xs font-semibold">Notas</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setQuotesListOpen(true)}
+              className="btn-secondary h-10 w-10 sm:w-auto sm:px-2.5 flex items-center justify-center gap-1.5 rounded-xl shrink-0 shadow-2xs"
+              title="Cotizaciones y presupuestos guardados"
+            >
+              <FileSpreadsheet className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="hidden 2xl:inline text-xs font-semibold">Cotizaciones</span>
+            </button>
             {heldSales.length > 0 && (
               <button
                 type="button"
                 onClick={() => setHeldModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 px-3 py-1.5 text-xs font-bold shadow-xs hover:bg-amber-200 transition animate-pulse dark:bg-amber-950/60 dark:border-amber-700 dark:text-amber-200 shrink-0"
+                className="h-10 px-2.5 flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-100/90 text-amber-950 text-xs font-bold shadow-xs hover:bg-amber-200 transition animate-pulse dark:bg-amber-950/60 dark:border-amber-700 dark:text-amber-200 shrink-0"
                 title="Ver ventas pausadas en espera [F9]"
               >
-                <PauseCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                <span>{heldSales.length} en espera</span>
+                <PauseCircle className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>{heldSales.length}</span>
+                <span className="hidden sm:inline">en espera</span>
               </button>
             )}
-            <Button
+            <button
+              type="button"
               onClick={() => setShortcutsModalOpen(true)}
-              className="btn-secondary shrink-0 shadow-2xs"
+              className="btn-secondary h-10 w-10 sm:w-auto sm:px-2.5 flex items-center justify-center gap-1.5 rounded-xl shrink-0 shadow-2xs"
               title="Guía rápida de atajos de teclado [F2, F4, F7, F9, Esc]"
             >
-              <Keyboard className="h-4.5 w-4.5 text-slate-600 dark:text-slate-300" />
-              <span className="hidden sm:inline">Atajos</span>
-            </Button>
+              <Keyboard className="h-4.5 w-4.5 text-slate-600 dark:text-slate-300 shrink-0" />
+              <span className="hidden 2xl:inline text-xs font-semibold">Atajos</span>
+            </button>
             <button
               type="button"
               onClick={() => setSoundEnabled(sound.toggle())}
-              className="rounded-xl border border-slate-200/90 bg-white p-2 text-slate-600 hover:bg-slate-50 transition shadow-2xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 shrink-0"
+              className="rounded-xl border border-slate-200/90 bg-white h-10 w-10 flex items-center justify-center text-slate-600 hover:bg-slate-50 transition shadow-2xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 shrink-0"
               title={soundEnabled ? 'Sonido activado (clic para silenciar)' : 'Sonido silenciado (clic para activar)'}
             >
               {soundEnabled ? (
