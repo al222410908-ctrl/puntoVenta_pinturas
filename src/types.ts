@@ -142,6 +142,10 @@ export interface BusinessInfo {
   ownerName?: string
   ownerPhone?: string
   showOwnerOnTicket?: boolean
+  /** Cobro diferenciado con tarjeta para cubetas de 19 Litros */
+  bucketCardSurchargeEnabled?: boolean
+  bucketCardSurchargeType?: 'fixed' | 'percent'
+  bucketCardSurchargeAmount?: number
 }
 
 export interface PurchaseItem {

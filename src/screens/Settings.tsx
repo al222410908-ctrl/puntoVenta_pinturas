@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ImagePlus, Save, Store, Trash2, ScanLine, Package, Pencil, CloudUpload, CheckCircle2 } from 'lucide-react'
+import { ImagePlus, Save, Store, Trash2, ScanLine, Package, Pencil, CloudUpload, CheckCircle2, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import type { BusinessInfo, Container } from '../types'
 import { db } from '../db/db'
@@ -205,6 +205,87 @@ export default function Settings() {
             ]}
           />
         </Field>
+      </div>
+
+      {/* Cobro con tarjeta en Cubetas de 19L */}
+      <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20">
+        <div className="flex items-center gap-2">
+          <CreditCard className="h-5 w-5 text-amber-500" />
+          <h2 className="font-display text-base font-semibold text-slate-800 dark:text-slate-100">
+            Cobro con tarjeta en cubetas de 19 Litros
+          </h2>
+        </div>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          En cubetas de 19 Litros aplica un precio diferenciado al cobrar con tarjeta (terminal bancaria) para proteger tu margen de ganancia.
+        </p>
+
+        <label className="flex items-center justify-between cursor-pointer">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            Activar sobreprecio en cubetas con tarjeta
+          </span>
+          <input
+            type="checkbox"
+            checked={form.bucketCardSurchargeEnabled ?? true}
+            onChange={(e) => set({ bucketCardSurchargeEnabled: e.target.checked })}
+            className="h-5 w-5 accent-primary cursor-pointer"
+          />
+        </label>
+
+        {(form.bucketCardSurchargeEnabled ?? true) && (
+          <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+            <Field label="Tipo de sobreprecio">
+              <Segmented
+                value={form.bucketCardSurchargeType ?? 'fixed'}
+                onChange={(v) => set({ bucketCardSurchargeType: v as 'fixed' | 'percent' })}
+                options={[
+                  { value: 'fixed', label: '$ Fijo por cubeta (ej. $50)' },
+                  { value: 'percent', label: '% Porcentaje (ej. 4%)' },
+                ]}
+              />
+            </Field>
+
+            <Field
+              label={
+                form.bucketCardSurchargeType === 'percent'
+                  ? 'Porcentaje extra con tarjeta (%)'
+                  : 'Monto extra en pesos por cubeta ($ MXN)'
+              }
+            >
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.5"
+                value={form.bucketCardSurchargeAmount != null ? String(form.bucketCardSurchargeAmount) : '50'}
+                onChange={(e) =>
+                  set({
+                    bucketCardSurchargeAmount: e.target.value === '' ? 0 : Number(e.target.value),
+                  })
+                }
+                placeholder="50"
+              />
+            </Field>
+
+            <div className="rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+              <p className="font-semibold">💡 Ejemplo en mostrador:</p>
+              <p className="mt-0.5">
+                Una cubeta de $1,200 se cobrará a <strong>$1,200 en efectivo</strong> y a{' '}
+                <strong>
+                  ${form.bucketCardSurchargeType === 'percent'
+                    ? (1200 * (1 + (form.bucketCardSurchargeAmount ?? 50) / 100)).toFixed(2)
+                    : (1200 + (form.bucketCardSurchargeAmount ?? 50)).toFixed(2)}{' '}
+                  en tarjeta
+                </strong>
+                .
+              </p>
+            </div>
+
+            <Button className="btn-primary w-full" onClick={handleSave}>
+              <Save className="mr-2 inline h-4 w-4" />
+              Guardar configuración de cubetas
+            </Button>
+          </div>
+        )}
       </div>
 
       <ContainersCard />

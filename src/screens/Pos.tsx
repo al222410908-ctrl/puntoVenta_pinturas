@@ -32,7 +32,7 @@ import {
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
 import { registerSale, undoLastSale, createQuote, quoteToCartLines } from '../db/repos'
-import type { Product, Payment, Unit, SalePresentation, Sale, Quote } from '../types'
+import type { Product, Payment, Unit, SalePresentation, Sale, Quote, BusinessInfo } from '../types'
 import { formatMoney, round2, matchesSearch, normalizeSearch, calculateChangeBreakdown } from '../lib/utils'
 import { HighlightText } from '../components/HighlightText'
 import {
@@ -54,7 +54,8 @@ import { SaleNoteModal } from '../components/SaleNoteModal'
 import { SalesHistory } from '../components/SalesHistory'
 import { QuoteModal } from '../components/QuoteModal'
 import { QuotesHistory } from '../components/QuotesHistory'
-import { quoteFolioLabel } from '../lib/ticket'
+import { quoteFolioLabel, loadBusinessInfo } from '../lib/ticket'
+import { isBucket19L, calculateBucketCardPrice, calculateCartBucketCardInfo, type BucketCardInfo } from '../lib/bucketCard'
 import { Button, EmptyState, Input, Modal, SafeImage } from '../components/ui'
 import { loadScannerSettings, useBarcodeScanner } from '../lib/scanner'
 import { sound } from '../lib/sound'
@@ -145,6 +146,15 @@ export default function Pos() {
 
   const cartTotal = round2(cart.reduce((s, l) => s + lineTotal(l), 0))
   const cartCount = cart.reduce((s, l) => s + l.qty, 0)
+  const business = useMemo(() => loadBusinessInfo(), [payOpen])
+  const bucketCardInfo = useMemo(
+    () => calculateCartBucketCardInfo(cart, business, cartTotal),
+    [cart, business, cartTotal],
+  )
+  const effCartTotal =
+    payMethodTab === 'tarjeta' && bucketCardInfo.hasBuckets
+      ? bucketCardInfo.totalWithCard
+      : cartTotal
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -409,7 +419,7 @@ export default function Pos() {
   const cardNum = Math.max(0, Number(card) || 0)
   const transferNum = Math.max(0, Number(transfer) || 0)
   const paid = round2(cashNum + cardNum + transferNum)
-  const change = round2(paid - cartTotal)
+  const change = round2(paid - effCartTotal)
   const changeBreakdown = useMemo(() => calculateChangeBreakdown(change), [change])
 
   const handleSplit5050CashCard = () => {
@@ -439,7 +449,8 @@ export default function Pos() {
 
   const handleAllCard = () => {
     sound.beep(800, 0.05)
-    setCard(String(cartTotal.toFixed(2)))
+    const target = bucketCardInfo.hasBuckets ? bucketCardInfo.totalWithCard : cartTotal
+    setCard(String(target.toFixed(2)))
     setCash('')
     setTransfer('')
   }
@@ -648,12 +659,23 @@ export default function Pos() {
     if (cardNumEff > 0) payments.push({ type: 'tarjeta', amount: round2(cardNumEff) })
     if (transferNumEff > 0) payments.push({ type: 'transferencia', amount: round2(transferNumEff) })
 
-    if (round2(cashNumEff + cardNumEff + transferNumEff) < cartTotal) {
+    if (round2(cashNumEff + cardNumEff + transferNumEff) < effCartTotal) {
       toast.error('Registra al menos un pago')
       return
     }
     try {
-      const sale = await registerSale(cart, payments, saleNotes, customerName, customerPhone)
+      const finalCart =
+        payMethodTab === 'tarjeta' && bucketCardInfo.hasBuckets
+          ? cart.map((l) =>
+              isBucket19L(l)
+                ? {
+                    ...l,
+                    salePrice: calculateBucketCardPrice(l.salePrice ?? l.unitPrice, business),
+                  }
+                : l,
+            )
+          : cart
+      const sale = await registerSale(finalCart, payments, saleNotes, customerName, customerPhone)
       sound.success()
       toast.success('Venta registrada')
       setCart([])
@@ -935,6 +957,12 @@ export default function Pos() {
                             </span>
                             <span className="text-[10.5px] font-semibold text-slate-400 ml-0.5">/{UNIT_LABELS[p.unit]}</span>
                           </div>
+                          {business?.bucketCardSurchargeEnabled && isBucket19L(p) && (
+                            <div className="mt-1 flex items-center justify-between rounded-md bg-amber-50/90 px-1.5 py-0.5 text-[9.5px] font-bold text-amber-900 border border-amber-200/60 dark:bg-amber-950/40 dark:border-amber-800/60 dark:text-amber-300">
+                              <span>💵 Efvo: {formatMoney(p.price)}</span>
+                              <span>💳 Tarjeta: {formatMoney(calculateBucketCardPrice(p.price, business))}</span>
+                            </div>
+                          )}
                           <div
                             className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
                               out
@@ -967,6 +995,8 @@ export default function Pos() {
         <CartPanel
           cart={cart}
           cartTotal={cartTotal}
+          business={business}
+          bucketCardInfo={bucketCardInfo}
           setLineQty={setLineQty}
           setLineUnitAndQty={setLineUnitAndQty}
           removeLine={removeLine}
@@ -999,6 +1029,8 @@ export default function Pos() {
         <CartPanel
           cart={cart}
           cartTotal={cartTotal}
+          business={business}
+          bucketCardInfo={bucketCardInfo}
           setLineQty={setLineQty}
           setLineUnitAndQty={setLineUnitAndQty}
           removeLine={removeLine}
@@ -1026,13 +1058,25 @@ export default function Pos() {
                 Total a Cobrar
               </p>
               <p className="font-display text-4xl sm:text-5xl font-black text-amber-600 dark:text-amber-400 tabular-nums tracking-tight mt-1.5 drop-shadow-xs">
-                {formatMoney(cartTotal)}
+                {formatMoney(effCartTotal)}
               </p>
               <div className="inline-flex items-center gap-2 mt-2 px-3 py-0.5 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[11px] font-medium text-slate-600 dark:text-zinc-300">
                 <span>{cartCount} {cartCount === 1 ? 'artículo' : 'artículos'}</span>
                 <span className="text-slate-400 dark:text-zinc-600">•</span>
                 <span className="text-emerald-700 dark:text-emerald-400 font-semibold">IVA incluido (16%)</span>
               </div>
+              {bucketCardInfo?.hasBuckets && (
+                <div className="mt-2.5 rounded-xl border border-amber-300/80 bg-amber-50/90 dark:border-amber-500/30 dark:bg-amber-950/40 p-2 text-left text-[11px] text-amber-950 dark:text-amber-200">
+                  <div className="flex items-center justify-between font-bold">
+                    <span>💵 En efectivo:</span>
+                    <span className="font-mono font-black">{formatMoney(cartTotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-bold text-amber-800 dark:text-amber-300 mt-0.5">
+                    <span>💳 Con tarjeta ({bucketCardInfo.bucketCount} cubeta{bucketCardInfo.bucketCount > 1 ? 's' : ''}):</span>
+                    <span className="font-mono font-black">{formatMoney(bucketCardInfo.totalWithCard)}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Resumen Compacto de Artículos para Verificación */}
@@ -1067,12 +1111,12 @@ export default function Pos() {
                 </span>
               </div>
 
-              {paid < cartTotal ? (
+              {paid < effCartTotal ? (
                 <div className="rounded-2xl border border-amber-300 bg-amber-50/80 dark:border-amber-500/30 dark:bg-amber-950/30 p-3.5 text-center">
                   <div className="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-300 mb-1">
                     <span>Resta por liquidar:</span>
                     <span className="font-mono font-bold text-amber-700 dark:text-amber-400 text-sm">
-                      {formatMoney(round2(cartTotal - paid))}
+                      {formatMoney(round2(effCartTotal - paid))}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1">
@@ -1150,7 +1194,8 @@ export default function Pos() {
                         setCard('')
                         setTransfer('')
                       } else if (tab.id === 'tarjeta') {
-                        setCard(String(cartTotal.toFixed(2)))
+                        const target = bucketCardInfo.hasBuckets ? bucketCardInfo.totalWithCard : cartTotal
+                        setCard(String(target.toFixed(2)))
                         setCash('')
                         setTransfer('')
                       } else if (tab.id === 'transferencia') {
@@ -1261,7 +1306,7 @@ export default function Pos() {
                     onClick={handleAllCard}
                     className="text-xs font-bold text-sky-600 hover:underline active:scale-95 transition dark:text-sky-400"
                   >
-                    Cubrir 100% ({formatMoney(cartTotal)})
+                    Cubrir 100% ({formatMoney(effCartTotal)})
                   </button>
                 </div>
                 <div className="relative">
@@ -1447,12 +1492,12 @@ export default function Pos() {
             {/* Botón de Acción Principal para Completar Venta */}
             <button
               type="button"
-              disabled={paid < cartTotal}
+              disabled={paid < effCartTotal}
               onClick={() => void finishSale()}
               className="w-full h-14 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-zinc-950 font-black text-lg shadow-xl shadow-amber-500/20 hover:brightness-105 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100 transition flex items-center justify-center gap-2"
             >
               <Check className="h-6 w-6 stroke-[3]" />
-              <span>Completar Venta ({formatMoney(cartTotal)})</span>
+              <span>Completar Venta ({formatMoney(effCartTotal)})</span>
             </button>
           </div>
         </div>
@@ -1619,6 +1664,8 @@ function quickButtons(l: CartLine): { unit: Unit; qty: number; label: string }[]
 function CartPanel({
   cart,
   cartTotal,
+  business,
+  bucketCardInfo,
   setLineQty,
   setLineUnitAndQty,
   removeLine,
@@ -1630,6 +1677,8 @@ function CartPanel({
 }: {
   cart: CartLine[]
   cartTotal: number
+  business?: BusinessInfo | null
+  bucketCardInfo?: BucketCardInfo
   setLineQty: (productId: string, saleUnit: Unit, qty: number) => void
   setLineUnitAndQty: (productId: string, fromUnit: Unit, toUnit: Unit, qty: number) => void
   removeLine: (productId: string, saleUnit: Unit) => void
@@ -1743,6 +1792,11 @@ function CartPanel({
                           {formatMoney(l.salePrice ?? l.unitPrice)}
                         </span>
                         <span>/ {UNIT_LABELS[l.salePrice != null ? l.saleUnit : l.unit]}</span>
+                        {business?.bucketCardSurchargeEnabled && isBucket19L(l) && (
+                          <span className="rounded bg-amber-100/80 px-1.5 py-0.2 text-[10px] font-black text-amber-900 border border-amber-300/60 dark:bg-amber-950/50 dark:border-amber-800 dark:text-amber-300">
+                            💳 Tarjeta: {formatMoney(calculateBucketCardPrice(l.salePrice ?? l.unitPrice, business))} c/u
+                          </span>
+                        )}
                         {l.presentations.length > 1 && (
                           <select
                             value={l.saleUnit}
@@ -1925,6 +1979,18 @@ function CartPanel({
           {/* Separador punteado estilo ticket y Dock Flotante de Cobro */}
           <div className="border-t-2 border-dashed border-slate-200/90 dark:border-slate-800" />
           <div className="bg-white/95 backdrop-blur-md p-4 dark:bg-slate-900/95 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] border-t border-slate-100 dark:border-slate-800/60">
+            {bucketCardInfo?.hasBuckets && (
+              <div className="mb-2.5 rounded-xl border border-amber-300/80 bg-amber-50/90 dark:border-amber-500/30 dark:bg-amber-950/30 p-2 text-xs text-amber-950 dark:text-amber-200">
+                <div className="flex items-center justify-between font-bold">
+                  <span>💵 Total en efectivo:</span>
+                  <span className="font-mono">{formatMoney(cartTotal)}</span>
+                </div>
+                <div className="flex items-center justify-between font-bold text-amber-800 dark:text-amber-300 mt-0.5">
+                  <span>💳 Total con tarjeta ({bucketCardInfo.bucketCount} cubeta{bucketCardInfo.bucketCount > 1 ? 's' : ''}):</span>
+                  <span className="font-mono font-black">{formatMoney(bucketCardInfo.totalWithCard)}</span>
+                </div>
+              </div>
+            )}
             <div className="mb-3 flex items-baseline justify-between">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total a liquidar</span>

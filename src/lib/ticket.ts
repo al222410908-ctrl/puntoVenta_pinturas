@@ -5,7 +5,12 @@ import { formatQty } from './units'
 const BUSINESS_KEY = 'pos_business'
 const CLIENT_PHONE_KEY = 'pos_cliente_phone'
 
-export const DEFAULT_BUSINESS: BusinessInfo = { name: 'Pinturas POS' }
+export const DEFAULT_BUSINESS: BusinessInfo = {
+  name: 'Pinturas POS',
+  bucketCardSurchargeEnabled: true,
+  bucketCardSurchargeType: 'fixed',
+  bucketCardSurchargeAmount: 50,
+}
 
 export function loadBusinessInfo(): BusinessInfo {
   try {
