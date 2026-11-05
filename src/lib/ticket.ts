@@ -1,5 +1,5 @@
 import type { BusinessInfo, Quote, Sale } from '../types'
-import { formatMoney, round2 } from './utils'
+import { formatMoney, round2, calculateChangeBreakdown } from './utils'
 import { formatQty } from './units'
 
 const BUSINESS_KEY = 'pos_business'
@@ -109,6 +109,9 @@ export function whatsappText(sale: Sale, business: BusinessInfo): string {
   }
   lines.push('──────────────────────')
   lines.push('')
+  const subtotal = round2(sale.total / 1.16)
+  const iva = round2(sale.total - subtotal)
+  lines.push(`Subtotal: ${formatMoney(subtotal)} | IVA (16%): ${formatMoney(iva)}`)
   lines.push(`💰 *TOTAL: ${formatMoney(sale.total)}*`)
 
   if (sale.payments.length > 0) {
@@ -123,7 +126,9 @@ export function whatsappText(sale: Sale, business: BusinessInfo): string {
   const paid = sale.payments.reduce((s, p) => s + p.amount, 0)
   const change = Math.round((paid - sale.total) * 100) / 100
   if (change > 0) {
-    lines.push(`Cambio: ${formatMoney(change)}`)
+    const breakdown = calculateChangeBreakdown(change)
+    const bStr = breakdown.map((b) => `${b.count}x ${b.label}`).join(', ')
+    lines.push(`💵 Cambio: ${formatMoney(change)}${bStr ? ` (${bStr})` : ''}`)
   }
 
   const supParts = [

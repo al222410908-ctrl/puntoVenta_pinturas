@@ -72,14 +72,14 @@ export function Modal({
   title,
   children,
   wide,
-  size,
+  size, darkPanel, panelClassName,
 }: {
   open: boolean
   onClose: () => void
   title: string
   children: ReactNode
   wide?: boolean
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl'; darkPanel?: boolean; panelClassName?: string
 }) {
   useEffect(() => {
     if (!open) return
@@ -94,7 +94,7 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-sm p-0 transition-opacity duration-200 md:items-center md:p-4">
       <div
-        className={`flex max-h-[92dvh] md:max-h-[90vh] w-full flex-col rounded-t-3xl border border-slate-200/90 bg-white shadow-2xl md:rounded-3xl dark:border-slate-700/80 dark:bg-slate-900 dark:shadow-2xl dark:shadow-black/70 ${
+        className={`flex max-h-[92dvh] md:max-h-[90vh] w-full flex-col rounded-t-3xl md:rounded-3xl shadow-2xl transition-all duration-200 ${darkPanel ? 'bg-zinc-950 border border-white/10 text-white shadow-2xl shadow-black/90' : 'border border-slate-200/90 bg-white text-slate-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:shadow-2xl dark:shadow-black/70'} ${panelClassName ?? ''} ${
           size === '3xl'
             ? 'md:max-w-3xl lg:max-w-4xl'
             : size === '4xl'
@@ -110,11 +110,11 @@ export function Modal({
             : 'md:max-w-md'
         }`}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
-          <h2 className="font-display text-base font-bold tracking-tight text-slate-800 dark:text-slate-100">{title}</h2>
+        <div className={`flex shrink-0 items-center justify-between px-5 py-3.5 ${darkPanel ? 'border-b border-white/10' : 'border-b border-slate-100 dark:border-zinc-800'}`}>
+          <h2 className={`font-display text-base font-bold tracking-tight ${darkPanel ? 'text-white' : 'text-slate-800 dark:text-slate-100'}`}>{title}</h2>
           <button
             onClick={onClose}
-            className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className={`rounded-xl p-1.5 transition ${darkPanel ? 'text-zinc-400 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'}`}
             aria-label="Cerrar"
           >
             <X className="h-5 w-5" />

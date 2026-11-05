@@ -14,7 +14,7 @@ const SHORTCUTS = [
     icon: Search,
   },
   {
-    key: 'F4',
+    key: 'F12  ó  F4',
     title: 'Cobrar Venta',
     description: 'Abre la pantalla de cobro con desglose de billetes, tarjeta o transferencia.',
     icon: ShoppingBag,

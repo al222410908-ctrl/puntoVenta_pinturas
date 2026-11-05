@@ -188,3 +188,33 @@
     @apply bg-purple-50 text-purple-700 ring-purple-600/20 dark:bg-purple-950/50 dark:text-purple-300 dark:ring-purple-500/30;
   }
 }
+
+/* ─── ESTILOS DE IMPRESIÓN PARA TICKETS TÉRMICOS (80mm) ─────────────────── */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #thermal-receipt-printable,
+  #thermal-receipt-printable * {
+    visibility: visible;
+  }
+  #thermal-receipt-printable {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 3mm 4mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    z-index: 999999 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

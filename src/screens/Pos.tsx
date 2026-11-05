@@ -27,6 +27,7 @@ import {
   Split,
   Maximize2,
   Minimize2,
+  Phone,
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
@@ -78,6 +79,7 @@ export default function Pos() {
   const [cash, setCash] = useState('')
   const [card, setCard] = useState('')
   const [transfer, setTransfer] = useState('')
+  const [payMethodTab, setPayMethodTab] = useState<'efectivo' | 'tarjeta' | 'transferencia' | 'mixto'>('efectivo')
   const [noteSale, setNoteSale] = useState<Sale | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -396,6 +398,7 @@ export default function Pos() {
   }
 
   const openPayment = () => {
+    setPayMethodTab('efectivo')
     setCash(String(cartTotal.toFixed(2)))
     setCard('')
     setTransfer('')
@@ -570,12 +573,12 @@ export default function Pos() {
         return
       }
 
-      if (e.key === 'F4') {
+      if (e.key === 'F4' || e.key === 'F12') {
         e.preventDefault()
         if (cart.length > 0 && !payOpen && !quoteCreateOpen) {
           openPayment()
         } else if (cart.length === 0) {
-          toast.error('Agrega productos al carrito para cobrar [F4]')
+          toast.error('Agrega productos al carrito para cobrar [F12 / F4]')
         }
         return
       }
@@ -1007,35 +1010,47 @@ export default function Pos() {
         />
       </Modal>
 
-      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Cobrar venta" size="3xl">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
-          {/* Columna Izquierda: Total, Resumen de Artículos y Cambio */}
-          <div className="md:col-span-5 space-y-3">
-            <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50 to-white p-4 text-center dark:border-slate-800 dark:from-slate-800/80 dark:to-slate-900 shadow-2xs">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">
-                Total a liquidar
+      <Modal
+        open={payOpen}
+        onClose={() => setPayOpen(false)}
+        title="Terminal de Cobro Rápido"
+        size="3xl"
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Columna Izquierda: Total a cobrar, resumen de artículos y cambio dinámico */}
+          <div className="lg:col-span-5 space-y-3.5">
+            {/* Tarjeta Destacada de Total */}
+            <div className="relative overflow-hidden rounded-3xl border border-amber-200/80 bg-gradient-to-b from-amber-50/70 via-white to-amber-50/30 dark:border-white/10 dark:from-zinc-900 dark:via-zinc-900/90 dark:to-zinc-950 p-5 text-center shadow-md dark:shadow-2xl transition-colors">
+              <div className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-24 bg-amber-500/10 dark:bg-amber-500/15 blur-2xl rounded-full" />
+              <p className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest">
+                Total a Cobrar
               </p>
-              <p className="font-display text-3xl lg:text-4xl font-extrabold text-primary dark:text-emerald-400 tabular-nums mt-1">
+              <p className="font-display text-4xl sm:text-5xl font-black text-amber-600 dark:text-amber-400 tabular-nums tracking-tight mt-1.5 drop-shadow-xs">
                 {formatMoney(cartTotal)}
               </p>
-              <p className="text-xs text-slate-400 mt-0.5 font-medium">
-                {cartCount} {cartCount === 1 ? 'artículo en la nota' : 'artículos en la nota'}
-              </p>
+              <div className="inline-flex items-center gap-2 mt-2 px-3 py-0.5 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[11px] font-medium text-slate-600 dark:text-zinc-300">
+                <span>{cartCount} {cartCount === 1 ? 'artículo' : 'artículos'}</span>
+                <span className="text-slate-400 dark:text-zinc-600">•</span>
+                <span className="text-emerald-700 dark:text-emerald-400 font-semibold">IVA incluido (16%)</span>
+              </div>
             </div>
 
-            {/* Desglose rápido de lo que se lleva el cliente para confirmación en mostrador */}
-            <div className="hidden md:block rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-xs dark:border-slate-800 dark:bg-slate-900/40">
-              <p className="font-bold text-slate-600 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                <span>Resumen de nota</span>
-                <span className="text-[11px] font-normal text-slate-400">Verificación</span>
-              </p>
-              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+            {/* Resumen Compacto de Artículos para Verificación */}
+            <div className="hidden sm:block rounded-2xl border border-slate-200/80 bg-slate-50/70 dark:border-white/10 dark:bg-zinc-900/60 p-3.5 text-xs backdrop-blur-xs">
+              <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400 font-bold mb-2 pb-1.5 border-b border-slate-200/80 dark:border-white/10 text-[11px] uppercase tracking-wider">
+                <span>Artículos en nota</span>
+                <span>Subtotal</span>
+              </div>
+              <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1 text-slate-700 dark:text-zinc-300 scrollbar-thin">
                 {cart.map((l, i) => (
-                  <div key={i} className="flex justify-between items-center text-[11.5px]">
-                    <span className="truncate pr-2 text-slate-700 dark:text-slate-300">
-                      {formatQty(l.qty, l.saleUnit)} {l.name}
+                  <div key={i} className="flex justify-between items-center text-[12px]">
+                    <span className="truncate pr-2 text-slate-800 dark:text-zinc-300">
+                      <span className="text-amber-600 dark:text-amber-400 font-mono font-bold mr-1">
+                        {formatQty(l.qty, l.saleUnit)}
+                      </span>
+                      {l.name}
                     </span>
-                    <span className="font-semibold text-slate-900 dark:text-slate-100 tabular-nums shrink-0">
+                    <span className="font-mono font-bold text-slate-900 dark:text-zinc-100 tabular-nums shrink-0">
                       {formatMoney(lineTotal(l))}
                     </span>
                   </div>
@@ -1043,60 +1058,63 @@ export default function Pos() {
               </div>
             </div>
 
-            {/* Estado de Pagos y Cambio */}
+            {/* Estado de Pagos y Cambio Dinámico */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between rounded-xl bg-slate-100/80 border border-slate-200/80 px-3.5 py-2.5 text-xs dark:bg-slate-800/80 dark:border-slate-700">
-                <span className="font-medium text-slate-600 dark:text-slate-300">Total recibido:</span>
-                <span className="font-display font-bold text-slate-900 dark:text-slate-100 tabular-nums text-sm">
+              <div className="flex items-center justify-between rounded-2xl bg-slate-100/80 border border-slate-200/80 dark:bg-zinc-900/80 dark:border-white/10 px-4 py-2.5 text-xs text-slate-600 dark:text-zinc-300">
+                <span className="font-semibold text-slate-500 dark:text-zinc-400">Total recibido:</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white tabular-nums text-sm">
                   {formatMoney(paid)}
                 </span>
               </div>
 
               {paid < cartTotal ? (
-                <div className="flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 px-3.5 py-2.5 text-xs dark:bg-amber-950/40 dark:border-amber-800">
-                  <span className="font-bold text-amber-800 dark:text-amber-300">Resta por cubrir:</span>
-                  <span className="font-display font-extrabold text-amber-700 dark:text-amber-400 tabular-nums text-base">
-                    {formatMoney(round2(cartTotal - paid))}
-                  </span>
+                <div className="rounded-2xl border border-amber-300 bg-amber-50/80 dark:border-amber-500/30 dark:bg-amber-950/30 p-3.5 text-center">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-300 mb-1">
+                    <span>Resta por liquidar:</span>
+                    <span className="font-mono font-bold text-amber-700 dark:text-amber-400 text-sm">
+                      {formatMoney(round2(cartTotal - paid))}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1">
+                    Ingresa el monto recibido en efectivo, tarjeta o transferencia.
+                  </p>
                 </div>
               ) : (
-                <div className="rounded-xl bg-emerald-50/90 border border-emerald-200 p-3 text-xs dark:bg-emerald-950/40 dark:border-emerald-800 space-y-2">
+                <div className="rounded-2xl border border-emerald-300/90 bg-emerald-50/90 dark:border-emerald-500/40 dark:bg-emerald-950/40 p-4 shadow-md shadow-emerald-500/10 dark:shadow-xl dark:shadow-emerald-950/30 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="block font-bold text-emerald-900 dark:text-emerald-300 text-xs uppercase tracking-wider">
-                        Cambio a entregar
+                      <span className="block font-bold text-emerald-900 dark:text-emerald-400 text-xs uppercase tracking-wider">
+                        Cambio a Entregar
                       </span>
-                      <span className="text-[11px] text-emerald-700 dark:text-emerald-400">
-                        {change > 0 ? 'Entregar en efectivo al cliente' : 'Pago exacto cubierto'}
+                      <span className="text-[11px] text-emerald-700 dark:text-emerald-300/80 font-medium">
+                        {change > 0 ? 'Devolver en efectivo al cliente' : 'Pago exacto cubierto sin cambio'}
                       </span>
                     </div>
-                    <span className="font-display text-2xl sm:text-3xl font-black text-emerald-700 dark:text-emerald-300 tabular-nums">
+                    <span className="font-mono text-3xl sm:text-4xl font-black text-emerald-700 dark:text-emerald-400 tabular-nums tracking-tight">
                       {change > 0 ? formatMoney(change) : '$0.00'}
                     </span>
                   </div>
 
                   {changeBreakdown.length > 0 && (
-                    <div className="pt-2 border-t border-emerald-200/80 dark:border-emerald-800/80">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900 dark:text-emerald-300 mb-1.5">
-                        <span className="flex items-center gap-1">
-                          <Coins className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                          Desglose sugerido de billetes y monedas:
-                        </span>
+                    <div className="pt-2.5 border-t border-emerald-200/80 dark:border-emerald-500/20">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-900 dark:text-emerald-300 mb-2">
+                        <Coins className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>Desglose óptimo de billetes y monedas:</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {changeBreakdown.map((item, idx) => (
                           <span
                             key={idx}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black shadow-2xs ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-mono font-bold border transition ${
                               item.isCoin
-                                ? 'bg-amber-100/90 border border-amber-300 text-amber-950 dark:bg-amber-950/50 dark:border-amber-700 dark:text-amber-200'
-                                : 'bg-emerald-100 border border-emerald-300 text-emerald-950 dark:bg-emerald-900/60 dark:border-emerald-700 dark:text-emerald-200'
+                                ? 'bg-amber-100 border-amber-300 text-amber-950 dark:bg-amber-950/80 dark:border-amber-500/40 dark:text-amber-300'
+                                : 'bg-emerald-100 border-emerald-300 text-emerald-950 dark:bg-emerald-900/60 dark:border-emerald-400/40 dark:text-emerald-200'
                             }`}
                           >
                             <span className="text-[10px] opacity-75 font-semibold">{item.count}×</span>
-                            <span>{item.label}</span>
-                            <span className="text-[9px] font-normal opacity-60">
-                              ({item.isCoin ? 'moneda' : 'billete'})
+                            <span className="font-black">{item.label}</span>
+                            <span className="text-[9px] opacity-70 font-sans">
+                              {item.isCoin ? 'moneda' : 'billete'}
                             </span>
                           </span>
                         ))}
@@ -1108,141 +1126,147 @@ export default function Pos() {
             </div>
           </div>
 
-          {/* Columna Derecha: Formas de Pago, Datos del Cliente y Botón Final */}
-          <div className="md:col-span-7 space-y-3">
-            {/* Barra de División Rápida */}
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-900/50">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                  <Split className="h-3.5 w-3.5 text-primary dark:text-emerald-400" />
-                  División rápida del total ({formatMoney(cartTotal)})
-                </span>
-                <span className="text-[10px] text-slate-400">1 toque</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleAllCash}
-                  className="rounded-lg border border-emerald-200 bg-emerald-50/90 hover:bg-emerald-100 px-2 py-1.5 text-center text-xs font-bold text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 transition active:scale-95 shadow-2xs"
-                >
-                  Todo Efvo
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAllCard}
-                  className="rounded-lg border border-sky-200 bg-sky-50/90 hover:bg-sky-100 px-2 py-1.5 text-center text-xs font-bold text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300 transition active:scale-95 shadow-2xs"
-                >
-                  Todo Tarjeta
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAllTransfer}
-                  className="rounded-lg border border-violet-200 bg-violet-50/90 hover:bg-violet-100 px-2 py-1.5 text-center text-xs font-bold text-violet-900 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300 transition active:scale-95 shadow-2xs"
-                >
-                  Todo Transf
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSplit5050CashCard}
-                  className="rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-2 py-1.5 text-center text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition active:scale-95 shadow-2xs"
-                  title="50% Efectivo + 50% Tarjeta"
-                >
-                  ½ Efvo + ½ Tarjeta
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSplit5050CashTransfer}
-                  className="col-span-2 sm:col-span-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-2 py-1.5 text-center text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition active:scale-95 shadow-2xs"
-                  title="50% Efectivo + 50% Transferencia"
-                >
-                  ½ Efvo + ½ Transf
-                </button>
-              </div>
+          {/* Columna Derecha: Selector de método, montos rápidos, datos cliente y botón final */}
+          <div className="lg:col-span-7 space-y-3.5">
+            {/* Selector Táctil de Método de Pago */}
+            <div className="grid grid-cols-4 gap-1.5 p-1 rounded-2xl bg-slate-100 border border-slate-200/90 dark:bg-zinc-900 dark:border-white/10">
+              {[
+                { id: 'efectivo', label: 'Efectivo', icon: Banknote },
+                { id: 'tarjeta', label: 'Tarjeta', icon: CreditCard },
+                { id: 'transferencia', label: 'Transfer', icon: Smartphone },
+                { id: 'mixto', label: 'Mixto', icon: Split },
+              ].map((tab) => {
+                const Icon = tab.icon
+                const active = payMethodTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      sound.beep(950, 0.04)
+                      setPayMethodTab(tab.id as typeof payMethodTab)
+                      if (tab.id === 'efectivo') {
+                        setCash(String(cartTotal.toFixed(2)))
+                        setCard('')
+                        setTransfer('')
+                      } else if (tab.id === 'tarjeta') {
+                        setCard(String(cartTotal.toFixed(2)))
+                        setCash('')
+                        setTransfer('')
+                      } else if (tab.id === 'transferencia') {
+                        setTransfer(String(cartTotal.toFixed(2)))
+                        setCash('')
+                        setCard('')
+                      }
+                    }}
+                    className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition active:scale-95 ${
+                      active
+                        ? 'bg-amber-400 text-zinc-950 shadow-md font-black'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 dark:text-zinc-400 dark:hover:text-white dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{tab.label}</span>
+                  </button>
+                )
+              })}
             </div>
 
-            <div className="space-y-2.5">
-              {/* Efectivo */}
-              <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+            {/* Panel de Método: EFECTIVO */}
+            {payMethodTab === 'efectivo' && (
+              <div className="rounded-2xl border border-slate-200/90 bg-slate-50/70 dark:border-white/10 dark:bg-zinc-900/80 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-zinc-200">
                     <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                    Efectivo recibido
+                    Monto en Efectivo Recibido
                   </span>
                   <button
                     type="button"
                     onClick={() => {
+                      sound.beep(850, 0.04)
                       setCash(String(cartTotal.toFixed(2)))
-                      setCard('')
-                      setTransfer('')
                     }}
-                    className="text-[11px] font-bold text-primary hover:underline dark:text-emerald-400"
+                    className="text-xs font-bold text-amber-600 hover:underline active:scale-95 transition dark:text-amber-400"
                   >
-                    Exacto ({formatMoney(cartTotal)})
+                    Monto Exacto ({formatMoney(cartTotal)})
                   </button>
                 </div>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.01"
-                  value={cash}
-                  onFocus={handleInputFocus}
-                  onChange={(e) => setCash(e.target.value)}
-                  placeholder="0.00"
-                />
-                <div className="mt-2.5 space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                    <span>Billetes rápidos (MXN):</span>
-                    <span className="text-[10px] text-slate-400">Toca para fijar pago</span>
+
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xl font-bold text-slate-400 dark:text-zinc-500">$</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={cash}
+                    onFocus={handleInputFocus}
+                    onChange={(e) => setCash(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full h-12 pl-8 pr-4 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-xl font-bold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 dark:bg-zinc-950 dark:border-white/10 dark:text-white dark:placeholder-zinc-600 dark:focus:ring-amber-400/50 dark:focus:border-amber-400 transition"
+                  />
+                </div>
+
+                {/* Botones rápidos de billetes comunes MXN + Monto Exacto */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-zinc-400">
+                    <span>Billetes comunes (MXN):</span>
+                    <span className="text-[10px] text-slate-400 dark:text-zinc-500">Toca para fijar pago</span>
                   </div>
                   <div className="grid grid-cols-5 gap-1.5">
-                  {[
-                    { val: 50, label: '$50', style: 'border-pink-300/90 bg-pink-50 text-pink-700 hover:bg-pink-100 dark:border-pink-800 dark:bg-pink-950/40 dark:text-pink-300' },
-                    { val: 100, label: '$100', style: 'border-rose-300/90 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300' },
-                    { val: 200, label: '$200', style: 'border-emerald-300/90 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' },
-                    { val: 500, label: '$500', style: 'border-blue-300/90 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300' },
-                    { val: 1000, label: '$1,000', style: 'border-amber-300/90 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300' },
-                  ].map((b) => (
+                    {[
+                      { val: 100, label: '$100', bg: 'hover:border-rose-400 hover:text-rose-700 dark:hover:text-rose-300' },
+                      { val: 200, label: '$200', bg: 'hover:border-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300' },
+                      { val: 500, label: '$500', bg: 'hover:border-blue-400 hover:text-blue-700 dark:hover:text-blue-300' },
+                      { val: 1000, label: '$1000', bg: 'hover:border-amber-400 hover:text-amber-700 dark:hover:text-amber-300' },
+                    ].map((b) => (
+                      <button
+                        key={b.val}
+                        type="button"
+                        onClick={() => {
+                          sound.beep(850, 0.05)
+                          const target = b.val >= cartTotal ? b.val : Math.ceil(cartTotal / b.val) * b.val
+                          setCash(String(target.toFixed(2)))
+                        }}
+                        className={`py-2 px-1 rounded-xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 dark:border-white/10 dark:bg-zinc-950/70 dark:text-zinc-200 dark:hover:bg-zinc-900 font-mono text-xs font-black shadow-xs transition active:scale-95 ${b.bg}`}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
                     <button
-                      key={b.val}
                       type="button"
                       onClick={() => {
                         sound.beep(850, 0.05)
-                        const target = b.val >= cartTotal ? b.val : Math.ceil(cartTotal / b.val) * b.val
-                        setCash(String(target.toFixed(2)))
+                        setCash(String(cartTotal.toFixed(2)))
                       }}
-                      className={`flex items-center justify-center rounded-xl border py-2 px-1 text-xs font-black shadow-2xs transition active:scale-95 ${b.style}`}
-                      title={`Pagar con billete de ${b.label}`}
+                      className="py-2 px-1 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 font-mono text-xs font-black shadow-xs transition active:scale-95"
                     >
-                      {b.label}
-                    </button>
-                  ))}
-                </div>
-                </div>
-              </div>
-
-              {/* Tarjeta y Transferencia en Grid de 2 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {/* Tarjeta */}
-                <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                      <CreditCard className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                      Tarjeta
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCard(String(cartTotal.toFixed(2)))
-                        setCash('')
-                        setTransfer('')
-                      }}
-                      className="text-[11px] font-bold text-sky-600 hover:underline dark:text-sky-400"
-                    >
-                      Todo
+                      Exacto
                     </button>
                   </div>
-                  <Input
+                </div>
+              </div>
+            )}
+
+            {/* Panel de Método: TARJETA */}
+            {payMethodTab === 'tarjeta' && (
+              <div className="rounded-2xl border border-slate-200/90 bg-slate-50/70 dark:border-white/10 dark:bg-zinc-900/80 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-zinc-200">
+                    <CreditCard className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                    Cobro con Tarjeta (TPV / Terminal)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAllCard}
+                    className="text-xs font-bold text-sky-600 hover:underline active:scale-95 transition dark:text-sky-400"
+                  >
+                    Cubrir 100% ({formatMoney(cartTotal)})
+                  </button>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xl font-bold text-slate-400 dark:text-zinc-500">$</span>
+                  <input
                     type="number"
                     inputMode="decimal"
                     min="0"
@@ -1251,29 +1275,34 @@ export default function Pos() {
                     onFocus={handleInputFocus}
                     onChange={(e) => setCard(e.target.value)}
                     placeholder="0.00"
+                    className="w-full h-12 pl-8 pr-4 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-xl font-bold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 dark:bg-zinc-950 dark:border-white/10 dark:text-white dark:placeholder-zinc-600 dark:focus:ring-sky-400/50 dark:focus:border-sky-400 transition"
                   />
                 </div>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Desliza, inserta o acerca la tarjeta a tu terminal bancaria por este monto.
+                </p>
+              </div>
+            )}
 
-                {/* Transferencia */}
-                <div className="rounded-xl border border-slate-200/80 p-3 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                      <Smartphone className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                      Transferencia
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTransfer(String(cartTotal.toFixed(2)))
-                        setCash('')
-                        setCard('')
-                      }}
-                      className="text-[11px] font-bold text-violet-600 hover:underline dark:text-violet-400"
-                    >
-                      Todo
-                    </button>
-                  </div>
-                  <Input
+            {/* Panel de Método: TRANSFERENCIA */}
+            {payMethodTab === 'transferencia' && (
+              <div className="rounded-2xl border border-slate-200/90 bg-slate-50/70 dark:border-white/10 dark:bg-zinc-900/80 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-zinc-200">
+                    <Smartphone className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                    Cobro por Transferencia / SPEI
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAllTransfer}
+                    className="text-xs font-bold text-violet-600 hover:underline active:scale-95 transition dark:text-violet-400"
+                  >
+                    Cubrir 100% ({formatMoney(cartTotal)})
+                  </button>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xl font-bold text-slate-400 dark:text-zinc-500">$</span>
+                  <input
                     type="number"
                     inputMode="decimal"
                     min="0"
@@ -1282,52 +1311,149 @@ export default function Pos() {
                     onFocus={handleInputFocus}
                     onChange={(e) => setTransfer(e.target.value)}
                     placeholder="0.00"
+                    className="w-full h-12 pl-8 pr-4 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-xl font-bold placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 dark:bg-zinc-950 dark:border-white/10 dark:text-white dark:placeholder-zinc-600 dark:focus:ring-violet-400/50 dark:focus:border-violet-400 transition"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Verifica que el comprobante SPEI aparezca reflejado en tu cuenta bancaria.
+                </p>
+              </div>
+            )}
+
+            {/* Panel de Método: MIXTO / DIVIDIDO */}
+            {payMethodTab === 'mixto' && (
+              <div className="rounded-2xl border border-slate-200/90 bg-slate-50/70 dark:border-white/10 dark:bg-zinc-900/80 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-zinc-200">
+                    <Split className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    Combinación de Métodos de Pago
+                  </span>
+                  <span className="text-[11px] text-slate-400 dark:text-zinc-400">Atajos rápidos</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pb-1">
+                  <button
+                    type="button"
+                    onClick={handleSplit5050CashCard}
+                    className="px-2 py-1.5 rounded-xl border border-slate-200 bg-white text-center text-xs font-bold text-slate-800 hover:bg-slate-100 dark:border-white/10 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-white/5 active:scale-95 transition"
+                  >
+                    ½ Efvo + ½ Tarjeta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSplit5050CashTransfer}
+                    className="px-2 py-1.5 rounded-xl border border-slate-200 bg-white text-center text-xs font-bold text-slate-800 hover:bg-slate-100 dark:border-white/10 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-white/5 active:scale-95 transition"
+                  >
+                    ½ Efvo + ½ Transf
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAllCash}
+                    className="col-span-2 sm:col-span-1 px-2 py-1.5 rounded-xl border border-slate-200 bg-white text-center text-xs font-bold text-slate-800 hover:bg-slate-100 dark:border-white/10 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-white/5 active:scale-95 transition"
+                  >
+                    Limpiar montos
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-emerald-700 dark:text-emerald-400 mb-1">Efectivo</label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={cash}
+                      onFocus={handleInputFocus}
+                      onChange={(e) => setCash(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full h-10 px-3 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/50 dark:bg-zinc-950 dark:border-white/10 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-sky-700 dark:text-sky-400 mb-1">Tarjeta</label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={card}
+                      onFocus={handleInputFocus}
+                      onChange={(e) => setCard(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full h-10 px-3 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-500/50 dark:bg-zinc-950 dark:border-white/10 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-violet-700 dark:text-violet-400 mb-1">Transferencia</label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={transfer}
+                      onFocus={handleInputFocus}
+                      onChange={(e) => setTransfer(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full h-10 px-3 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-500/50 dark:bg-zinc-950 dark:border-white/10 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Datos opcionales del cliente y notas */}
+            <div className="rounded-2xl border border-slate-200/90 bg-slate-50/70 dark:border-white/10 dark:bg-zinc-900/60 p-3.5 space-y-2.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-zinc-300">
+                <User className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Datos del Cliente y Comprobante (opcional)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    placeholder="Nombre del cliente…"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    maxLength={60}
+                    className="w-full h-9 pl-9 pr-3 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 dark:bg-zinc-950 dark:border-white/10 dark:text-white dark:placeholder-zinc-500 dark:focus:ring-amber-400/50"
+                  />
+                </div>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="WhatsApp (10 dígitos)"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    maxLength={15}
+                    className="w-full h-9 pl-9 pr-3 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 dark:bg-zinc-950 dark:border-white/10 dark:text-white dark:placeholder-zinc-500 dark:focus:ring-amber-400/50"
                   />
                 </div>
               </div>
-            </div>
-
-            {/* Datos del Cliente y Notas opcionales */}
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60 space-y-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                <User className="h-3.5 w-3.5 text-primary dark:text-emerald-400" />
-                <span>Cliente y comprobante (opcional)</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Input
-                  placeholder="Nombre del cliente…"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  maxLength={60}
-                  className="text-xs bg-white dark:bg-slate-900"
-                />
-                <Input
-                  type="tel"
-                  inputMode="tel"
-                  placeholder="WhatsApp (10 dígitos)"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  maxLength={15}
-                  className="text-xs bg-white dark:bg-slate-900"
+              <div className="relative">
+                <FileSpreadsheet className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-zinc-500" />
+                <input
+                  placeholder="Nota interna de la venta (ej. color preparado, factura pendiente...)"
+                  value={saleNotes}
+                  onChange={(e) => setSaleNotes(e.target.value)}
+                  maxLength={120}
+                  className="w-full h-9 pl-9 pr-3 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 dark:bg-zinc-950 dark:border-white/10 dark:text-white dark:placeholder-zinc-500 dark:focus:ring-amber-400/50"
                 />
               </div>
-              <Input
-                placeholder="Nota de venta (ej. color preparado, factura pendiente...)"
-                value={saleNotes}
-                onChange={(e) => setSaleNotes(e.target.value)}
-                maxLength={120}
-                className="text-xs bg-white dark:bg-slate-900"
-              />
             </div>
 
-            <Button
-              className="w-full py-3.5 text-base font-bold shadow-md shadow-primary/20"
+            {/* Botón de Acción Principal para Completar Venta */}
+            <button
+              type="button"
               disabled={paid < cartTotal}
               onClick={() => void finishSale()}
+              className="w-full h-14 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-zinc-950 font-black text-lg shadow-xl shadow-amber-500/20 hover:brightness-105 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100 transition flex items-center justify-center gap-2"
             >
-              <Check className="h-5 w-5 mr-1.5 inline" />
-              Completar venta ({formatMoney(cartTotal)})
-            </Button>
+              <Check className="h-6 w-6 stroke-[3]" />
+              <span>Completar Venta ({formatMoney(cartTotal)})</span>
+            </button>
           </div>
         </div>
       </Modal>
