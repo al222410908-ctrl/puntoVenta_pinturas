@@ -1,6 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { ShoppingCart, Package, Truck, Boxes, BarChart3, Wallet, Settings, Moon, Sun, RefreshCw, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import AccessGate from './components/AccessGate'
+import { ActualizacionModal, abrirModalActualizacion } from './components/ActualizacionModal'
+import { APP_VERSION } from './config/version'
+import { Sparkles } from 'lucide-react'
 import { syncNow, lastSyncAt, onLocalChange } from './lib/sync'
 import { BarcodeScanner } from './components/BarcodeScanner'
 import { Modal, Button, SafeImage } from './components/ui'
@@ -89,6 +92,15 @@ export default function App() {
       window.removeEventListener('pos:toggle_kiosk', onToggle)
       document.removeEventListener('fullscreenchange', onFsChange)
     }
+  }, [])
+
+  useEffect(() => {
+    const onNavTab = (e: Event) => {
+      const custom = e as CustomEvent<TabId>
+      if (custom.detail) setTab(custom.detail)
+    }
+    window.addEventListener('pos:navigate_tab', onNavTab)
+    return () => window.removeEventListener('pos:navigate_tab', onNavTab)
   }, [])
 
   const isKiosk = kioskMode && tab === 'vender'
@@ -370,14 +382,22 @@ export default function App() {
           {/* Footer del Sidebar */}
           <div className="flex items-center justify-between border-t border-slate-100 px-3.5 py-3 dark:border-slate-800 shrink-0 overflow-hidden">
             <div
-              className={`flex items-center gap-1.5 text-[11px] font-medium text-slate-400 dark:text-slate-500 overflow-hidden transition-all duration-300 whitespace-nowrap ${
+              className={`flex items-center gap-2 text-[11px] font-medium text-slate-400 dark:text-slate-500 overflow-hidden transition-all duration-300 whitespace-nowrap ${
                 sidebarCollapsed
-                  ? 'max-w-0 opacity-0 group-hover:max-w-[140px] group-hover:opacity-100'
-                  : 'max-w-[140px] opacity-100'
+                  ? 'max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100'
+                  : 'max-w-[180px] opacity-100'
               }`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-              <span>Offline-ready</span>
+              <button
+                type="button"
+                onClick={() => abrirModalActualizacion()}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 dark:text-emerald-300 font-mono text-[10px] font-bold transition cursor-pointer"
+                title="Ver qué hay de nuevo en esta versión"
+              >
+                <Sparkles className="h-2.5 w-2.5 text-accent" />
+                <span>{APP_VERSION}</span>
+              </button>
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <ThemeToggle dark={dark} onToggle={() => setDark((d) => !d)} />
@@ -449,6 +469,8 @@ export default function App() {
           onScan={(code) => void handleGlobalScan(code)}
         />
       )}
+
+      <ActualizacionModal />
 
       {scannedProduct && (
         <Modal
