@@ -15,7 +15,11 @@ import {
   Camera,
   CheckCircle2,
   Minus,
+  Search,
+  X,
+  AlertTriangle,
 } from 'lucide-react'
+import { matchesSearch } from '../lib/utils'
 import { db } from '../db/db'
 import {
   cancelOrder,
@@ -106,15 +110,108 @@ function lineParts(p: Product | undefined, l: DraftLine, containers: Container[]
 
 export default function Restock() {
   const [tab, setTab] = useState<Tab>('sugerencia')
+
+  // Datos reactivos para el Dashboard de KPIs
+  const suggestions = useLiveQuery(() => restockSuggestions(), []) ?? []
+  const products = useLiveQuery(() => db.products.toArray(), []) ?? []
+  const orders = useLiveQuery(() => db.purchaseOrders.toArray(), []) ?? []
+
+  // Métricas globales en tiempo real
+  const kpis = useMemo(() => {
+    const totalSuggestedCapital = round2(
+      suggestions.reduce((acc, s) => acc + s.suggestedQty * (s.product.cost || 0), 0)
+    )
+    const outOfStockCount = products.filter((p) => p.stock <= 0).length
+    const pendingOrders = orders.filter((o) => o.status === 'pendiente' || o.status === 'parcial')
+    const transitValue = round2(pendingOrders.reduce((acc, o) => acc + o.total, 0))
+
+    return {
+      totalSuggestedCapital,
+      outOfStockCount,
+      pendingOrdersCount: pendingOrders.length,
+      transitValue,
+      totalSuggestions: suggestions.length,
+    }
+  }, [suggestions, products, orders])
+
   return (
     <div className="flex h-full flex-col">
-      <div className="p-3 border-b border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+      {/* ─── BANNER SUPERIOR DE KPIS DE RESURTIDO (ESTILO CONVEME) ─── */}
+      <div className="p-3 bg-white/70 backdrop-blur-md border-b border-slate-200/80 dark:bg-slate-900/70 dark:border-slate-800">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-3">
+          {/* KPI 1: Capital Requerido */}
+          <div className="card p-2.5 sm:p-3 border border-slate-200/90 dark:border-slate-800 bg-white/90 dark:bg-slate-800/80 shadow-2xs flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
+              <ShoppingBasket className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                Inversión Estimada
+              </span>
+              <span className="font-display text-sm sm:text-base font-black text-slate-900 dark:text-white tabular-nums">
+                {formatMoney(kpis.totalSuggestedCapital)}
+              </span>
+            </div>
+          </div>
+
+          {/* KPI 2: Agotados Críticos */}
+          <div className="card p-2.5 sm:p-3 border border-rose-200/90 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 shadow-2xs flex items-center gap-3">
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">
+              <AlertTriangle className="h-5 w-5" />
+              {kpis.outOfStockCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                </span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 block truncate">
+                En Ceros Crítico
+              </span>
+              <span className="font-display text-sm sm:text-base font-black text-rose-700 dark:text-rose-300 tabular-nums">
+                {kpis.outOfStockCount} productos
+              </span>
+            </div>
+          </div>
+
+          {/* KPI 3: Órdenes en Tránsito */}
+          <div className="card p-2.5 sm:p-3 border border-blue-200/90 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20 shadow-2xs flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+              <Truck className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block truncate">
+                Órdenes en Camino
+              </span>
+              <span className="font-display text-sm sm:text-base font-black text-blue-700 dark:text-blue-300 tabular-nums">
+                {kpis.pendingOrdersCount} ({formatMoney(kpis.transitValue)})
+              </span>
+            </div>
+          </div>
+
+          {/* KPI 4: Sugeridos Totales */}
+          <div className="card p-2.5 sm:p-3 border border-amber-200/90 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/20 shadow-2xs flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+              <PackageCheck className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 block truncate">
+                Por Resurtir
+              </span>
+              <span className="font-display text-sm sm:text-base font-black text-amber-700 dark:text-amber-300 tabular-nums">
+                {kpis.totalSuggestions} sugeridos
+              </span>
+            </div>
+          </div>
+        </div>
+
         <Segmented
           value={tab}
           onChange={setTab}
           options={[
-            { value: 'sugerencia', label: 'Sugerencia Inteligente' },
-            { value: 'ordenes', label: 'Órdenes / En Camino' },
+            { value: 'sugerencia', label: `Sugerencia Inteligente (${kpis.totalSuggestions})` },
+            { value: 'ordenes', label: `Órdenes / En Camino (${kpis.pendingOrdersCount})` },
             { value: 'compras', label: 'Compras Directas' },
           ]}
         />
@@ -138,6 +235,8 @@ function SuggestionView() {
   const business = useMemo(() => loadBusinessInfo(), [])
   const [overrides, setOverrides] = useState<Record<string, { qty?: number; cost?: number }>>({})
   const [filterType, setFilterType] = useState<'todos' | 'top' | 'agotados'>('todos')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>('todos')
   const [busy, setBusy] = useState(false)
 
   // Combinar sugerencias con los valores editados
@@ -151,10 +250,22 @@ function SuggestionView() {
   }, [suggestions, overrides])
 
   const filteredRows = useMemo(() => {
-    if (filterType === 'top') return rows.filter((r) => r.suggestion.isTopSeller)
-    if (filterType === 'agotados') return rows.filter((r) => r.product.stock <= 0)
-    return rows
-  }, [rows, filterType])
+    let list = rows
+    if (filterType === 'top') list = list.filter((r) => r.suggestion.isTopSeller)
+    if (filterType === 'agotados') list = list.filter((r) => r.product.stock <= 0)
+
+    if (searchQuery.trim()) {
+      list = list.filter((r) =>
+        matchesSearch(searchQuery, [r.product.name, r.product.barcode, r.product.purchaseCode])
+      )
+    }
+
+    if (selectedSupplierId !== 'todos') {
+      list = list.filter((r) => (r.product.supplierId ?? 'none') === selectedSupplierId)
+    }
+
+    return list
+  }, [rows, filterType, searchQuery, selectedSupplierId])
 
   const setQty = (product: Product, deltaOrVal: number | string) => {
     const prev = overrides[product.id]?.qty ?? (suggestions.find((s) => s.product.id === product.id)?.suggestedQty ?? 1)
@@ -288,21 +399,56 @@ function SuggestionView() {
 
   return (
     <div className="space-y-4 pt-3">
-      {/* Banner de inteligencia y filtros */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2">
+      {/* Barra de Búsqueda Instantánea & Filtro por Proveedor */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 shadow-2xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <Input
+              placeholder="Buscar por producto, clave o código de barras…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-8 h-9 text-xs bg-slate-50 dark:bg-slate-950/80"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <Select
+            value={selectedSupplierId}
+            onChange={(e) => setSelectedSupplierId(e.target.value)}
+            className="h-9 text-xs sm:w-56 bg-slate-50 dark:bg-slate-950/80"
+          >
+            <option value="todos">Todos los proveedores ({suppliers.length})</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>
+                🏢 {s.name}
+              </option>
+            ))}
+            <option value="none">Sin proveedor asignado</option>
+          </Select>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between lg:justify-end gap-2.5 pt-1 lg:pt-0 border-t lg:border-t-0 border-slate-100 dark:border-slate-800">
           <Segmented
             value={filterType}
             onChange={setFilterType}
             options={[
-              { value: 'todos', label: `Todos (${rows.length})` },
+              { value: 'todos', label: `Todos (${filteredRows.length})` },
               { value: 'top', label: '🔥 Más Vendidos' },
               { value: 'agotados', label: '🚨 En Ceros' },
             ]}
           />
-        </div>
-        <div className="text-xs text-slate-500 text-right">
-          Total sugerido compras: <strong className="text-slate-800 dark:text-slate-100">{formatMoney(totalGlobalEstimated)}</strong>
+          <span className="text-xs text-slate-500 tabular-nums">
+            Total lista: <strong className="text-slate-800 dark:text-slate-100 font-bold">{formatMoney(totalGlobalEstimated)}</strong>
+          </span>
         </div>
       </div>
 
@@ -452,14 +598,61 @@ function SuggestionView() {
                       </div>
                     </div>
 
+                    {/* Presets Rápidos de Pedido */}
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-700/60 text-[11px]">
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-400 text-[10.5px]">Presets:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const def = Math.max(1, Math.round(p.minStock - p.stock))
+                            setQty(p, def)
+                            playBeep(true)
+                          }}
+                          className="px-2 py-0.5 rounded-lg border border-slate-200/80 bg-slate-50 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                          title="Pedir la cantidad exacta para alcanzar el stock mínimo"
+                        >
+                          +Mínimo ({Math.max(1, Math.round(p.minStock - p.stock))})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const lot = isLiquid(p.unit) ? 4 : 12
+                            setQty(p, r.qty + lot)
+                            playBeep(true)
+                          }}
+                          className="px-2 py-0.5 rounded-lg border border-slate-200/80 bg-slate-50 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                          title={isLiquid(p.unit) ? "Agregar lote de 4 cubetas" : "Agregar lote de 12 unidades"}
+                        >
+                          +{isLiquid(p.unit) ? '4 Cub.' : '12 Pz.'}
+                        </button>
+                      </div>
+
+                      {/* Margen de ganancia y alerta de costo */}
+                      <div className="flex items-center gap-1.5">
+                        {r.cost > (p.cost || 0) && (p.cost || 0) > 0 && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-bold text-[9.5px]">
+                            ⚠️ Costo +{round2(((r.cost - p.cost!) / p.cost!) * 100)}%
+                          </span>
+                        )}
+                        <span className="text-slate-400 text-[10.5px]">
+                          Margen:{' '}
+                          <strong className={p.price > 0 && ((p.price - r.cost) / p.price) * 100 < 20 ? 'text-rose-500 font-bold' : 'text-emerald-600 dark:text-emerald-400 font-bold'}>
+                            {p.price > 0 ? `${round2(((p.price - r.cost) / p.price) * 100)}%` : '0%'}
+                          </strong>
+                        </span>
+                      </div>
+                    </div>
+
                     {/* Controles de Pedido y Costo */}
-                    <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2 text-xs">
+                    <div className="pt-1.5 flex items-center justify-between gap-2 text-xs">
                       {/* Cantidad con botones rápidos */}
                       <div className="flex items-center gap-1">
                         <span className="text-slate-500 font-medium mr-1">Pedir:</span>
                         <button
+                          type="button"
                           onClick={() => setQty(p, -1)}
-                          className="h-7 w-7 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 flex items-center justify-center text-slate-700 dark:text-slate-200"
+                          className="h-7 w-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 flex items-center justify-center text-slate-700 dark:text-slate-200 transition active:scale-90"
                         >
                           <Minus className="h-3.5 w-3.5" />
                         </button>
@@ -468,11 +661,12 @@ function SuggestionView() {
                           min="0"
                           value={r.qty}
                           onChange={(e) => setQty(p, e.target.value)}
-                          className="w-14 text-center font-bold text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded h-7 text-slate-800 dark:text-slate-100"
+                          className="w-14 text-center font-bold text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg h-7 text-slate-800 dark:text-slate-100 tabular-nums"
                         />
                         <button
+                          type="button"
                           onClick={() => setQty(p, 1)}
-                          className="h-7 w-7 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 flex items-center justify-center text-slate-700 dark:text-slate-200"
+                          className="h-7 w-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 flex items-center justify-center text-slate-700 dark:text-slate-200 transition active:scale-90"
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
@@ -481,10 +675,10 @@ function SuggestionView() {
 
                       {/* Costo e importe */}
                       <div className="text-right">
-                        <span className="text-[11px] text-slate-400 block">
+                        <span className="text-[11px] text-slate-400 block tabular-nums">
                           Costo c/u: {formatMoney(r.cost)}
                         </span>
-                        <span className="font-bold text-slate-800 dark:text-slate-100">
+                        <span className="font-bold text-slate-800 dark:text-slate-100 tabular-nums">
                           {formatMoney(round2(r.qty * r.cost))}
                         </span>
                       </div>
@@ -568,37 +762,99 @@ function OrdersView() {
                     : 'border-slate-200 dark:border-slate-800'
                 }`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-2.5">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-display font-semibold text-base text-slate-800 dark:text-slate-100">
-                        {o.supplierName ?? 'Proveedor General'}
-                      </span>
-                      <span
-                        className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                          isPending
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                            : isPartial
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                              : isDone
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                        }`}
-                      >
-                        {isPending ? '⏳ En Camino / Pendiente' : isPartial ? '⚠️ Parcialmente Recibida' : isDone ? '✅ Recibida en Stock' : 'Cancelada'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {o.folio ? `Folio: OC-${o.folio} · ` : `ID: ${o.id.slice(0, 8)} · `}
-                      {new Date(o.date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </p>
-                  </div>
+                {(() => {
+                  const totalItemsQty = o.items.reduce((sum, i) => sum + i.qty, 0)
+                  const totalReceivedQty = o.items.reduce((sum, i) => sum + (i.receivedQty || 0), 0)
+                  const progressPct = totalItemsQty > 0 ? Math.min(100, Math.round((totalReceivedQty / totalItemsQty) * 100)) : 0
 
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatMoney(o.total)}</p>
-                    <p className="text-[11px] text-slate-400">{o.items.length} productos pedidos</p>
-                  </div>
-                </div>
+                  return (
+                    <>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-2.5">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-display font-semibold text-base text-slate-800 dark:text-slate-100">
+                              {o.supplierName ?? 'Proveedor General'}
+                            </span>
+                            <span
+                              className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                                isPending
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                  : isPartial
+                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                    : isDone
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                              }`}
+                            >
+                              {isPending ? '⏳ En Camino / Pendiente' : isPartial ? '⚠️ Parcialmente Recibida' : isDone ? '✅ Recibida en Stock' : 'Cancelada'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {o.folio ? `Folio: OC-${o.folio} · ` : `ID: ${o.id.slice(0, 8)} · `}
+                            {new Date(o.date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums">{formatMoney(o.total)}</p>
+                          <p className="text-[11px] text-slate-400">{o.items.length} productos pedidos ({totalReceivedQty}/{totalItemsQty} piezas)</p>
+                        </div>
+                      </div>
+
+                      {/* Timeline Visual de 4 Fases estilo ConVeMe */}
+                      <div className="py-1">
+                        <div className="flex items-center justify-between text-[11px] font-bold gap-1 sm:gap-2">
+                          <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950 text-[10px] font-black">
+                              1
+                            </span>
+                            <span className="hidden sm:inline">Creada</span>
+                          </div>
+                          <div className="h-0.5 flex-1 bg-emerald-500 rounded" />
+
+                          <div className={`flex items-center gap-1.5 ${isPending || isPartial || isDone ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
+                            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${
+                              isPending ? 'bg-blue-100 text-blue-700 animate-pulse' : 'bg-slate-100 dark:bg-slate-800'
+                            }`}>
+                              2
+                            </span>
+                            <span className="hidden sm:inline">En Camino</span>
+                          </div>
+                          <div className={`h-0.5 flex-1 rounded ${isPartial || isDone ? 'bg-amber-500' : 'bg-slate-200 dark:bg-slate-800'}`} />
+
+                          <div className={`flex items-center gap-1.5 ${isPartial ? 'text-amber-600 dark:text-amber-400 font-black' : isDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${
+                              isPartial ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 dark:bg-slate-800'
+                            }`}>
+                              3
+                            </span>
+                            <span className="hidden sm:inline">Recepción Parcial</span>
+                          </div>
+                          <div className={`h-0.5 flex-1 rounded ${isDone ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-800'}`} />
+
+                          <div className={`flex items-center gap-1.5 ${isDone ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-400'}`}>
+                            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${
+                              isDone ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800'
+                            }`}>
+                              ✓
+                            </span>
+                            <span className="hidden sm:inline">En Stock</span>
+                          </div>
+                        </div>
+
+                        {/* Barra de progreso de recepción */}
+                        <div className="mt-2 w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden flex">
+                          <div
+                            className={`h-full transition-all duration-300 rounded-full ${
+                              isDone ? 'bg-emerald-500' : isPartial ? 'bg-amber-500' : 'bg-blue-500'
+                            }`}
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
 
                 {/* Lista de productos pedidos con avance */}
                 <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">

@@ -187,6 +187,51 @@
   .chip-devol {
     @apply bg-purple-50 text-purple-700 ring-purple-600/20 dark:bg-purple-950/50 dark:text-purple-300 dark:ring-purple-500/30;
   }
+  /* Clases Táctiles Neo-Brutalistas / ConVeMe adaptadas a Pinturas POS */
+  .neo-tactile-card {
+    @apply rounded-2xl border-2 border-slate-900/80 bg-white shadow-[4px_4px_0px_0px_rgba(23,74,59,0.3)] transition-all duration-200 dark:border-white/20 dark:bg-slate-900/90 dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.15)];
+  }
+
+  .neo-tactile-btn {
+    @apply rounded-xl border-2 border-slate-900/80 bg-primary text-white font-bold shadow-[3px_3px_0px_0px_rgba(23,74,59,0.4)] transition-all duration-150 select-none hover:-translate-y-0.5 hover:shadow-[5px_5px_0px_0px_rgba(23,74,59,0.5)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none dark:border-white/30 dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.2)];
+  }
+
+  .neo-tactile-btn-accent {
+    @apply rounded-xl border-2 border-slate-900/80 bg-accent text-slate-950 font-black shadow-[3px_3px_0px_0px_rgba(197,152,42,0.5)] transition-all duration-150 select-none hover:-translate-y-0.5 hover:shadow-[5px_5px_0px_0px_rgba(197,152,42,0.6)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none dark:border-white/30 dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.2)];
+  }
+}
+
+/* ─── ANIMACIONES CONVEME (Micro-interacciones y transiciones fluidas) ────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.98) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slideInRight {
+  animation: slideInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.08); }
+}
+.animate-pulseGlow {
+  animation: pulseGlow 2.5s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+.animate-float {
+  animation: float 3s ease-in-out infinite;
 }
 
 /* ─── ESTILOS DE IMPRESIÓN PARA TICKETS TÉRMICOS (80mm) ─────────────────── */

@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { ShoppingCart, Package, Truck, Boxes, BarChart3, Wallet, Settings, Moon, Sun, RefreshCw } from 'lucide-react'
+import { ShoppingCart, Package, Truck, Boxes, BarChart3, Wallet, Settings, Moon, Sun, RefreshCw, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import AccessGate from './components/AccessGate'
 import { syncNow, lastSyncAt, onLocalChange } from './lib/sync'
 import { BarcodeScanner } from './components/BarcodeScanner'
 import { Modal, Button, SafeImage } from './components/ui'
 import { db } from './db/db'
+import { useLiveQuery } from 'dexie-react-hooks'
 import type { Product } from './types'
 import { formatMoney } from './lib/utils'
 import { UNIT_LABELS, formatQty } from './lib/units'
@@ -50,6 +51,15 @@ export default function App() {
   const [globalScanOpen, setGlobalScanOpen] = useState(false)
   const [scannedProduct, setScannedProduct] = useState<Product | null>(null)
   const scanner = loadScannerSettings()
+  const lowStockCount = useLiveQuery(
+    () => db.products.filter((p) => p.stock <= p.minStock).count(),
+    [],
+  ) ?? 0
+
+  const todaySalesCount = useLiveQuery(async () => {
+    const todayStart = new Date().setHours(0, 0, 0, 0)
+    return await db.sales.where('date').aboveOrEqual(todayStart).count()
+  }, []) ?? 0
 
   const [dark, setDark] = useState<boolean>(() => {
     const saved = localStorage.getItem('theme')
@@ -82,6 +92,25 @@ export default function App() {
   }, [])
 
   const isKiosk = kioskMode && tab === 'vender'
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('pos_sidebar_collapsed') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('pos_sidebar_collapsed', next ? '1' : '0')
+      } catch {
+        // noop
+      }
+      return next
+    })
+  }
   const busyRef = useRef(false)
 
   const doSync = async (full = false) => {
@@ -234,17 +263,49 @@ export default function App() {
       )}
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className={`w-60 shrink-0 flex-col border-r border-slate-200/90 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95 ${isKiosk ? 'hidden' : 'hidden md:flex'}`}>
-          <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800">
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-700 to-primary-600 p-0.5 shadow-sm shadow-primary/30">
-              <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-full w-full rounded-[10px] object-cover" />
+        <aside
+          className={`group fixed md:static left-0 top-0 z-40 h-screen md:h-auto shrink-0 flex-col border-r border-slate-200/90 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95 transition-all duration-300 ease-in-out shadow-xs md:hover:shadow-xl overflow-hidden ${
+            isKiosk ? 'hidden' : 'hidden md:flex'
+          } ${
+            sidebarCollapsed ? 'w-[72px] hover:w-64' : 'w-64'
+          }`}
+        >
+          {/* Header con Logo y botón de fijar/plegar */}
+          <div className="flex items-center justify-between border-b border-slate-100 px-3.5 py-3.5 dark:border-slate-800 h-16 shrink-0 overflow-hidden">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-700 to-primary-600 p-0.5 shadow-sm shadow-primary/30">
+                <img src="/logopintura.jpeg" alt="Pinturas POS" className="h-full w-full rounded-[10px] object-cover" />
+              </div>
+              <div
+                className={`flex flex-col overflow-hidden transition-all duration-300 whitespace-nowrap ${
+                  sidebarCollapsed
+                    ? 'max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100'
+                    : 'max-w-[180px] opacity-100'
+                }`}
+              >
+                <p className="font-display text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                  Pinturas POS
+                </p>
+                <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  Punto de Venta & Stock
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">Pinturas POS</p>
-              <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">Punto de Venta & Stock</p>
-            </div>
+
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className={`p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all dark:hover:bg-slate-800 dark:hover:text-slate-200 shrink-0 cursor-pointer ${
+                sidebarCollapsed ? 'hidden group-hover:flex' : 'flex'
+              }`}
+              title={sidebarCollapsed ? 'Fijar menú expandido' : 'Plegar menú a iconos'}
+            >
+              {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+            </button>
           </div>
-          <nav className="flex-1 space-y-1 p-3">
+
+          {/* Navegación con animación elástica suave */}
+          <nav className="flex-1 space-y-1 p-2.5 overflow-y-auto overflow-x-hidden">
             {NAV.map((n) => {
               const Icon = n.icon
               const active = tab === n.id
@@ -252,24 +313,75 @@ export default function App() {
                 <button
                   key={n.id}
                   onClick={() => setTab(n.id)}
-                  className={`group flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-150 ${
+                  title={sidebarCollapsed ? n.label : undefined}
+                  className={`group/btn flex w-full items-center rounded-xl py-2.5 px-2 transition-all duration-150 overflow-hidden cursor-pointer ${
                     active
-                      ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-sm shadow-primary/25'
+                      ? 'bg-gradient-to-r from-primary-600 to-primary text-white shadow-sm shadow-primary/25 neo-tactile-card'
                       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-100'
                   }`}
                 >
-                  <Icon className={`h-4.5 w-4.5 transition-transform group-hover:scale-105 ${active ? 'text-amber-300' : 'text-slate-400 dark:text-slate-500'}`} />
-                  <span>{n.label}</span>
+                  {/* Contenedor de Icono centrado para cuando está plegado */}
+                  <div className="relative flex h-5 w-9 shrink-0 items-center justify-center">
+                    <Icon
+                      className={`h-4.5 w-4.5 transition-transform group-hover/btn:scale-110 ${
+                        active ? 'text-amber-300' : 'text-slate-400 dark:text-slate-500'
+                      }`}
+                    />
+                    {sidebarCollapsed && n.id === 'inventario' && lowStockCount > 0 && (
+                      <span className="group-hover:hidden absolute top-0 right-1 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900 animate-pulse" />
+                    )}
+                  </div>
+
+                  {/* Texto y Badges con apertura suave */}
+                  <div
+                    className={`flex items-center justify-between flex-1 pl-1.5 pr-2 overflow-hidden whitespace-nowrap transition-all duration-300 ${
+                      sidebarCollapsed
+                        ? 'max-w-0 opacity-0 group-hover:max-w-[180px] group-hover:opacity-100'
+                        : 'max-w-[180px] opacity-100'
+                    }`}
+                  >
+                    <span className="text-sm font-semibold truncate">{n.label}</span>
+
+                    <div className="flex items-center gap-1.5 ml-auto pl-1 shrink-0">
+                      {n.id === 'inventario' && lowStockCount > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-black text-amber-700 ring-1 ring-amber-500/40 dark:bg-amber-500/30 dark:text-amber-300 animate-pulseGlow shrink-0">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                          {lowStockCount}
+                        </span>
+                      )}
+                      {n.id === 'caja' && todaySalesCount > 0 && (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums shrink-0 ${
+                            active
+                              ? 'bg-white/20 text-white'
+                              : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          {todaySalesCount} hoy
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </button>
               )
             })}
           </nav>
-          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 dark:border-slate-800">
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+
+          {/* Footer del Sidebar */}
+          <div className="flex items-center justify-between border-t border-slate-100 px-3.5 py-3 dark:border-slate-800 shrink-0 overflow-hidden">
+            <div
+              className={`flex items-center gap-1.5 text-[11px] font-medium text-slate-400 dark:text-slate-500 overflow-hidden transition-all duration-300 whitespace-nowrap ${
+                sidebarCollapsed
+                  ? 'max-w-0 opacity-0 group-hover:max-w-[140px] group-hover:opacity-100'
+                  : 'max-w-[140px] opacity-100'
+              }`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
               <span>Offline-ready</span>
             </div>
-            <ThemeToggle dark={dark} onToggle={() => setDark((d) => !d)} />
+            <div className="flex items-center gap-1 shrink-0">
+              <ThemeToggle dark={dark} onToggle={() => setDark((d) => !d)} />
+            </div>
           </div>
         </aside>
 
@@ -306,14 +418,22 @@ export default function App() {
               <button
                 key={n.id}
                 onClick={() => setTab(n.id)}
-                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 transition-all ${
+                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 transition-all relative ${
                   active
                     ? 'text-primary font-bold dark:text-emerald-400'
                     : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'
                 }`}
               >
-                <div className={`flex h-7 w-7 items-center justify-center rounded-xl transition ${active ? 'bg-primary/10 dark:bg-emerald-950/60' : ''}`}>
+                <div className={`relative flex h-7 w-7 items-center justify-center rounded-xl transition ${active ? 'bg-primary/10 dark:bg-emerald-950/60' : ''}`}>
                   <Icon className="h-4 w-4" />
+                  {n.id === 'inventario' && lowStockCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 text-[8.5px] font-black text-slate-950 shadow-xs ring-1 ring-white dark:ring-slate-900 animate-pulse">
+                      {lowStockCount > 9 ? '!' : lowStockCount}
+                    </span>
+                  )}
+                  {n.id === 'caja' && todaySalesCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-2 w-2 rounded-full bg-emerald-500 ring-1 ring-white dark:ring-slate-900" />
+                  )}
                 </div>
                 <span className="text-[10px] leading-tight tracking-tight">{n.label}</span>
               </button>

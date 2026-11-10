@@ -28,6 +28,12 @@ import {
   Maximize2,
   Minimize2,
   Phone,
+  Sun,
+  CloudSun,
+  Moon,
+  ChevronDown,
+  ChevronUp,
+  TrendingUp,
 } from 'lucide-react'
 import { db } from '../db/db'
 import type { CartLine } from '../db/repos'
@@ -65,10 +71,75 @@ import { KeyboardShortcutsModal } from '../components/KeyboardShortcutsModal'
 
 
 
+
+function getPosGreeting(): { text: string; icon: 'sun' | 'cloud-sun' | 'moon'; phase: string } {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) {
+    return { text: 'Buenos días', icon: 'sun', phase: 'Turno matutino' }
+  }
+  if (hour >= 12 && hour < 19) {
+    return { text: 'Buenas tardes', icon: 'cloud-sun', phase: 'Turno vespertino' }
+  }
+  return { text: 'Buenas noches', icon: 'moon', phase: 'Cierre de mostrador' }
+}
+
 export default function Pos() {
   const products = useLiveQuery(() => db.products.toArray(), []) ?? []
   const categories = useLiveQuery(() => db.categories.toArray(), []) ?? []
   const sales = useLiveQuery(() => db.sales.toArray(), []) ?? []
+
+  const [heroCollapsed, setHeroCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('pos_hero_banner_collapsed') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  const toggleHeroBanner = () => {
+    setHeroCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('pos_hero_banner_collapsed', next ? '1' : '0')
+      } catch {
+        // noop
+      }
+      return next
+    })
+  }
+
+  const todayStart = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d.getTime()
+  }, [])
+
+  const todaySales = useMemo(() => {
+    return sales.filter((s) => s.date >= todayStart)
+  }, [sales, todayStart])
+
+  const todaySalesTotal = useMemo(() => {
+    return round2(todaySales.reduce((acc, s) => acc + s.total, 0))
+  }, [todaySales])
+
+  const lowStockProductsCount = useMemo(() => {
+    return products.filter((p) => p.stock <= p.minStock).length
+  }, [products])
+
+  const bucket19Count = useMemo(() => {
+    return products.filter((p) => isBucket19L(p)).length
+  }, [products])
+
+  const greetingInfo = useMemo(() => getPosGreeting(), [])
+
+  const formattedCurrentDate = useMemo(() => {
+    const str = new Intl.DateTimeFormat('es-MX', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    }).format(new Date())
+    return str.charAt(0).toUpperCase() + str.slice(1)
+  }, [])
 
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState<string>('')
@@ -694,6 +765,122 @@ export default function Pos() {
     <div className="flex h-full min-w-0 flex-col lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="p-3 pb-2 bg-white/70 backdrop-blur-md border-b border-slate-200/80 dark:bg-slate-900/70 dark:border-slate-800">
+          {/* ─── HERO MOSTRADOR / CONVEME-STYLE GREETING & KPIS ─── */}
+          {!heroCollapsed ? (
+            <div className="mb-2.5 rounded-2xl border border-slate-200/90 bg-gradient-to-r from-emerald-50/70 via-white to-amber-50/40 p-3 shadow-2xs transition-all dark:border-slate-800 dark:from-slate-900/90 dark:via-slate-900/80 dark:to-slate-950/70 animate-fadeIn">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-primary-600 text-amber-300 shadow-sm shadow-primary/20">
+                    {greetingInfo.icon === 'sun' ? (
+                      <Sun className="h-5 w-5" />
+                    ) : greetingInfo.icon === 'cloud-sun' ? (
+                      <CloudSun className="h-5 w-5" />
+                    ) : (
+                      <Moon className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-display text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                        ¡{greetingInfo.text}!
+                      </h2>
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary dark:bg-emerald-950/60 dark:text-emerald-400">
+                        {greetingInfo.phase}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      {formattedCurrentDate}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-0.5">
+                    <div className="flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white/90 px-2.5 py-1 text-xs shadow-2xs dark:border-slate-800 dark:bg-slate-800/80">
+                      <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <div>
+                        <span className="text-[10px] text-slate-400 block leading-tight">Ventas hoy</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 tabular-nums">
+                          {todaySales.length} notas ({formatMoney(todaySalesTotal)})
+                        </span>
+                      </div>
+                    </div>
+
+                    {lowStockProductsCount > 0 && (
+                      <div className="flex items-center gap-1.5 rounded-xl border border-amber-300/80 bg-amber-50/90 px-2.5 py-1 text-xs shadow-2xs dark:border-amber-800/60 dark:bg-amber-950/50">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                        </span>
+                        <div>
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 block leading-tight font-medium">Resurtir</span>
+                          <span className="font-bold text-amber-900 dark:text-amber-200 tabular-nums">
+                            {lowStockProductsCount} items
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {bucket19Count > 0 && (
+                      <div className="hidden xl:flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white/90 px-2.5 py-1 text-xs shadow-2xs dark:border-slate-800 dark:bg-slate-800/80">
+                        <span className="text-xs">🪣</span>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block leading-tight">Cubetas 19L</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 tabular-nums">
+                            {bucket19Count} modelos
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={toggleHeroBanner}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 transition"
+                    title="Contraer encabezado"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-2 flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/80 px-2.5 py-1 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/10 text-primary dark:text-emerald-400">
+                  {greetingInfo.icon === 'sun' ? (
+                    <Sun className="h-3 w-3" />
+                  ) : greetingInfo.icon === 'cloud-sun' ? (
+                    <CloudSun className="h-3 w-3" />
+                  ) : (
+                    <Moon className="h-3 w-3" />
+                  )}
+                </span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  {greetingInfo.text}
+                </span>
+                <span className="text-slate-400 hidden sm:inline">· {formattedCurrentDate}</span>
+                <span className="font-mono text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 ml-1">
+                  ({todaySales.length} ventas · {formatMoney(todaySalesTotal)})
+                </span>
+                {lowStockProductsCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.2 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                    ⚠️ {lowStockProductsCount} por resurtir
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={toggleHeroBanner}
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-semibold text-slate-500 hover:bg-white hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition"
+                title="Expandir métricas del mostrador"
+              >
+                <span>Métricas</span>
+                <ChevronDown className="h-3 w-3" />
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 sm:gap-2">
             <div className="relative flex-1 min-w-[160px]">
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
@@ -887,17 +1074,33 @@ export default function Pos() {
                 {filtered.map((p) => {
                   const out = p.stock <= 0
                   const low = !out && p.stock <= p.minStock
+                  const cartLines = cart.filter((l) => l.productId === p.id)
+                  const inCartLine = cartLines[0]
+                  const totalInCart = round2(cartLines.reduce((acc, l) => acc + l.qty, 0))
+                  const isInCart = totalInCart > 0
+
                   return (
-                    <button
+                    <div
                       key={p.id}
-                      onClick={() => addToCart(p)}
-                      disabled={out}
-                      className={`group card relative flex min-w-0 flex-col justify-between overflow-hidden p-3 text-left transition-all duration-200 active:scale-[0.98] ${
+                      role="button"
+                      tabIndex={out ? -1 : 0}
+                      onClick={() => {
+                        if (!out) addToCart(p)
+                      }}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Enter' || e.key === ' ') && !out) {
+                          e.preventDefault()
+                          addToCart(p)
+                        }
+                      }}
+                      className={`group card relative flex min-w-0 flex-col justify-between overflow-hidden p-3 text-left transition-all duration-200 select-none ${
                         out
                           ? 'border-slate-200/60 bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-900/40 cursor-not-allowed opacity-75'
+                          : isInCart
+                          ? 'border-primary/50 bg-white ring-2 ring-primary/30 dark:border-emerald-500/50 dark:bg-slate-900 dark:ring-emerald-500/30 shadow-md cursor-pointer'
                           : low
-                          ? 'border-amber-300/90 bg-gradient-to-b from-amber-50/40 via-white to-white dark:border-amber-700/60 dark:from-amber-950/20 dark:to-slate-900 hover:-translate-y-1 hover:border-amber-400 hover:shadow-md'
-                          : 'border-slate-200/90 bg-white dark:border-slate-800 dark:bg-slate-900 hover:-translate-y-1 hover:border-primary/50 hover:shadow-md'
+                          ? 'border-amber-300/90 bg-gradient-to-b from-amber-50/40 via-white to-white dark:border-amber-700/60 dark:from-amber-950/20 dark:to-slate-900 hover:-translate-y-1 hover:border-amber-400 hover:shadow-md cursor-pointer active:scale-[0.98]'
+                          : 'border-slate-200/90 bg-white dark:border-slate-800 dark:bg-slate-900 hover:-translate-y-1 hover:border-primary/50 hover:shadow-md cursor-pointer active:scale-[0.98]'
                       }`}
                     >
                       <div className="relative mb-2 aspect-4/3 w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60">
@@ -920,6 +1123,12 @@ export default function Pos() {
                             ⚠️ ¡Quedan {formatProductStock(p.stock, p.unit, p.fractional, true)}!
                           </span>
                         ) : null}
+
+                        {isInCart && (
+                          <span className="absolute top-1.5 right-1.5 z-10 inline-flex items-center gap-1 rounded-full bg-primary text-white dark:bg-emerald-600 dark:text-white px-2 py-0.5 text-[10px] font-black shadow-xs animate-fadeIn">
+                            <ShoppingCart className="h-2.5 w-2.5" /> {totalInCart} en orden
+                          </span>
+                        )}
 
                         <span
                           className={`chip absolute bottom-1.5 right-1.5 text-[10px] shadow-2xs backdrop-blur-md ${
@@ -963,18 +1172,59 @@ export default function Pos() {
                               <span>💳 Tarjeta: {formatMoney(calculateBucketCardPrice(p.price, business))}</span>
                             </div>
                           )}
-                          <div
-                            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
-                              out
-                                ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
-                                : 'bg-emerald-50 text-primary transition-all group-hover:bg-primary group-hover:text-white group-hover:shadow-2xs group-hover:scale-105 active:scale-90 dark:bg-emerald-950/40 dark:text-emerald-400 dark:group-hover:bg-emerald-500 dark:group-hover:text-slate-950'
-                            }`}
-                          >
-                            <Plus className="h-4 w-4 stroke-[2.5]" />
-                          </div>
+                          {out ? (
+                            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600">
+                              <Plus className="h-4 w-4 stroke-[2.5]" />
+                            </div>
+                          ) : isInCart && inCartLine ? (
+                            <div
+                              className="flex items-center gap-1 rounded-xl bg-slate-100 p-0.5 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 neo-tactile-card shadow-2xs"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  sound.beep(600, 0.04)
+                                  const step = p.fractional && inCartLine.saleUnit === 'kg' ? 0.25 : 1
+                                  if (inCartLine.qty <= step) {
+                                    removeLine(inCartLine.productId, inCartLine.saleUnit)
+                                  } else {
+                                    setLineQty(inCartLine.productId, inCartLine.saleUnit, round2(inCartLine.qty - step))
+                                  }
+                                }}
+                                className="flex h-6.5 w-6.5 items-center justify-center rounded-lg bg-white text-slate-700 shadow-2xs hover:bg-rose-50 hover:text-rose-600 transition active:scale-90 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-rose-950/60 dark:hover:text-rose-300"
+                                title="Restar 1 unidad"
+                              >
+                                <Minus className="h-3 w-3 stroke-[2.5]" />
+                              </button>
+                              <span className="min-w-[22px] px-1 text-center font-display text-xs font-black text-primary dark:text-emerald-400 tabular-nums">
+                                {inCartLine.qty}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  sound.beep(1200, 0.04)
+                                  const step = p.fractional && inCartLine.saleUnit === 'kg' ? 0.25 : 1
+                                  setLineQty(inCartLine.productId, inCartLine.saleUnit, round2(inCartLine.qty + step))
+                                }}
+                                className="flex h-6.5 w-6.5 items-center justify-center rounded-lg bg-primary text-white shadow-2xs hover:bg-primary-700 transition active:scale-90 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                                title="Sumar 1 unidad"
+                              >
+                                <Plus className="h-3 w-3 stroke-[2.5]" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div
+                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-primary transition-all group-hover:bg-primary group-hover:text-white group-hover:shadow-2xs group-hover:scale-105 active:scale-90 dark:bg-emerald-950/40 dark:text-emerald-400 dark:group-hover:bg-emerald-500 dark:group-hover:text-slate-950"
+                            >
+                              <Plus className="h-4 w-4 stroke-[2.5]" />
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </button>
+                    </div>
                   )
                 })}
               </div>
