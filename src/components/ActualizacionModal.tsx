@@ -10,6 +10,7 @@ import {
   Tag,
   Play,
   X,
+  Printer,
 } from 'lucide-react'
 import { getUltimaVersion, type NovedadVersion } from '../config/changelog'
 import { APP_VERSION } from '../config/version'
@@ -92,6 +93,8 @@ export function ActualizacionModal({
         return <Layers className="text-blue-500 shrink-0" size={18} />
       case 'truck':
         return <Truck className="text-purple-500 shrink-0" size={18} />
+      case 'printer':
+        return <Printer className="text-emerald-500 shrink-0" size={18} />
       default:
         return <Sparkles className="text-amber-500 shrink-0" size={18} />
     }

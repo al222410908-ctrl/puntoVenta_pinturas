@@ -10,6 +10,7 @@ import {
   Sun,
   Plus,
   Truck,
+  Printer,
 } from 'lucide-react'
 import { sound } from '../lib/sound'
 
@@ -17,8 +18,8 @@ interface Step {
   title: string
   subtitle: string
   description: string
-  targetTab: 'vender' | 'resurtir'
-  position: 'left-sidebar' | 'top-hero' | 'catalog-card' | 'restock-kpis'
+  targetTab: 'vender' | 'resurtir' | 'ajustes'
+  position: 'left-sidebar' | 'top-hero' | 'catalog-card' | 'restock-kpis' | 'settings-printer'
   icon: typeof Sparkles
   badge: string
 }
@@ -32,7 +33,7 @@ const STEPS: Step[] = [
     targetTab: 'vender',
     position: 'left-sidebar',
     icon: PanelLeft,
-    badge: 'Demostración 1 de 4',
+    badge: 'Demostración 1 de 5',
   },
   {
     title: '2. Hero Mostrador & KPIs en Vivo',
@@ -42,7 +43,7 @@ const STEPS: Step[] = [
     targetTab: 'vender',
     position: 'top-hero',
     icon: Sun,
-    badge: 'Demostración 2 de 4',
+    badge: 'Demostración 2 de 5',
   },
   {
     title: '3. Stepper Táctil en Catálogo',
@@ -52,7 +53,7 @@ const STEPS: Step[] = [
     targetTab: 'vender',
     position: 'catalog-card',
     icon: Plus,
-    badge: 'Demostración 3 de 4',
+    badge: 'Demostración 3 de 5',
   },
   {
     title: '4. Pantalla de Resurtimiento',
@@ -62,7 +63,17 @@ const STEPS: Step[] = [
     targetTab: 'resurtir',
     position: 'restock-kpis',
     icon: Truck,
-    badge: 'Demostración 4 de 4',
+    badge: 'Demostración 4 de 5',
+  },
+  {
+    title: '5. Impresora Térmica 80mm & Prueba',
+    subtitle: 'Corte a la medida, alto contraste y autoprint',
+    description:
+      '¡Ahora navegamos a Ajustes! Aquí tienes el nuevo panel para tu impresora Truper PDV-80I o de 80mm: puedes tirar un ticket de prueba con 1 clic, activar la impresión automática al cobrar y disfrutar de tickets negros nítidos sin desperdiciar papel.',
+    targetTab: 'ajustes',
+    position: 'settings-printer',
+    icon: Printer,
+    badge: 'Demostración 5 de 5',
   },
 ]
 
@@ -74,6 +85,13 @@ export function FeatureShowcaseOverlay({
   onClose: () => void
 }) {
   const [currentStep, setCurrentStep] = useState(0)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   // Al abrir o cambiar de paso, navegar activamente a la pantalla que corresponde
   useEffect(() => {
@@ -123,27 +141,53 @@ export function FeatureShowcaseOverlay({
     switch (step.position) {
       case 'left-sidebar':
         return {
-          pointer: 'left-6 top-32 md:left-14 md:top-36',
-          box: 'left-4 top-52 md:left-24 md:top-44',
-          label: 'Menú Lateral',
+          pointer: isMobile
+            ? 'left-8 bottom-[calc(env(safe-area-inset-bottom)+3.5rem)]'
+            : 'left-6 top-32 md:left-14 md:top-36',
+          box: isMobile
+            ? 'top-14 inset-x-3 max-w-sm mx-auto'
+            : 'left-4 top-52 md:left-24 md:top-44',
+          label: isMobile ? 'Navegación Móvil' : 'Menú Lateral',
         }
       case 'top-hero':
         return {
-          pointer: 'left-1/2 -translate-x-1/2 top-20 md:left-[45%] md:top-16',
-          box: 'left-1/2 -translate-x-1/2 top-44 md:left-[45%] md:top-36',
+          pointer: isMobile
+            ? 'left-1/2 -translate-x-1/2 top-16'
+            : 'left-1/2 -translate-x-1/2 top-20 md:left-[45%] md:top-16',
+          box: isMobile
+            ? 'bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] inset-x-3 max-w-sm mx-auto'
+            : 'left-1/2 -translate-x-1/2 top-44 md:left-[45%] md:top-36',
           label: 'Hero Mostrador',
         }
       case 'catalog-card':
         return {
-          pointer: 'left-1/2 -translate-x-1/2 top-[52%] md:left-[46%] md:top-[48%]',
-          box: 'left-1/2 -translate-x-1/2 bottom-8 md:left-[46%] md:bottom-12',
+          pointer: isMobile
+            ? 'left-1/2 -translate-x-1/2 top-[44%]'
+            : 'left-1/2 -translate-x-1/2 top-[52%] md:left-[46%] md:top-[48%]',
+          box: isMobile
+            ? 'bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] inset-x-3 max-w-sm mx-auto'
+            : 'left-1/2 -translate-x-1/2 bottom-8 md:left-[46%] md:bottom-12',
           label: 'Stepper del Catálogo',
         }
       case 'restock-kpis':
         return {
-          pointer: 'left-1/2 -translate-x-1/2 top-28 md:left-[50%] md:top-24',
-          box: 'left-1/2 -translate-x-1/2 top-52 md:left-[50%] md:top-44',
+          pointer: isMobile
+            ? 'left-1/2 -translate-x-1/2 top-20'
+            : 'left-1/2 -translate-x-1/2 top-28 md:left-[50%] md:top-24',
+          box: isMobile
+            ? 'bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] inset-x-3 max-w-sm mx-auto'
+            : 'left-1/2 -translate-x-1/2 top-52 md:left-[50%] md:top-44',
           label: 'Dashboard de Resurtimiento',
+        }
+      case 'settings-printer':
+        return {
+          pointer: isMobile
+            ? 'left-1/2 -translate-x-1/2 top-36'
+            : 'left-1/2 -translate-x-1/2 top-48 md:left-[55%] md:top-48',
+          box: isMobile
+            ? 'bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] inset-x-3 max-w-sm mx-auto'
+            : 'left-1/2 -translate-x-1/2 bottom-12 md:left-[50%] md:bottom-12',
+          label: 'Impresora Térmica 80mm',
         }
       default:
         return {

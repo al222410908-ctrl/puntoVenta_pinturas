@@ -6,7 +6,7 @@ export interface NovedadVersion {
   descripcion: string
   badge?: string
   color: 'emerald' | 'amber' | 'blue' | 'purple' | 'rose'
-  iconoTipo?: 'sparkles' | 'shield' | 'layers' | 'truck' | 'layout'
+  iconoTipo?: 'sparkles' | 'shield' | 'layers' | 'truck' | 'layout' | 'printer'
 }
 
 export interface ReleaseNotes {
@@ -19,7 +19,52 @@ export interface ReleaseNotes {
 
 export const HISTORIAL_VERSIONES: ReleaseNotes[] = [
   {
-    version: APP_VERSION,
+    version: 'v2.6.0',
+    fecha: 'Noviembre 2026',
+    titulo: '¡Soporte Oficial Impresora Térmica 80mm & Modo Alto Contraste!',
+    subtitulo:
+      'Integración total con impresoras térmicas USB y Bluetooth (Truper PDV-80I), tickets térmicos en negro puro ultra nítido, corte automático a la medida y panel de pruebas en Ajustes.',
+    novedades: [
+      {
+        categoria: 'Novedad',
+        titulo: 'Soporte Oficial para Impresoras Térmicas 80mm / 58mm (Truper PDV-80I)',
+        descripcion:
+          'El sistema ahora formatea automáticamente tus notas de venta para impresoras térmicas de 80mm por cable USB y Bluetooth, con encabezado de tienda, logotipo, tabla de productos, desglose de impuestos y código de barras.',
+        badge: 'Impresión & Hardware',
+        color: 'emerald',
+        iconoTipo: 'printer',
+      },
+      {
+        categoria: 'Mejora',
+        titulo: 'Modo Térmico Ultra Alto Contraste (Negro Puro Sólido)',
+        descripcion:
+          'Se forzaron todos los textos del ticket a negro 100% (#000000) con mayor peso de fuente. La cabeza térmica quema con máxima fuerza eliminando cualquier texto deslavado o borroso.',
+        badge: 'Nitidez & Calidad',
+        color: 'amber',
+        iconoTipo: 'sparkles',
+      },
+      {
+        categoria: 'Operación',
+        titulo: 'Corte a la Medida sin Desperdicio de Papel',
+        descripcion:
+          'El enlace de la tienda y la numeración de hoja ahora están integrados dentro del ticket. Con márgenes cero y la guillotina automática configurada, corta justo donde termina la nota sin desenrollar papel en blanco.',
+        badge: 'Ahorro de Papel',
+        color: 'blue',
+        iconoTipo: 'layers',
+      },
+      {
+        categoria: 'Novedad',
+        titulo: 'Panel de Impresora en Ajustes con Ticket de Prueba & Autoprint',
+        descripcion:
+          'Nueva tarjeta en Ajustes para probar tu impresora con 1 clic sin tocar el inventario real, y opción para activar la impresión automática en cada venta cobrada.',
+        badge: 'Ajustes & Flujo Rápido',
+        color: 'purple',
+        iconoTipo: 'layout',
+      },
+    ],
+  },
+  {
+    version: 'v2.5.0',
     fecha: 'Noviembre 2026',
     titulo: `¡Novedades de la Versión ${APP_VERSION}!`,
     subtitulo:
