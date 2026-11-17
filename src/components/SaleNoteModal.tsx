@@ -26,8 +26,34 @@ import {
   whatsappText,
 } from '../lib/ticket'
 import { formatMoney, round2, calculateChangeBreakdown } from '../lib/utils'
-import { formatQty } from '../lib/units'
+import { printThermalSale } from '../lib/thermalPrint'
 import { ReturnModal } from './ReturnModal'
+
+const TICKET_UNIT_LABELS: Record<string, string> = {
+  pieza: 'pza',
+  piezas: 'pzas',
+  litro: 'L',
+  litros: 'L',
+  medio: '½L',
+  medios: '½L',
+  cuarto: '¼L',
+  cuartos: '¼L',
+  galon: 'gal',
+  galones: 'gal',
+  cubeta: 'cub',
+  cubetas: 'cub',
+  kg: 'kg',
+  metro: 'm',
+  bolsa: 'bolsa',
+  caja: 'caja',
+}
+
+function formatTicketQty(qty: number, unit?: string): string {
+  const isFractional = ['litro', 'kg', 'metro'].includes(unit ?? '')
+  const valStr = isFractional ? Number(qty.toFixed(3)).toString() : Number(qty.toFixed(0)).toString()
+  const u = unit ? (TICKET_UNIT_LABELS[unit] ?? unit) : ''
+  return u ? `${valStr} ${u}` : valStr
+}
 
 /**
  * Barcode realista estilizado para el pie de ticket térmico
@@ -83,7 +109,8 @@ export function SaleNoteModal({
         const autoprint = localStorage.getItem('pos_autoprint_ticket') === '1'
         if (autoprint) {
           const timer = setTimeout(() => {
-            window.print()
+            const biz = loadBusinessInfo()
+            printThermalSale(sale, biz, false)
           }, 350)
           return () => clearTimeout(timer)
         }
@@ -117,7 +144,8 @@ export function SaleNoteModal({
   }
 
   const handlePrint = () => {
-    window.print()
+    if (!currentSale) return
+    printThermalSale(currentSale, business, isTest)
   }
 
   const handleCopyText = async () => {
@@ -261,10 +289,10 @@ export function SaleNoteModal({
                 <table className="w-full text-[10.5px] print:text-[11.5px] font-mono tabular-nums border-collapse">
                   <thead>
                     <tr className="border-b border-zinc-400 text-zinc-600 font-bold text-[9.5px] print:text-[10.5px]">
-                      <th className="text-left pb-1 pr-2 w-[18%]">CANT</th>
-                      <th className="text-left pb-1 pr-2">DESCRIPCIÓN</th>
-                      <th className="text-right pb-1 pr-2 w-[22%]">P.U</th>
-                      <th className="text-right pb-1 w-[22%]">TOTAL</th>
+                      <th className="text-left pb-1 pr-2 w-[22%]">CANT</th>
+                      <th className="text-left pb-1 pr-2 w-[38%]">DESCRIPCIÓN</th>
+                      <th className="text-right pb-1 pr-2 w-[20%]">P.U</th>
+                      <th className="text-right pb-1 w-[20%]">TOTAL</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-dotted divide-zinc-200">
@@ -276,7 +304,7 @@ export function SaleNoteModal({
                       return (
                         <tr key={`${it.productId}-${idx}`} className="align-top">
                           <td className="py-1.5 pr-2 font-bold text-zinc-800 whitespace-nowrap">
-                            {formatQty(displayQty, displayUnit)}
+                            {formatTicketQty(displayQty, displayUnit)}
                           </td>
                           <td className="py-1.5 pr-2 text-zinc-900 font-bold break-words">
                             <div>{it.name}</div>
