@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ImagePlus, Save, Store, Trash2, ScanLine, Package, Pencil, CloudUpload, CheckCircle2, CreditCard } from 'lucide-react'
+import { ImagePlus, Save, Store, Trash2, ScanLine, Package, Pencil, CloudUpload, CheckCircle2, CreditCard, Printer, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
-import type { BusinessInfo, Container } from '../types'
+import type { BusinessInfo, Container, Sale } from '../types'
+import { SaleNoteModal } from '../components/SaleNoteModal'
 import { db } from '../db/db'
 import { deleteContainer, saveContainer } from '../db/repos'
 import { loadBusinessInfo, saveBusinessInfo } from '../lib/ticket'
@@ -10,9 +11,62 @@ import { loadScannerSettings, saveScannerSettings, type ScannerSettings } from '
 import { uploadImage, migratePhotosToCloudinary, type MigrationProgress } from '../lib/image'
 import { Button, Field, Input, Segmented, TextArea } from '../components/ui'
 
+const MOCK_TEST_SALE: Sale = {
+  id: 'test-demo-123456',
+  folio: 1,
+  date: Date.now(),
+  items: [
+    {
+      productId: 'demo-1',
+      name: 'Pintura Vinílica Blanca Mate 4L',
+      qty: 1,
+      unit: 'litro',
+      cost: 260,
+      unitPrice: 380,
+      lineTotal: 380,
+    },
+    {
+      productId: 'demo-2',
+      name: 'Brocha Profesional Cerda Natural 2 pulg',
+      qty: 2,
+      unit: 'pieza',
+      cost: 28,
+      unitPrice: 45,
+      lineTotal: 90,
+    },
+  ],
+  total: 470,
+  payments: [{ type: 'efectivo', amount: 500 }],
+  customerName: 'Cliente Demostración',
+  customerPhone: '5512345678',
+  notes: 'Ticket de prueba para impresora térmica Truper PDV-80I (80mm)',
+}
+
 export default function Settings() {
   const [form, setForm] = useState<BusinessInfo>(() => loadBusinessInfo())
   const [scanner, setScanner] = useState<ScannerSettings>(() => loadScannerSettings())
+  const [autoprint, setAutoprint] = useState(() => {
+    try {
+      return localStorage.getItem('pos_autoprint_ticket') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [testSaleOpen, setTestSaleOpen] = useState(false)
+
+  const toggleAutoprint = (enabled: boolean) => {
+    setAutoprint(enabled)
+    try {
+      localStorage.setItem('pos_autoprint_ticket', enabled ? '1' : '0')
+      if (enabled) {
+        toast.success('Impresión automática activada al confirmar venta')
+      } else {
+        toast.info('Impresión manual activada')
+      }
+    } catch {
+      // noop
+    }
+  }
   const [savingLogo, setSavingLogo] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -207,6 +261,75 @@ export default function Settings() {
         </Field>
       </div>
 
+      {/* ─── IMPRESORA TÉRMICA DE TICKETS (80mm / 58mm) ─── */}
+      <div className="space-y-3.5 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20 border border-slate-200/80 dark:border-slate-700">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-emerald-950/60 dark:text-emerald-400">
+              <Printer className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-display text-base font-bold text-slate-800 dark:text-slate-100">
+                  Impresora Térmica de Tickets
+                </h2>
+                <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 text-[10px] font-black px-2 py-0.5">
+                  80mm / 58mm
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Compatible con Truper PDV-80I, Xprinter y terminales USB / Bluetooth
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setTestSaleOpen(true)}
+            className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-gradient-to-r from-primary to-primary-600 text-white text-xs font-bold shadow-xs hover:from-primary-600 hover:to-primary-700 transition active:scale-95 flex items-center gap-1.5 dark:from-emerald-600 dark:to-emerald-500 dark:text-slate-950 cursor-pointer"
+          >
+            <Printer className="h-4 w-4" />
+            <span>Imprimir Ticket de Prueba</span>
+          </button>
+        </div>
+
+        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+          Tus notas de venta se generan con formato optimizado de <strong>80mm</strong>, con corte automático de papel, logotipo, desglose de impuestos (IVA), desglose de cambio entregado y código de barras.
+        </p>
+
+        {/* Switch de Impresión Automática */}
+        <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div className="pr-4">
+              <span className="text-sm font-bold text-slate-800 dark:text-slate-200 block">
+                Impresión automática al cobrar
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 block mt-0.5">
+                Al confirmar una venta en caja, abre inmediatamente la orden de impresión para no dar clics adicionales.
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={autoprint}
+              onChange={(e) => toggleAutoprint(e.target.checked)}
+              className="h-5 w-5 accent-primary cursor-pointer shrink-0"
+            />
+          </label>
+        </div>
+
+        {/* Guía rápida para Truper PDV-80I */}
+        <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 text-xs dark:border-amber-900/50 dark:bg-amber-950/20 space-y-1.5">
+          <span className="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1">
+            <Sparkles className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" /> Tips para tu impresora Truper PDV-80I:
+          </span>
+          <ul className="list-disc list-inside space-y-1 text-amber-950/80 dark:text-amber-200/80 leading-snug">
+            <li><strong>Colocación del rollo:</strong> El papel térmico debe alimentar saliendo por enfrente (cara térmica hacia arriba). Si sale en blanco, voltea el rollo.</li>
+            <li><strong>Ancho de papel:</strong> Usa el ancho completo de 80mm (no es necesario colocar el separador plástico para rollos de 80mm).</li>
+            <li><strong>Diálogo de impresión:</strong> En la ventana de tu navegador, selecciona <em>Márgenes: Ninguno</em> y desmarca <em>"Encabezados y pies de página"</em> para que el ticket salga limpio.</li>
+          </ul>
+        </div>
+      </div>
+
       {/* Cobro con tarjeta en Cubetas de 19L */}
       <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20">
         <div className="flex items-center gap-2">
@@ -290,6 +413,14 @@ export default function Settings() {
 
       <ContainersCard />
       <MigratePhotosCard />
+
+      {testSaleOpen && (
+        <SaleNoteModal
+          sale={MOCK_TEST_SALE}
+          onClose={() => setTestSaleOpen(false)}
+          isTest
+        />
+      )}
     </div>
   )
 }

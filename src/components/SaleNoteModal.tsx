@@ -60,10 +60,12 @@ export function SaleNoteModal({
   sale,
   onClose,
   onSaleUpdated,
+  isTest = false,
 }: {
   sale: Sale | null
   onClose: () => void
   onSaleUpdated?: (updated: Sale) => void
+  isTest?: boolean
 }) {
   const [currentSale, setCurrentSale] = useState<Sale | null>(sale)
   const [busy, setBusy] = useState(false)
@@ -74,7 +76,22 @@ export function SaleNoteModal({
   useEffect(() => {
     setCurrentSale(sale)
     setPhone(sale?.customerPhone?.trim() || loadClientPhone())
-  }, [sale])
+
+    // Impresión automática opcional si está activada en Ajustes (solo para ventas reales)
+    if (sale && !isTest) {
+      try {
+        const autoprint = localStorage.getItem('pos_autoprint_ticket') === '1'
+        if (autoprint) {
+          const timer = setTimeout(() => {
+            window.print()
+          }, 350)
+          return () => clearTimeout(timer)
+        }
+      } catch {
+        // noop
+      }
+    }
+  }, [sale, isTest])
 
   if (!currentSale) return null
 
@@ -167,7 +184,7 @@ export function SaleNoteModal({
       <Modal
         open={!!currentSale}
         onClose={onClose}
-        title={`Comprobante de Venta ${folioFormatted}`}
+        title={isTest ? 'Prueba de Impresión Térmica (80mm)' : `Comprobante de Venta ${folioFormatted}`}
         size="2xl"
       >
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
@@ -177,6 +194,11 @@ export function SaleNoteModal({
               id="thermal-receipt-printable"
               className="w-full max-w-[340px] rounded-2xl bg-white p-5 shadow-xl border border-zinc-200 text-zinc-950 font-mono text-xs select-text dark:bg-white dark:text-zinc-950 relative"
             >
+              {isTest && (
+                <div className="mb-2 py-1 px-2 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 text-center font-bold text-[10px] uppercase tracking-wider">
+                  ⚠️ Ticket de Prueba · Truper PDV-80I (80mm)
+                </div>
+              )}
               {/* Encabezado del Comercio */}
               <div className="text-center pb-2.5 border-b-2 border-dashed border-zinc-300">
                 {business.logo ? (
@@ -335,6 +357,14 @@ export function SaleNoteModal({
                   <p className="text-[9px] text-zinc-400 italic mt-0.5">{business.footer}</p>
                 )}
                 <ThermalBarcode value={folioFormatted} />
+                <div className="pt-1.5 mt-1 border-t border-dashed border-zinc-400 text-[10px] font-mono text-zinc-900 text-center space-y-0.5">
+                  <p className="font-bold tracking-tight">
+                    🌐 {typeof window !== 'undefined' ? window.location.host : 'pinturas-pos.duckdns.org'}
+                  </p>
+                  <p className="text-[9.5px] font-bold text-zinc-800">
+                    Comprobante digital · Hoja 1 de 1
+                  </p>
+                </div>
               </div>
             </div>
           </div>
