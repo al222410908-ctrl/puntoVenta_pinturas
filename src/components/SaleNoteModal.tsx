@@ -192,7 +192,7 @@ export function SaleNoteModal({
           <div className="md:col-span-6 flex justify-center">
             <div
               id="thermal-receipt-printable"
-              className="w-full max-w-[340px] rounded-2xl bg-white p-5 shadow-xl border border-zinc-200 text-zinc-950 font-mono text-xs select-text dark:bg-white dark:text-zinc-950 relative"
+              className="w-full max-w-[340px] print:max-w-none print:w-[72mm] rounded-2xl print:rounded-none bg-white p-5 print:p-0 shadow-xl print:shadow-none border border-zinc-200 print:border-none text-zinc-950 font-mono text-xs print:text-[12px] select-text dark:bg-white dark:text-zinc-950 relative"
             >
               {isTest && (
                 <div className="mb-2 py-1 px-2 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 text-center font-bold text-[10px] uppercase tracking-wider">
@@ -258,13 +258,13 @@ export function SaleNoteModal({
 
               {/* Tabla Itemizada de Productos */}
               <div className="py-2.5 border-b border-dashed border-zinc-300">
-                <table className="w-full text-[10.5px] font-mono tabular-nums border-collapse">
+                <table className="w-full text-[10.5px] print:text-[11.5px] font-mono tabular-nums border-collapse">
                   <thead>
-                    <tr className="border-b border-zinc-400 text-zinc-600 font-bold text-[9.5px]">
-                      <th className="text-left pb-1">CANT</th>
-                      <th className="text-left pb-1 pl-1">DESCRIPCIÓN</th>
-                      <th className="text-right pb-1">P.U</th>
-                      <th className="text-right pb-1">TOTAL</th>
+                    <tr className="border-b border-zinc-400 text-zinc-600 font-bold text-[9.5px] print:text-[10.5px]">
+                      <th className="text-left pb-1 pr-2 w-[18%]">CANT</th>
+                      <th className="text-left pb-1 pr-2">DESCRIPCIÓN</th>
+                      <th className="text-right pb-1 pr-2 w-[22%]">P.U</th>
+                      <th className="text-right pb-1 w-[22%]">TOTAL</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-dotted divide-zinc-200">
@@ -275,21 +275,21 @@ export function SaleNoteModal({
                       const returned = it.returnedQty ?? 0
                       return (
                         <tr key={`${it.productId}-${idx}`} className="align-top">
-                          <td className="py-1 font-semibold text-zinc-800 whitespace-nowrap">
+                          <td className="py-1.5 pr-2 font-bold text-zinc-800 whitespace-nowrap">
                             {formatQty(displayQty, displayUnit)}
                           </td>
-                          <td className="py-1 pl-1 text-zinc-900 break-words pr-1">
+                          <td className="py-1.5 pr-2 text-zinc-900 font-bold break-words">
                             <div>{it.name}</div>
                             {returned > 0 && (
-                              <span className="text-[9px] text-red-600 font-bold">
+                              <span className="text-[9px] text-red-600 font-bold block">
                                 (-{returned} devuelto)
                               </span>
                             )}
                           </td>
-                          <td className="py-1 text-right text-zinc-600 whitespace-nowrap">
+                          <td className="py-1.5 pr-2 text-right text-zinc-700 font-semibold whitespace-nowrap">
                             {formatMoney(displayPrice)}
                           </td>
-                          <td className="py-1 text-right font-bold text-zinc-950 whitespace-nowrap">
+                          <td className="py-1.5 text-right font-black text-zinc-950 whitespace-nowrap">
                             {formatMoney(it.lineTotal)}
                           </td>
                         </tr>

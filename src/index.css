@@ -238,9 +238,10 @@
 @media print {
   @page {
     size: 80mm auto;
-    margin: 0mm !important;
+    margin: 0;
   }
   html, body {
+    width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
@@ -256,61 +257,63 @@
     color: #000000 !important;
     -webkit-text-fill-color: #000000 !important;
     text-shadow: none !important;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    box-sizing: border-box !important;
   }
-  #thermal-receipt-printable {
-    position: absolute !important;
+  div#thermal-receipt-printable {
+    display: block !important;
+    position: relative !important;
     left: 0 !important;
     top: 0 !important;
-    width: 76mm !important;
-    max-width: 76mm !important;
+    width: 72mm !important;
+    min-width: 72mm !important;
+    max-width: 72mm !important;
     margin: 0 !important;
-    padding: 2mm 3mm !important;
+    padding: 2mm 1mm 2mm 1mm !important;
     background: #ffffff !important;
-    color: #000000 !important;
     border: none !important;
+    outline: none !important;
     box-shadow: none !important;
-    font-size: 13px !important;
+    border-radius: 0 !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    font-size: 12px !important;
     font-weight: 700 !important;
     line-height: 1.35 !important;
     page-break-after: avoid !important;
     break-after: avoid !important;
-    z-index: 999999 !important;
   }
   #thermal-receipt-printable h3 {
-    font-size: 16px !important;
+    font-size: 15px !important;
     font-weight: 900 !important;
-    letter-spacing: 0.05em !important;
+    letter-spacing: 0.04em !important;
   }
   #thermal-receipt-printable table {
     width: 100% !important;
-    font-size: 12.5px !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
   }
   #thermal-receipt-printable th {
-    font-size: 11.5px !important;
+    font-size: 11px !important;
     font-weight: 900 !important;
-    border-bottom: 2px solid #000000 !important;
+    border-bottom: 1.5px solid #000000 !important;
+    padding-bottom: 3px !important;
   }
   #thermal-receipt-printable td {
-    padding: 3px 0 !important;
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
     font-weight: 700 !important;
   }
   #thermal-receipt-printable .border-b,
-  #thermal-receipt-printable .border-t,
-  #thermal-receipt-printable .border-dashed,
-  #thermal-receipt-printable .border-dotted {
-    border-color: #000000 !important;
-    border-style: solid !important;
-    border-width: 1px !important;
+  #thermal-receipt-printable .border-b-2 {
+    border-bottom: 1px dashed #000000 !important;
   }
   #thermal-receipt-printable .border-b-2 {
-    border-width: 2px !important;
+    border-bottom-width: 1.5px !important;
+  }
+  #thermal-receipt-printable .border-t {
+    border-top: 1px dashed #000000 !important;
   }
   #thermal-receipt-printable p,
-  #thermal-receipt-printable span,
-  #thermal-receipt-printable div {
+  #thermal-receipt-printable span {
     color: #000000 !important;
     font-weight: 700 !important;
   }
