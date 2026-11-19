@@ -19,6 +19,51 @@ export interface ReleaseNotes {
 
 export const HISTORIAL_VERSIONES: ReleaseNotes[] = [
   {
+    version: 'v2.7.0',
+    fecha: 'Noviembre 2026',
+    titulo: '¡Personalización de Tickets, Control de IVA & Cobro Exprés!',
+    subtitulo:
+      'Control total sobre tus comprobantes de venta: redacta tus políticas de garantía y mensajes de despedida, decide si desglosar IVA o cobrar en neto, y cobra a toda velocidad con la tecla Enter.',
+    novedades: [
+      {
+        categoria: 'Novedad',
+        titulo: 'Personalización de Mensajes y Garantías en Tickets',
+        descripcion:
+          'Ahora puedes redactar libremente en Ajustes tus políticas de garantía o devoluciones (ej. en pinturas preparadas no hay cambios) y tu mensaje de despedida.',
+        badge: 'Tickets & Ajustes',
+        color: 'emerald',
+        iconoTipo: 'layout',
+      },
+      {
+        categoria: 'Mejora',
+        titulo: 'Control de Desglose de IVA en Tickets',
+        descripcion:
+          'Activa o desactiva con un clic si el ticket muestra únicamente el TOTAL neto sin mencionar la palabra IVA, o si prefieres desglosar el 16% para clientes que lo requieran.',
+        badge: 'Cuentas Claras',
+        color: 'amber',
+        iconoTipo: 'sparkles',
+      },
+      {
+        categoria: 'Operación',
+        titulo: 'Cobro Exprés con tecla [Enter] & Autoprint',
+        descripcion:
+          'En la terminal de cobro rápido solo presiona [Enter] y la venta se confirma en 1 segundo. Si tienes activa la impresión automática, el ticket sale de la impresora de inmediato.',
+        badge: 'Caja Ultrarrápida',
+        color: 'blue',
+        iconoTipo: 'layers',
+      },
+      {
+        categoria: 'Novedad',
+        titulo: 'Búsqueda Mágica de Tickets con Pistola / QR',
+        descripcion:
+          'Cuando un cliente traiga su ticket impreso, escanea el código de barras con la pistola o con tu celular para abrir su nota digital en pantalla automáticamente.',
+        badge: 'Mostrador Ágil',
+        color: 'purple',
+        iconoTipo: 'printer',
+      },
+    ],
+  },
+  {
     version: 'v2.6.0',
     fecha: 'Noviembre 2026',
     titulo: '¡Soporte Oficial Impresora Térmica 80mm & Modo Alto Contraste!',

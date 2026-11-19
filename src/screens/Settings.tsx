@@ -172,6 +172,7 @@ export default function Settings() {
           </div>
         </div>
 
+        <div id="settings-ticket-messages" className="scroll-mt-24 space-y-4">
         <Field label="Mensaje de cortesía al pie del ticket (opcional)">
           <TextArea
             rows={2}
@@ -191,9 +192,10 @@ export default function Settings() {
             maxLength={180}
           />
         </Field>
+        </div>
 
         {/* Desglose de IVA en tickets */}
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-700 dark:bg-slate-900/50">
+        <div id="settings-iva-toggle" className="scroll-mt-24 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-700 dark:bg-slate-900/50">
           <label className="flex items-center justify-between cursor-pointer">
             <div className="pr-4">
               <span className="text-sm font-bold text-slate-800 dark:text-slate-200 block">
@@ -292,7 +294,7 @@ export default function Settings() {
       </div>
 
       {/* ─── IMPRESORA TÉRMICA DE TICKETS (80mm / 58mm) ─── */}
-      <div className="space-y-3.5 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20 border border-slate-200/80 dark:border-slate-700">
+      <div id="settings-thermal-printer" className="scroll-mt-24 space-y-3.5 rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-800 dark:shadow-black/20 border border-slate-200/80 dark:border-slate-700">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-emerald-950/60 dark:text-emerald-400">

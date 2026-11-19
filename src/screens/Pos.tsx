@@ -691,6 +691,59 @@ export default function Pos() {
     return () => window.removeEventListener('pos:held_sales_updated', refreshHeld)
   }, [])
 
+  const finishSale = async () => {
+    let cashNumEff = cashNum
+    let cardNumEff = cardNum
+    let transferNumEff = transferNum
+    let rest = change
+
+    const fromCash = Math.min(rest, cashNumEff)
+    cashNumEff -= fromCash
+    rest -= fromCash
+
+    const fromTransfer = Math.min(rest, transferNumEff)
+    transferNumEff -= fromTransfer
+    rest -= fromTransfer
+
+    cardNumEff -= Math.min(rest, cardNumEff)
+
+    const payments: Payment[] = []
+    if (cashNumEff > 0) payments.push({ type: 'efectivo', amount: round2(cashNumEff) })
+    if (cardNumEff > 0) payments.push({ type: 'tarjeta', amount: round2(cardNumEff) })
+    if (transferNumEff > 0) payments.push({ type: 'transferencia', amount: round2(transferNumEff) })
+
+    if (round2(cashNumEff + cardNumEff + transferNumEff) < effCartTotal) {
+      toast.error('Registra al menos un pago')
+      return
+    }
+    try {
+      const finalCart =
+        payMethodTab === 'tarjeta' && bucketCardInfo.hasBuckets
+          ? cart.map((l) =>
+              isBucket19L(l)
+                ? {
+                    ...l,
+                    salePrice: calculateBucketCardPrice(l.salePrice ?? l.unitPrice, business),
+                  }
+                : l,
+            )
+          : cart
+      const sale = await registerSale(finalCart, payments, saleNotes, customerName, customerPhone)
+      sound.success()
+      toast.success('Venta registrada')
+      setCart([])
+      setCustomerName('')
+      setCustomerPhone('')
+      setSaleNotes('')
+      setPayOpen(false)
+      setCartOpen(false)
+      setNoteSale(sale)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al registrar la venta')
+    }
+  }
+
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
@@ -699,6 +752,16 @@ export default function Pos() {
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT')
+
+      if (payOpen && e.key === 'Enter') {
+        e.preventDefault()
+        if (paid >= effCartTotal) {
+          void finishSale()
+        } else {
+          toast.error(`Monto insuficiente: faltan ${formatMoney(round2(effCartTotal - paid))}`)
+        }
+        return
+      }
 
       if (e.key === 'Escape') {
         if (payOpen) setPayOpen(false)
@@ -775,59 +838,10 @@ export default function Pos() {
     search,
     customerName,
     saleNotes,
+    paid,
+    effCartTotal,
+    finishSale,
   ])
-
-  const finishSale = async () => {
-    let cashNumEff = cashNum
-    let cardNumEff = cardNum
-    let transferNumEff = transferNum
-    let rest = change
-
-    const fromCash = Math.min(rest, cashNumEff)
-    cashNumEff -= fromCash
-    rest -= fromCash
-
-    const fromTransfer = Math.min(rest, transferNumEff)
-    transferNumEff -= fromTransfer
-    rest -= fromTransfer
-
-    cardNumEff -= Math.min(rest, cardNumEff)
-
-    const payments: Payment[] = []
-    if (cashNumEff > 0) payments.push({ type: 'efectivo', amount: round2(cashNumEff) })
-    if (cardNumEff > 0) payments.push({ type: 'tarjeta', amount: round2(cardNumEff) })
-    if (transferNumEff > 0) payments.push({ type: 'transferencia', amount: round2(transferNumEff) })
-
-    if (round2(cashNumEff + cardNumEff + transferNumEff) < effCartTotal) {
-      toast.error('Registra al menos un pago')
-      return
-    }
-    try {
-      const finalCart =
-        payMethodTab === 'tarjeta' && bucketCardInfo.hasBuckets
-          ? cart.map((l) =>
-              isBucket19L(l)
-                ? {
-                    ...l,
-                    salePrice: calculateBucketCardPrice(l.salePrice ?? l.unitPrice, business),
-                  }
-                : l,
-            )
-          : cart
-      const sale = await registerSale(finalCart, payments, saleNotes, customerName, customerPhone)
-      sound.success()
-      toast.success('Venta registrada')
-      setCart([])
-      setCustomerName('')
-      setCustomerPhone('')
-      setSaleNotes('')
-      setPayOpen(false)
-      setCartOpen(false)
-      setNoteSale(sale)
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error al registrar la venta')
-    }
-  }
 
   return (
     <div className="flex h-full min-w-0 flex-col lg:flex-row">
@@ -1386,7 +1400,19 @@ export default function Pos() {
         title="Terminal de Cobro Rápido"
         size="3xl"
       >
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        <div
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              if (paid >= effCartTotal) {
+                void finishSale()
+              } else {
+                toast.error(`Monto insuficiente: faltan ${formatMoney(round2(effCartTotal - paid))}`)
+              }
+            }
+          }}
+          className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start"
+        >
           {/* Columna Izquierda: Total a cobrar, resumen de artículos y cambio dinámico */}
           <div className="lg:col-span-5 space-y-3.5">
             {/* Tarjeta Destacada de Total */}
@@ -1836,6 +1862,9 @@ export default function Pos() {
             >
               <Check className="h-6 w-6 stroke-[3]" />
               <span>Completar Venta ({formatMoney(effCartTotal)})</span>
+              <kbd className="hidden sm:inline-block ml-1.5 px-2 py-0.5 text-xs font-mono font-bold bg-black/20 text-slate-900 rounded-md">
+                Enter ↵
+              </kbd>
             </button>
           </div>
         </div>
@@ -2364,6 +2393,7 @@ function CartPanel({
                 </button>
               )}
               <button
+                id="pos-pay-btn"
                 onClick={onPay}
                 className="btn-accent flex-1 flex h-12 items-center justify-center gap-2 rounded-xl text-base font-black shadow-lg shadow-accent/25 transition-all hover:brightness-105 active:scale-[0.98]"
                 title="Cobrar venta actual [F4]"

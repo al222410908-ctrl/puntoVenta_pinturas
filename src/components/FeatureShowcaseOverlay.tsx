@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Sparkles,
   X,
@@ -6,11 +6,10 @@ import {
   ArrowLeft,
   CheckCircle2,
   MousePointer2,
-  PanelLeft,
-  Sun,
-  Plus,
-  Truck,
+  FileText,
+  Percent,
   Printer,
+  Zap,
 } from 'lucide-react'
 import { sound } from '../lib/sound'
 
@@ -18,62 +17,57 @@ interface Step {
   title: string
   subtitle: string
   description: string
-  targetTab: 'vender' | 'resurtir' | 'ajustes'
-  position: 'left-sidebar' | 'top-hero' | 'catalog-card' | 'restock-kpis' | 'settings-printer'
+  targetTab: 'vender' | 'ajustes'
+  elementId: string
+  label: string
   icon: typeof Sparkles
   badge: string
 }
 
 const STEPS: Step[] = [
   {
-    title: '1. Menú Lateral Plegable',
-    subtitle: 'Ahorro de espacio & Apertura fluida',
+    title: '1. Mensajes y Garantías en Tickets',
+    subtitle: 'Personaliza los textos del comprobante',
     description:
-      'El menú lateral ahora se mantiene compacto a 72px para darte máxima visibilidad. Al pasar el cursor, se despliega suavemente a 256px y puedes fijarlo con el botón superior.',
-    targetTab: 'vender',
-    position: 'left-sidebar',
-    icon: PanelLeft,
-    badge: 'Demostración 1 de 5',
-  },
-  {
-    title: '2. Hero Mostrador & KPIs en Vivo',
-    subtitle: 'Bienvenida inteligente y control del día',
-    description:
-      'En tu pantalla de venta, el mostrador saluda según la hora (mañana, tarde o noche) y te muestra en vivo las notas facturadas hoy, dinero acumulado y alertas de resurtido.',
-    targetTab: 'vender',
-    position: 'top-hero',
-    icon: Sun,
-    badge: 'Demostración 2 de 5',
-  },
-  {
-    title: '3. Stepper Táctil en Catálogo',
-    subtitle: 'Ajuste instantáneo sin entrar al carrito',
-    description:
-      'Al agregar un producto, la tarjeta resalta que ya está en orden y te muestra los controles directos [-] y [+] para modificar piezas al instante con sonido y feedback táctil.',
-    targetTab: 'vender',
-    position: 'catalog-card',
-    icon: Plus,
-    badge: 'Demostración 3 de 5',
-  },
-  {
-    title: '4. Pantalla de Resurtimiento',
-    subtitle: 'Inversión estimada, presets y pedidos',
-    description:
-      '¡Mira cómo cambiamos a la sección de Resurtir! Aquí tienes las nuevas tarjetas con la inversión en MXN necesaria, el buscador por proveedor y los presets automáticos (+Mínimo / +Lote).',
-    targetTab: 'resurtir',
-    position: 'restock-kpis',
-    icon: Truck,
-    badge: 'Demostración 4 de 5',
-  },
-  {
-    title: '5. Impresora Térmica 80mm & Prueba',
-    subtitle: 'Corte a la medida, alto contraste y autoprint',
-    description:
-      '¡Ahora navegamos a Ajustes! Aquí tienes el nuevo panel para tu impresora Truper PDV-80I o de 80mm: puedes tirar un ticket de prueba con 1 clic, activar la impresión automática al cobrar y disfrutar de tickets negros nítidos sin desperdiciar papel.',
+      'Ahora puedes redactar libremente el mensaje de cortesía al pie del ticket y tus políticas de devolución, garantía o aclaraciones.',
     targetTab: 'ajustes',
-    position: 'settings-printer',
+    elementId: 'settings-ticket-messages',
+    label: 'Políticas y Mensajes',
+    icon: FileText,
+    badge: 'Novedad 1 de 4',
+  },
+  {
+    title: '2. Control de Desglose de IVA',
+    subtitle: 'Tickets claros sin confusiones',
+    description:
+      'Si no requieres desglosar IVA a tus clientes, desactiva este switch para que el ticket impreso solo muestre el total neto final.',
+    targetTab: 'ajustes',
+    elementId: 'settings-iva-toggle',
+    label: 'Desglose de IVA',
+    icon: Percent,
+    badge: 'Novedad 2 de 4',
+  },
+  {
+    title: '3. Impresora Térmica 80mm & Prueba',
+    subtitle: 'Tickets nítidos sin desperdiciar papel',
+    description:
+      'Tira un ticket de prueba con 1 clic para verificar la calidad en tu Truper PDV-80I o de 80mm y activa la impresión automática al cobrar.',
+    targetTab: 'ajustes',
+    elementId: 'settings-thermal-printer',
+    label: 'Impresora Térmica 80mm',
     icon: Printer,
-    badge: 'Demostración 5 de 5',
+    badge: 'Novedad 3 de 4',
+  },
+  {
+    title: '4. Cobro Exprés con [Enter] & Escaneo',
+    subtitle: 'Cobro instantáneo y consulta digital',
+    description:
+      'En la terminal de cobro rápido presiona [Enter] para completar e imprimir tu venta. Además, escanea el código de barras o QR de cualquier ticket para ver su nota digital.',
+    targetTab: 'vender',
+    elementId: 'pos-search',
+    label: 'Cobro Exprés & Búsqueda',
+    icon: Zap,
+    badge: 'Novedad 4 de 4',
   },
 ]
 
@@ -86,6 +80,8 @@ export function FeatureShowcaseOverlay({
 }) {
   const [currentStep, setCurrentStep] = useState(0)
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+  const [pointerPos, setPointerPos] = useState({ x: 0, y: 0 })
+  const [cardPos, setCardPos] = useState<'top' | 'bottom'>('bottom')
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768)
@@ -93,18 +89,85 @@ export function FeatureShowcaseOverlay({
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // Al abrir o cambiar de paso, navegar activamente a la pantalla que corresponde
+  // Actualizar la posición del radar hacia el elemento objetivo en pantalla
+  const updateTargetPosition = useCallback((elementId: string) => {
+    const el = document.getElementById(elementId)
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      // Calcular punto focal (centro o ligeramente hacia la izquierda del elemento)
+      const targetX = Math.round(rect.left + Math.min(rect.width / 2, 100))
+      const targetY = Math.round(Math.max(70, Math.min(window.innerHeight - 80, rect.top + 24)))
+      setPointerPos({ x: targetX, y: targetY })
+
+      // Si el elemento está en la mitad inferior, colocar la tarjeta explicativa arriba
+      setCardPos(rect.top > window.innerHeight / 2 ? 'top' : 'bottom')
+    } else {
+      // Coordenada por defecto centrada si aún no monta
+      setPointerPos({
+        x: Math.round(window.innerWidth / 2),
+        y: Math.round(window.innerHeight / 3),
+      })
+      setCardPos('bottom')
+    }
+  }, [])
+
+  // Al abrir o cambiar de paso, navegar activamente y hacer scroll suave al elemento
   useEffect(() => {
     if (!open) {
       setCurrentStep(0)
       return
     }
+
     const step = STEPS[currentStep]
-    if (step) {
-      window.dispatchEvent(new CustomEvent('pos:navigate_tab', { detail: step.targetTab }))
-      sound.beep(850, 0.04)
+    if (!step) return
+
+    // 1. Navegar a la pestaña correspondiente
+    window.dispatchEvent(new CustomEvent('pos:navigate_tab', { detail: step.targetTab }))
+    sound.beep(850, 0.04)
+
+    // 2. Esperar brevemente a que el DOM monte o cambie de vista, luego hacer scroll suave
+    const timer1 = setTimeout(() => {
+      const el = document.getElementById(step.elementId)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      updateTargetPosition(step.elementId)
+    }, 180)
+
+    // 3. Ajuste fino de coordenadas post-scroll
+    const timer2 = setTimeout(() => {
+      updateTargetPosition(step.elementId)
+    }, 450)
+
+    const timer3 = setTimeout(() => {
+      updateTargetPosition(step.elementId)
+    }, 750)
+
+    return () => {
+      clearTimeout(timer1)
+      clearTimeout(timer2)
+      clearTimeout(timer3)
     }
-  }, [open, currentStep])
+  }, [open, currentStep, updateTargetPosition])
+
+  // Seguir al elemento si el usuario hace scroll manual durante el tour
+  useEffect(() => {
+    if (!open) return
+    const step = STEPS[currentStep]
+    if (!step) return
+
+    const handleScrollOrResize = () => {
+      updateTargetPosition(step.elementId)
+    }
+
+    window.addEventListener('scroll', handleScrollOrResize, { passive: true })
+    window.addEventListener('resize', handleScrollOrResize, { passive: true })
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize)
+      window.removeEventListener('resize', handleScrollOrResize)
+    }
+  }, [open, currentStep, updateTargetPosition])
 
   if (!open) return null
 
@@ -136,70 +199,6 @@ export function FeatureShowcaseOverlay({
     onClose()
   }
 
-  // Coordenadas precisas para cada zona de la interfaz real
-  const getCoordinates = () => {
-    switch (step.position) {
-      case 'left-sidebar':
-        return {
-          pointer: isMobile
-            ? 'left-8 bottom-[calc(env(safe-area-inset-bottom)+3.5rem)]'
-            : 'left-6 top-32 md:left-14 md:top-36',
-          box: isMobile
-            ? 'top-14 inset-x-3 max-w-sm mx-auto'
-            : 'left-4 top-52 md:left-24 md:top-44',
-          label: isMobile ? 'Navegación Móvil' : 'Menú Lateral',
-        }
-      case 'top-hero':
-        return {
-          pointer: isMobile
-            ? 'left-1/2 -translate-x-1/2 top-16'
-            : 'left-1/2 -translate-x-1/2 top-20 md:left-[45%] md:top-16',
-          box: isMobile
-            ? 'bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] inset-x-3 max-w-sm mx-auto'
-            : 'left-1/2 -translate-x-1/2 top-44 md:left-[45%] md:top-36',
-          label: 'Hero Mostrador',
-        }
-      case 'catalog-card':
-        return {
-          pointer: isMobile
-            ? 'left-1/2 -translate-x-1/2 top-[44%]'
-            : 'left-1/2 -translate-x-1/2 top-[52%] md:left-[46%] md:top-[48%]',
-          box: isMobile
-            ? 'bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] inset-x-3 max-w-sm mx-auto'
-            : 'left-1/2 -translate-x-1/2 bottom-8 md:left-[46%] md:bottom-12',
-          label: 'Stepper del Catálogo',
-        }
-      case 'restock-kpis':
-        return {
-          pointer: isMobile
-            ? 'left-1/2 -translate-x-1/2 top-20'
-            : 'left-1/2 -translate-x-1/2 top-28 md:left-[50%] md:top-24',
-          box: isMobile
-            ? 'bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] inset-x-3 max-w-sm mx-auto'
-            : 'left-1/2 -translate-x-1/2 top-52 md:left-[50%] md:top-44',
-          label: 'Dashboard de Resurtimiento',
-        }
-      case 'settings-printer':
-        return {
-          pointer: isMobile
-            ? 'left-1/2 -translate-x-1/2 top-36'
-            : 'left-1/2 -translate-x-1/2 top-48 md:left-[55%] md:top-48',
-          box: isMobile
-            ? 'bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] inset-x-3 max-w-sm mx-auto'
-            : 'left-1/2 -translate-x-1/2 bottom-12 md:left-[50%] md:bottom-12',
-          label: 'Impresora Térmica 80mm',
-        }
-      default:
-        return {
-          pointer: 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
-          box: 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
-          label: 'Novedad',
-        }
-    }
-  }
-
-  const coords = getCoordinates()
-
   return (
     <div className="fixed inset-0 z-[100000] overflow-hidden pointer-events-auto select-none animate-fadeIn">
       {/* Fondo translúcido con desenfoque suave para no tapar la interfaz real */}
@@ -208,11 +207,14 @@ export function FeatureShowcaseOverlay({
         onClick={handleClose}
       />
 
-      {/* Cursor virtual animado que se mueve directamente a la parte física de la pantalla */}
+      {/* Cursor virtual animado que se mueve directamente a la sección física en pantalla */}
       <div
-        className={`absolute z-30 transition-all duration-700 ease-out pointer-events-none ${coords.pointer}`}
+        className="fixed top-0 left-0 z-30 transition-all duration-500 ease-out pointer-events-none"
+        style={{
+          transform: `translate3d(${pointerPos.x}px, ${pointerPos.y}px, 0)`,
+        }}
       >
-        <div className="relative flex items-center justify-center">
+        <div className="relative -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
           {/* Ondas expansivas de radar */}
           <span className="absolute -inset-4 rounded-full bg-emerald-400/50 animate-ping" />
           <span className="absolute -inset-8 rounded-full bg-amber-400/30 animate-pulseGlow" />
@@ -225,14 +227,20 @@ export function FeatureShowcaseOverlay({
           {/* Badge con el nombre de la sección real */}
           <div className="absolute left-14 top-1 rounded-full bg-slate-900/95 text-white px-3.5 py-1 text-xs font-black border border-white/20 shadow-2xl whitespace-nowrap backdrop-blur-md animate-fadeIn flex items-center gap-1.5">
             <Sparkles className="h-3 w-3 text-amber-300" />
-            <span>{coords.label}</span>
+            <span>{step.label}</span>
           </div>
         </div>
       </div>
 
-      {/* Tarjeta Flotante Explicativa */}
+      {/* Tarjeta Flotante Explicativa (se ajusta dinámicamente arriba o abajo para no tapar el objetivo) */}
       <div
-        className={`absolute z-40 w-full max-w-sm sm:max-w-md transition-all duration-500 ease-out px-4 ${coords.box}`}
+        className={`fixed z-40 w-full max-w-sm sm:max-w-md transition-all duration-500 ease-out px-4 left-1/2 -translate-x-1/2 ${
+          isMobile
+            ? 'bottom-[calc(env(safe-area-inset-bottom)+1.25rem)]'
+            : cardPos === 'top'
+            ? 'top-8 md:top-12'
+            : 'bottom-8 md:bottom-12'
+        }`}
       >
         <div className="card bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl rounded-3xl p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.5)] border border-slate-200/90 dark:border-slate-800 text-slate-900 dark:text-slate-100">
           {/* Header de la tarjeta */}
