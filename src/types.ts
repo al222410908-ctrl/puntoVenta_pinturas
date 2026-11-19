@@ -148,6 +148,7 @@ export interface BusinessInfo {
   bucketCardSurchargeEnabled?: boolean
   bucketCardSurchargeType?: 'fixed' | 'percent'
   bucketCardSurchargeAmount?: number
+  updatedAt?: number
 }
 
 export interface PurchaseItem {

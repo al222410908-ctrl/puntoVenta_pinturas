@@ -31,7 +31,63 @@ export function loadBusinessInfo(): BusinessInfo {
 }
 
 export function saveBusinessInfo(info: BusinessInfo): void {
-  localStorage.setItem(BUSINESS_KEY, JSON.stringify(info))
+  const withTimestamp: BusinessInfo = {
+    ...info,
+    updatedAt: Date.now(),
+  }
+  localStorage.setItem(BUSINESS_KEY, JSON.stringify(withTimestamp))
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('pos:business_updated'))
+  }
+}
+
+export function loadRawBusinessInfoForSync(): BusinessInfo | null {
+  try {
+    const raw = localStorage.getItem(BUSINESS_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<BusinessInfo>
+    if (!parsed || typeof parsed !== 'object') return null
+    if (!parsed.updatedAt) {
+      const migrated: BusinessInfo = {
+        ...DEFAULT_BUSINESS,
+        ...parsed,
+        name: parsed.name?.trim() || DEFAULT_BUSINESS.name,
+        updatedAt: Date.now(),
+      }
+      localStorage.setItem(BUSINESS_KEY, JSON.stringify(migrated))
+      return migrated
+    }
+    return {
+      ...DEFAULT_BUSINESS,
+      ...parsed,
+      name: parsed.name?.trim() || DEFAULT_BUSINESS.name,
+    }
+  } catch {
+    return null
+  }
+}
+
+export function mergeRemoteBusinessInfo(remote?: BusinessInfo | null): void {
+  if (!remote || typeof remote !== 'object') return
+  try {
+    const raw = localStorage.getItem(BUSINESS_KEY)
+    const localParsed = raw ? (JSON.parse(raw) as Partial<BusinessInfo>) : null
+    const localAt = localParsed?.updatedAt ?? 0
+    const remoteAt = remote.updatedAt ?? 0
+    if (!localParsed || remoteAt > localAt) {
+      const merged: BusinessInfo = {
+        ...DEFAULT_BUSINESS,
+        ...remote,
+        name: remote.name?.trim() || DEFAULT_BUSINESS.name,
+      }
+      localStorage.setItem(BUSINESS_KEY, JSON.stringify(merged))
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('pos:business_updated'))
+      }
+    }
+  } catch {
+    // noop
+  }
 }
 
 export function loadClientPhone(): string {

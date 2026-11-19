@@ -234,7 +234,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-app flex-col bg-surface dark:bg-slate-950">
+    <div className="flex h-app flex-col overflow-hidden bg-surface dark:bg-slate-950">
       {!isKiosk && (
         <header className="flex h-10 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white/80 backdrop-blur-md px-3 sm:px-4 dark:border-slate-800 dark:bg-slate-900/80">
         <button
@@ -415,7 +415,7 @@ export default function App() {
             </div>
             <ThemeToggle dark={dark} onToggle={() => setDark((d) => !d)} />
           </header>
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col pb-[calc(env(safe-area-inset-bottom)+4.25rem)] md:pb-0">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pb-[calc(env(safe-area-inset-bottom)+4.25rem)] md:pb-0">
             <Suspense fallback={<div className="flex h-full items-center justify-center text-sm font-medium text-slate-400">Cargando…</div>}>
               {tab === 'vender' && <Pos />}
               {tab === 'catalogo' && <Products />}

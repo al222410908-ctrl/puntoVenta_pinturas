@@ -160,11 +160,11 @@ export function FeatureShowcaseOverlay({
       updateTargetPosition(step.elementId)
     }
 
-    window.addEventListener('scroll', handleScrollOrResize, { passive: true })
+    window.addEventListener('scroll', handleScrollOrResize, { passive: true, capture: true })
     window.addEventListener('resize', handleScrollOrResize, { passive: true })
 
     return () => {
-      window.removeEventListener('scroll', handleScrollOrResize)
+      window.removeEventListener('scroll', handleScrollOrResize, { capture: true })
       window.removeEventListener('resize', handleScrollOrResize)
     }
   }, [open, currentStep, updateTargetPosition])

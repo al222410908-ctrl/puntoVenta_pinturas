@@ -15,12 +15,17 @@ export function empty() {
     cashEntries: {},
     cashShifts: {},
     tombstones: {},
+    businessInfo: null,
   }
 }
 
 export function normalize(d) {
   const base = empty()
   for (const key of Object.keys(base)) {
+    if (key === 'businessInfo') {
+      if (!d.businessInfo || typeof d.businessInfo !== 'object') d.businessInfo = null
+      continue
+    }
     if (!d[key] || typeof d[key] !== 'object') d[key] = base[key]
   }
   return d
@@ -90,6 +95,15 @@ export function applyMerge(data, clientPayload) {
     }
   }
 
+  if (client.businessInfo && typeof client.businessInfo === 'object') {
+    const incomingAt = client.businessInfo.updatedAt ?? 0
+    const currentAt = data.businessInfo?.updatedAt ?? 0
+    if (!data.businessInfo || incomingAt >= currentAt) {
+      data.businessInfo = { ...client.businessInfo, _serverAt: now }
+      changed++
+    }
+  }
+
   return changed
 }
 
@@ -127,6 +141,14 @@ export function snapshot(data, since = 0) {
       const copy = JSON.parse(JSON.stringify(tomb))
       delete copy._serverAt
       out.tombstones.push(copy)
+    }
+  }
+  if (data.businessInfo && typeof data.businessInfo === 'object') {
+    const bizAt = data.businessInfo._serverAt ?? data.businessInfo.updatedAt ?? 0
+    if (since === 0 || bizAt > since) {
+      const copy = JSON.parse(JSON.stringify(data.businessInfo))
+      delete copy._serverAt
+      out.businessInfo = copy
     }
   }
   return out

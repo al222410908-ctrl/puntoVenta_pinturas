@@ -1,5 +1,6 @@
 import { db } from '../db/db'
 import type {
+  BusinessInfo,
   CashEntry,
   CashShift,
   Category,
@@ -12,6 +13,7 @@ import type {
   Supplier,
   Tombstone,
 } from '../types'
+import { loadRawBusinessInfoForSync, mergeRemoteBusinessInfo } from './ticket'
 
 const EDITABLE_TABLES = ['products', 'categories', 'suppliers', 'containers', 'cashShifts'] as const
 const APPEND_TABLES = ['sales', 'purchases', 'purchaseOrders', 'stockMovements', 'cashEntries'] as const
@@ -32,6 +34,7 @@ export interface SyncPayload {
   stockMovements: StockMovement[]
   cashEntries: CashEntry[]
   tombstones: Tombstone[]
+  businessInfo?: BusinessInfo | null
 }
 
 const LAST_SYNC_KEY = 'pos_last_sync'
@@ -96,6 +99,7 @@ export async function localPayload(since = 0): Promise<SyncPayload> {
       db.cashEntries.toArray(),
       db.tombstones.toArray(),
     ])
+  const biz = loadRawBusinessInfoForSync()
   return {
     products: since === 0 ? products : products.filter((p) => (p.updatedAt ?? 0) > since),
     categories: since === 0 ? categories : categories.filter((c) => (c.updatedAt ?? 0) > since),
@@ -108,6 +112,7 @@ export async function localPayload(since = 0): Promise<SyncPayload> {
     stockMovements: since === 0 ? stockMovements : stockMovements.filter((m) => m.date > since),
     cashEntries: since === 0 ? cashEntries : cashEntries.filter((c) => c.date > since),
     tombstones: since === 0 ? tombstones : tombstones.filter((t) => t.at > since),
+    businessInfo: biz && (since === 0 || (biz.updatedAt ?? 0) > since) ? biz : undefined,
   }
 }
 
@@ -165,6 +170,7 @@ function splitPayload(payload: SyncPayload, maxBytes = 1_500_000): SyncPayload[]
       stockMovements: isFirst ? moves : [],
       cashEntries: isFirst ? entries : [],
       tombstones: isFirst ? tombs : [],
+      businessInfo: isFirst ? payload.businessInfo : undefined,
     })
     isFirst = false
   }
@@ -181,7 +187,10 @@ async function deleteByTombstones(tombstones: Tombstone[]): Promise<void> {
 
 export async function applyPayload(payload: SyncPayload): Promise<void> {
   if (!payload.tombstones) payload.tombstones = []
-  const { tombstones, ...rest } = payload
+  if (payload.businessInfo) {
+    mergeRemoteBusinessInfo(payload.businessInfo)
+  }
+  const { tombstones, businessInfo: _biz, ...rest } = payload
   await db.transaction(
     'rw',
     [db.products, db.categories, db.suppliers, db.containers, db.cashShifts, db.sales, db.purchases, db.purchaseOrders, db.stockMovements, db.cashEntries, db.tombstones],
@@ -315,6 +324,7 @@ function countRecords(p: SyncPayload) {
     p.purchaseOrders.length +
     p.stockMovements.length +
     p.cashEntries.length +
-    p.tombstones.length
+    p.tombstones.length +
+    (p.businessInfo ? 1 : 0)
   )
 }

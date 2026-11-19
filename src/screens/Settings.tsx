@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ImagePlus, Save, Store, Trash2, ScanLine, Package, Pencil, CloudUpload, CheckCircle2, CreditCard, Printer, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
@@ -7,6 +7,7 @@ import { SaleNoteModal } from '../components/SaleNoteModal'
 import { db } from '../db/db'
 import { deleteContainer, saveContainer } from '../db/repos'
 import { loadBusinessInfo, saveBusinessInfo } from '../lib/ticket'
+import { notifyLocalChange } from '../lib/sync'
 import { loadScannerSettings, saveScannerSettings, type ScannerSettings } from '../lib/scanner'
 import { uploadImage, migratePhotosToCloudinary, type MigrationProgress } from '../lib/image'
 import { Button, Field, Input, Segmented, TextArea } from '../components/ui'
@@ -70,6 +71,14 @@ export default function Settings() {
   const [savingLogo, setSavingLogo] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    const onBusinessUpdated = () => {
+      setForm(loadBusinessInfo())
+    }
+    window.addEventListener('pos:business_updated', onBusinessUpdated)
+    return () => window.removeEventListener('pos:business_updated', onBusinessUpdated)
+  }, [])
+
   const set = (patch: Partial<BusinessInfo>) => setForm((f) => ({ ...f, ...patch }))
   const setScannerPatch = (patch: Partial<ScannerSettings>) =>
     setScanner((s) => {
@@ -84,7 +93,8 @@ export default function Settings() {
       return
     }
     saveBusinessInfo({ ...form, name: form.name.trim() })
-    toast.success('Datos del negocio guardados')
+    notifyLocalChange()
+    toast.success('Datos del negocio guardados y sincronizados')
   }
 
   const handleLogo = async (file: File | undefined) => {
