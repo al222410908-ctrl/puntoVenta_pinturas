@@ -14,6 +14,7 @@
  */
 
 import type { BusinessInfo, Sale, Unit } from '../types'
+import QRCode from 'qrcode'
 import { formatMoney, round2, calculateChangeBreakdown } from './utils'
 import { formatTicketDate } from './ticket'
 
@@ -85,12 +86,12 @@ function generateBarcodeSvg(value: string): string {
  * Imprime un comprobante de venta físico en impresora térmica (80mm / 58mm)
  * garantizando cero margen superior, máxima nitidez y adaptación automática.
  */
-export function printThermalSale(
+export async function printThermalSale(
   sale: Sale,
   business: BusinessInfo,
   isTest = false,
   widthMm = 72,
-): boolean {
+): Promise<boolean> {
   if (typeof document === 'undefined') return false
 
   const subtotal = round2(sale.total / 1.16)
@@ -100,6 +101,27 @@ export function printThermalSale(
   const changeBreakdown = calculateChangeBreakdown(change)
   const folioStr = sale.folio ? `#${String(sale.folio).padStart(4, '0')}` : `#${sale.id.slice(0, 6).toUpperCase()}`
   const dateStr = formatTicketDate(sale.date)
+
+  // Generar código QR offline apuntando al comprobante digital
+  let qrSvg = ''
+  try {
+    const origin = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : 'https://pinturas-pos.duckdns.org'
+    const folioNum = sale.folio ?? sale.id
+    const qrUrl = `${origin}/?nota=${folioNum}`
+    qrSvg = await QRCode.toString(qrUrl, {
+      type: 'svg',
+      margin: 1,
+      width: 72,
+      color: {
+        dark: '#000000',
+        light: '#ffffff',
+      },
+    })
+  } catch {
+    // fallback sin QR si ocurriera error
+  }
 
   // Crear iframe invisible aislado
   const iframe = document.createElement('iframe')
@@ -179,8 +201,10 @@ export function printThermalSale(
   <title>Ticket_${folioStr.replace('#', '')}</title>
   <style>
     @page {
-      margin: 0;
-      size: auto;
+      margin: 0mm !important;
+    }
+    @page :first {
+      margin-top: 0mm !important;
     }
     *, *::before, *::after {
       box-sizing: border-box !important;
@@ -198,14 +222,19 @@ export function printThermalSale(
     html, body {
       margin: 0 !important;
       padding: 0 !important;
+      border: 0 !important;
       background: #ffffff !important;
       width: 100% !important;
+      height: auto !important;
+      min-height: 0 !important;
+      overflow: visible !important;
       font-family: 'Consolas', 'Courier New', Courier, monospace !important;
     }
     .ticket-container {
       width: ${widthMm}mm !important;
       max-width: ${widthMm}mm !important;
       margin: 0 !important;
+      margin-top: 0mm !important;
       padding-top: 0mm !important; /* CERO ESPACIO SUPERIOR */
       padding-bottom: 2mm !important;
       padding-left: 4.5mm !important; /* MARGEN MECÁNICO SEGURO */
@@ -320,14 +349,20 @@ export function printThermalSale(
 
     <!-- Totales y Pagos -->
     <div style="font-size:11.5px; line-height:1.35;">
-      <div style="display:flex; justify-content:space-between;">
-        <span>SUBTOTAL:</span>
-        <span>${escapeHtml(formatMoney(subtotal))}</span>
-      </div>
-      <div style="display:flex; justify-content:space-between;">
-        <span>IVA (16%):</span>
-        <span>${escapeHtml(formatMoney(iva))}</span>
-      </div>
+      ${
+        business.showIvaBreakdown
+          ? `
+        <div style="display:flex; justify-content:space-between;">
+          <span>SUBTOTAL:</span>
+          <span>${escapeHtml(formatMoney(subtotal))}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span>IVA (16%):</span>
+          <span>${escapeHtml(formatMoney(iva))}</span>
+        </div>
+      `
+          : ''
+      }
       <div style="display:flex; justify-content:space-between; font-size:16px; font-weight:900; border-top:1.5px solid #000000; padding-top:3px; margin-top:2px;">
         <span>TOTAL:</span>
         <span>${escapeHtml(formatMoney(sale.total))}</span>
@@ -375,14 +410,32 @@ export function printThermalSale(
         : ''
     }
 
-    <!-- Código de Barras Nítido -->
+    <!-- Código de Barras y QR Digital -->
     ${generateBarcodeSvg(folioStr)}
+    ${
+      qrSvg
+        ? `
+      <div style="text-align:center; margin: 4px 0 2px 0;">
+        <div style="display:inline-block; width: 68px; height: 68px; margin: 0 auto;">
+          ${qrSvg}
+        </div>
+        <div style="font-size: 8.5px; font-weight: 800; margin-top: 2px;">
+          Escanear para ver comprobante digital
+        </div>
+      </div>
+    `
+        : ''
+    }
 
     <!-- Pie de Ticket y Garantía -->
     <div style="text-align:center; font-size:10px; line-height:1.3; margin-top:4px;">
       <div style="font-weight:900;">¡GRACIAS POR SU COMPRA!</div>
-      <div style="margin-top:1px;">Conserve este comprobante para cualquier aclaración o garantía.</div>
-      <div style="margin-top:1px; font-size:9.5px;">${escapeHtml(business.footer || '¡GRACIAS POR SU PREFERENCIA, VUELVA PRONTO!')}</div>
+      <div style="margin-top:2px; font-weight:800;">
+        ${escapeHtml(business.warrantyNotice?.trim() || 'Conserve este comprobante para cualquier aclaración o garantía.')}
+      </div>
+      <div style="margin-top:2px; font-size:9.5px; font-weight:800;">
+        ${escapeHtml(business.footer || '¡GRACIAS POR SU PREFERENCIA, VUELVA PRONTO!')}
+      </div>
       <div style="margin-top:4px; border-top:1px dotted #000000; padding-top:2px; font-size:9px;">
         🌐 pinturas-pos.duckdns.org<br />
         Comprobante digital · Hoja 1 de 1

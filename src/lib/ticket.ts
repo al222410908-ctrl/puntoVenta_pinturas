@@ -7,6 +7,9 @@ const CLIENT_PHONE_KEY = 'pos_cliente_phone'
 
 export const DEFAULT_BUSINESS: BusinessInfo = {
   name: 'Pinturas POS',
+  footer: '¡GRACIAS POR SU PREFERENCIA, VUELVA PRONTO!',
+  warrantyNotice: 'Conserve este comprobante para cualquier aclaración o garantía.',
+  showIvaBreakdown: false,
   bucketCardSurchargeEnabled: true,
   bucketCardSurchargeType: 'fixed',
   bucketCardSurchargeAmount: 50,

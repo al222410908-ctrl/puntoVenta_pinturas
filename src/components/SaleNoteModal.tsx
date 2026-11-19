@@ -329,14 +329,18 @@ export function SaleNoteModal({
 
               {/* Totales, Impuestos y Métodos de Pago */}
               <div className="pt-2.5 pb-2 border-b-2 border-dashed border-zinc-300 space-y-1 text-[11px] tabular-nums">
-                <div className="flex justify-between text-zinc-600 text-[10.5px]">
-                  <span>SUBTOTAL:</span>
-                  <span>{formatMoney(subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-zinc-600 text-[10.5px]">
-                  <span>IVA (16%):</span>
-                  <span>{formatMoney(iva)}</span>
-                </div>
+                {business.showIvaBreakdown && (
+                  <>
+                    <div className="flex justify-between text-zinc-600 text-[10.5px]">
+                      <span>SUBTOTAL:</span>
+                      <span>{formatMoney(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-zinc-600 text-[10.5px]">
+                      <span>IVA (16%):</span>
+                      <span>{formatMoney(iva)}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between items-center text-sm font-black pt-1 border-t border-zinc-300 text-zinc-950">
                   <span>TOTAL:</span>
                   <span className="text-base">{formatMoney(currentSale.total)}</span>
@@ -378,8 +382,8 @@ export function SaleNoteModal({
                 <p className="text-[10px] font-bold text-zinc-800 uppercase">
                   ¡Gracias por su compra!
                 </p>
-                <p className="text-[9px] text-zinc-500 mt-0.5">
-                  Conserve este ticket para cualquier aclaración o garantía
+                <p className="text-[9.5px] font-semibold text-zinc-700 mt-1">
+                  {business.warrantyNotice?.trim() || 'Conserve este ticket para cualquier aclaración o garantía'}
                 </p>
                 {business.footer?.trim() && (
                   <p className="text-[9px] text-zinc-400 italic mt-0.5">{business.footer}</p>

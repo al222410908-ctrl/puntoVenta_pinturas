@@ -138,6 +138,8 @@ export interface BusinessInfo {
   address?: string
   phone?: string
   footer?: string
+  warrantyNotice?: string
+  showIvaBreakdown?: boolean
   logo?: string
   ownerName?: string
   ownerPhone?: string

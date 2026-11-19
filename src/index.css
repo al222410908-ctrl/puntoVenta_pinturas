@@ -237,7 +237,6 @@
 /* ─── ESTILOS DE IMPRESIÓN PARA TICKETS TÉRMICOS (80mm / 58mm) ─────────────────── */
 @media print {
   @page {
-    size: 80mm auto;
     margin: 0;
   }
   html, body {

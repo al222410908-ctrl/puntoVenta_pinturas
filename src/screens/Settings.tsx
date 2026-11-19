@@ -172,15 +172,45 @@ export default function Settings() {
           </div>
         </div>
 
-        <Field label="Mensaje al pie del ticket (opcional)">
+        <Field label="Mensaje de cortesía al pie del ticket (opcional)">
           <TextArea
             rows={2}
             value={form.footer ?? ''}
             onChange={(e) => set({ footer: e.target.value })}
-            placeholder="¡Gracias por su compra!"
+            placeholder="¡Gracias por su preferencia, vuelva pronto!"
             maxLength={160}
           />
         </Field>
+
+        <Field label="Políticas de garantía, aclaraciones o devoluciones">
+          <TextArea
+            rows={2}
+            value={form.warrantyNotice ?? ''}
+            onChange={(e) => set({ warrantyNotice: e.target.value })}
+            placeholder="Conserve este comprobante para cualquier aclaración o garantía."
+            maxLength={180}
+          />
+        </Field>
+
+        {/* Desglose de IVA en tickets */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-700 dark:bg-slate-900/50">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div className="pr-4">
+              <span className="text-sm font-bold text-slate-800 dark:text-slate-200 block">
+                Desglosar IVA (16%) en tickets impresos
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 block mt-0.5">
+                Desactívalo para mostrar únicamente el <strong>TOTAL neto</strong> sin imprimir los renglones de Subtotal e IVA (recomendado si vendes a público general y no desglosas impuestos).
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={form.showIvaBreakdown ?? false}
+              onChange={(e) => set({ showIvaBreakdown: e.target.checked })}
+              className="h-5 w-5 accent-primary cursor-pointer shrink-0"
+            />
+          </label>
+        </div>
 
         <div>
           <span className="label">Logo comercial (opcional)</span>

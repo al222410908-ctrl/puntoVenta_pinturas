@@ -435,8 +435,34 @@ export default function Pos() {
   const removeLine = (productId: string, saleUnit: Unit) =>
     setCart((prev) => prev.filter((l) => !(l.productId === productId && l.saleUnit === saleUnit)))
 
-  const handleScan = (code: string) => {
+  const handleScan = async (code: string) => {
     setScanOpen(false)
+    const trimmed = code.trim()
+
+    // 1. Detectar si es un ticket de venta escaneado (ej. URL ?nota=558, VTA-0558, #0558, etc.)
+    const urlMatch = trimmed.match(/[?&]nota=(\d+)/i)
+    let folioNum: number | null = null
+    if (urlMatch) {
+      folioNum = parseInt(urlMatch[1], 10)
+    } else if (/^#?VTA-?\d+$/i.test(trimmed)) {
+      folioNum = parseInt(trimmed.replace(/\D/g, ''), 10)
+    } else if (trimmed.startsWith('#') && /^\d+$/.test(trimmed.slice(1))) {
+      folioNum = parseInt(trimmed.slice(1), 10)
+    }
+
+    if (folioNum && folioNum > 0) {
+      try {
+        const foundSale = await db.sales.where('folio').equals(folioNum).first()
+        if (foundSale) {
+          setNoteSale(foundSale)
+          toast.success(`Nota de venta #${foundSale.folio ?? folioNum} abierta en pantalla`)
+          return
+        }
+      } catch {
+        // continuar a catálogo
+      }
+    }
+
     const clean = normalizeSearch(code).replace(/[\s\-_/.]/g, '')
     const product = products.find(
       (p) =>
@@ -447,9 +473,25 @@ export default function Pos() {
     if (product) {
       addToCart(product)
       toast.success(`${product.name} agregado`)
-    } else {
-      toast.error(`No se encontró el código ${code}`)
+      return
     }
+
+    // Fallback: ¿es un folio numérico directo (ej. 558)?
+    if (/^\d{1,6}$/.test(clean)) {
+      const num = parseInt(clean, 10)
+      try {
+        const foundSale = await db.sales.where('folio').equals(num).first()
+        if (foundSale) {
+          setNoteSale(foundSale)
+          toast.success(`Nota de venta #${foundSale.folio ?? num} abierta en pantalla`)
+          return
+        }
+      } catch {
+        // noop
+      }
+    }
+
+    toast.error(`No se encontró el código ${code}`)
   }
 
   const scannerActive = scanner.enabled && !payOpen && !scanOpen
@@ -465,6 +507,32 @@ export default function Pos() {
     window.addEventListener('pos:add_to_cart', onExternalAdd)
     return () => window.removeEventListener('pos:add_to_cart', onExternalAdd)
   }, [addToCart])
+
+  // Cargar nota de venta si se escaneó un código QR con ?nota=folio
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const notaParam = params.get('nota')
+      if (notaParam) {
+        const folio = parseInt(notaParam, 10)
+        if (folio > 0) {
+          db.sales
+            .where('folio')
+            .equals(folio)
+            .first()
+            .then((sale) => {
+              if (sale) {
+                setNoteSale(sale)
+                toast.success(`Nota de venta #${sale.folio ?? folio} cargada`)
+              }
+            })
+            .catch(() => {})
+        }
+      }
+    } catch {
+      // noop
+    }
+  }, [])
 
 
   const handleUndo = async () => {
@@ -890,6 +958,26 @@ export default function Pos() {
                 placeholder="Buscar por nombre o código de barras…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    const trimmed = search.trim()
+                    if (/^#?VTA-?\d+$/i.test(trimmed) || (trimmed.startsWith('#') && /^\d+$/.test(trimmed.slice(1)))) {
+                      const folio = parseInt(trimmed.replace(/\D/g, ''), 10)
+                      if (folio > 0) {
+                        try {
+                          const s = await db.sales.where('folio').equals(folio).first()
+                          if (s) {
+                            setNoteSale(s)
+                            setSearch('')
+                            toast.success(`Nota de venta #${s.folio ?? folio} abierta en pantalla`)
+                          }
+                        } catch {
+                          // noop
+                        }
+                      }
+                    }
+                  }
+                }}
               />
               {search ? (
                 <button
